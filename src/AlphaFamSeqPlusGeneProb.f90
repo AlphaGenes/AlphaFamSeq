@@ -9,18 +9,18 @@ module GlobalPar
 	implicit none
 
 	integer :: nIndSeq                         					! SpecFile - Number of Individuals in the sequence file
-	integer :: LenghtSequenceDataFile,fistWindow			! SpecFile - Total number of Snps
-	integer(int32) :: nSnp, nInd 											! number of Individuals in the Pedigree
+	integer :: LenghtSequenceDataFile,nSnp,fistWindow			! SpecFile - Total number of Snps
+	integer :: nInd 											! number of Individuals in the Pedigree
 	integer :: InternalEdit                    					! SpecFile - Internal Edit 1==yes or 0==no
-	real(real64) :: EditingParameter							! SpecFile - 1st Number is the MAF (excluede SNP with MAF=<EditingParameter)
+	real(kind=8) :: EditingParameter							! SpecFile - 1st Number is the MAF (excluede SNP with MAF=<EditingParameter)
 
 
-	real(real64) :: GeneProbThresh  							! SpecFile - Threshold to call a genotype from the probabilities First Value
-	real(real64) :: GeneProbThreshMin							! SpecFile - Threshold to call a genotype from the probabilities Last Value
-	real(real64) :: ReduceThr 									! SpecFile - Reduce Geno Treshold factor
+	real(kind=8) :: GeneProbThresh  							! SpecFile - Threshold to call a genotype from the probabilities First Value
+	real(kind=8) :: GeneProbThreshMin							! SpecFile - Threshold to call a genotype from the probabilities Last Value
+	real(kind=8) :: ReduceThr 									! SpecFile - Reduce Geno Treshold factor
 	!integer :: nIter                        					! SpecFile - Every nIter the ReadContMaxThresh decrease of 1 value until GeneProbThresh
 	
-	real(real64) :: ErrorRate									! SpecFile - Error rates to define the genotypes probabilities
+	real(kind=8) :: ErrorRate									! SpecFile - Error rates to define the genotypes probabilities
 	
 	integer :: ChunkLengthA                 					! SpecFile - First value to define Haplotypes length
 	integer :: ChunkLengthB                 					! SpecFile - Last value to define Haplotypes length
@@ -48,7 +48,7 @@ module GlobalPar
 	integer,allocatable,dimension(:) :: Id                      ! Read Data - used to read unsorted data
 
 	integer(int32),allocatable,dimension(:,:,:) :: SequenceData	! Input File - Snp array to add more information to the Reads
-	real(real64),allocatable,dimension(:,:,:) :: RawReads		! Input File - Snp array to add more information to the Reads
+	real(kind=8),allocatable,dimension(:,:,:) :: RawReads		! Input File - Snp array to add more information to the Reads
 	character(len=100), allocatable, dimension(:) :: Ids
 	integer(int32), dimension(:), allocatable :: position
 	real(real64), allocatable, dimension(:) :: quality
@@ -64,10 +64,10 @@ module GlobalPar
 	integer,allocatable,dimension(:) :: GeneProbYesOrNo			! Temporary Array - use gene prob or not
 	integer,allocatable,dimension(:,:,:) :: FounderAssignment   ! Temporary File - Save the IDs of the grandparents
 
-	real(real32),allocatable,dimension(:,:) :: Pr00   			! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Homozygote for Reference Allele 
-    real(real32),allocatable,dimension(:,:) :: Pr01	  			! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Heterozygote (0 from dad, 1 from mum)
-    real(real32),allocatable,dimension(:,:) :: Pr10				! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Heterozygote (1 from dad, 0 from mum)
-    real(real32),allocatable,dimension(:,:) :: Pr11				! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Homozygote for Alternative Allele 
+	real(kind=4),allocatable,dimension(:,:) :: Pr00   			! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Homozygote for Reference Allele 
+    real(kind=4),allocatable,dimension(:,:) :: Pr01	  			! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Heterozygote (0 from dad, 1 from mum)
+    real(kind=4),allocatable,dimension(:,:) :: Pr10				! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Heterozygote (1 from dad, 0 from mum)
+    real(kind=4),allocatable,dimension(:,:) :: Pr11				! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Homozygote for Alternative Allele 
 
 
 	integer,allocatable,dimension(:,:) :: FilledGenos 			! Output - Imputed Genotypes
@@ -78,18 +78,132 @@ module GlobalPar
 	integer :: Windows
 end module GlobalPar
 
+!################################################################################################
+
+program FamilyPhase
+
+	use GlobalPar
+
+	implicit none
+
+	integer :: OldCount,NewCount,i
+	real(kind=8) :: InitialGeneProbThresh
+
+	call ReadSpecfile
+	call ReadPedigree
+	
+	Windows=fistWindow
+	EndSnp=(Windows*nSnp)
+	StartSnp=EndSnp-nSnp+1
+	if (EndSnp>LenghtSequenceDataFile) EndSnp=LenghtSequenceDataFile
+	
+	InitialGeneProbThresh=GeneProbThresh
+
+	do while(StartSnp.le.LenghtSequenceDataFile)
+		write(*,'(1a10,2i10,1a1,1i10)')"Windows",Windows,StartSnp,"-",EndSnp
+
+		CurrentCountFilledPhase=0
+		CurrentCountFilledGenos=0
+		GeneProbThresh=InitialGeneProbThresh
+
+		!call AllocateArrays
+		call ReadData
+		call InitialiseArrays
+		call CheckMissingData
+		call RunGeneProb
+		write (*,'(1a39)') "      Iter   ProbThr    %Phase   %Geno"
+
+
+		IterationNumber=0
+		SolutionChanged=1
+		do while ((SolutionChanged==1))!.and.(IterationNumber<2))
+
+			OldCount=CurrentCountFilledPhase+CurrentCountFilledGenos
+			IterationNumber=IterationNumber+1
+			
+			if ((IterationNumber>1).and.(GeneProbThresh>GeneProbThreshMin)) then 
+				GeneProbThresh=GeneProbThresh-ReduceThr!0.001
+			endif
+
+			!print*,IterationNumber,GeneProbThresh,GeneProbThreshMin
+			!if (InternalEdit==1) then
+			!	call SimpleFillInBasedOnOwnReads   ! Old Subroutine that don't use AlphaVarCall
+			!	call SimpleCleanUpFillIn
+			!	call CurrentCountFilled
+			!endif
+
+			!if ((GeneProbThresh>GeneProbThreshMin).or.(IterationNumber==1)) then
+			!	if (GeneProbThresh<GeneProbThreshMin) GeneProbThresh=GeneProbThreshMin
+				call UseGeneProbToSimpleFillInBasedOnOwnReads
+			!endif
+			call SimpleCleanUpFillIn
+			!call CurrentCountFilled
+
+			!if (IterationNumber==1) call UseSnpChipInformation 
+
+			call SimpleFillInBasedOnParentsReads
+			call SimpleCleanUpFillIn
+			!call CurrentCountFilled
+			
+			call SimpleFillInBasedOnProgenyReads
+			call SimpleCleanUpFillIn
+			!call CurrentCountFilled
+
+			call CalculateFounderAssignment
+			call ChunkDefinition
+			
+			call BuildConsensus
+			call SimpleCleanUpFillIn
+			
+			call CurrentCountFilled
+			
+			!if (SuperC==1) then
+				!call FerdosiSerap
+				!call SimpleCleanUpFillIn
+				!call CurrentCountFilled
+			!endif
+
+			NewCount=CurrentCountFilledPhase+CurrentCountFilledGenos
+			
+			if (OldCount/=NewCount) then
+				SolutionChanged=1
+			else
+				SolutionChanged=0
+				!print*,"Run Gene Prob Filled Genos"
+				!call RunGeneProbWithFilledGenos
+				!call UseGeneProbToSimpleFillInBasedOnOwnReads
+				!call CurrentCountFilled
+				!NewCount=CurrentCountFilledPhase+CurrentCountFilledGenos
+				!if (OldCount/=NewCount) SolutionChanged=1
+			endif
+
+			write (*,'(1i10,3f10.5)') IterationNumber,GeneProbThresh,(dble(CurrentCountFilledPhase)/(dble(nInd*nSnp*2))*100),(dble(CurrentCountFilledGenos)/(dble(nInd*nSnp))*100)
+		enddo
+
+		if ((trim(PhaseFile)/="None").or.(trim(GenoFile)/="None")) then 
+			call Checker
+		endif
+		call WriteResults
+		call WriteStatistics
+
+		StartSnp=EndSnp+1
+		EndSnp=EndSnp+nSnp
+		if (EndSnp>LenghtSequenceDataFile) then 
+			EndSnp=LenghtSequenceDataFile
+			nSnp=EndSnp-StartSnp+1
+		endif
+		Windows=Windows+1
+
+		call DeallocateArrays
+
+	enddo
+end program FamilyPhase
 
 !###########################################################################################################################################################
-module AnotherModule
-  use iso_fortran_env, only: int32, real32, real64
-
-  contains
-
 
 subroutine ProcessLine(Var)
 
 	use GlobalPar
-  use AlphaHousemod, only: toLower
 
 	implicit none
 
@@ -97,6 +211,7 @@ subroutine ProcessLine(Var)
     integer, allocatable, dimension(:) :: nSnpPerChrom
     
 	character(len=256), intent(inout) :: Var
+    character (len=512) :: TLC
     character(len=8) :: temp
     character(len=1) :: comma
     character(len=512) :: snps
@@ -107,7 +222,7 @@ subroutine ProcessLine(Var)
 
 	read(Var,'(A,a8)') comma, temp
 
-	if (trim(toLower(temp))=='constant') then
+	if (trim(TLC(temp))=='constant') then
 		read(Var, '(A,a8,A,i)') comma, temp, comma, nSnp
 		do i=2, nChrom
 			nSnpPerChrom(i) = nSnpPerChrom(1)
@@ -118,29 +233,37 @@ subroutine ProcessLine(Var)
 	endif
 end subroutine ProcessLine
 
+!###########################################################################################################################################################
+! STOLEN FROM ALPHASIM, WRITTEN BY DAVID WILSON 
+! Function returns a character (Of 512 Bytes for compatibility) that is a completely lowercase copy of input str
+function TLC(str)
+    
+    character(*), intent(in) :: str
+    character(len=512) :: TLC
+    integer :: i
+    TLC = trim(str)
+    do i = 1, len(TLC)
+        select case(TLC(i:i))
+            case("A":"Z")
+                TLC(i:i) = achar(iachar(TLC(i:i))+32)
+        end select
+    enddo
+    return
+end function TLC
 
 !###########################################################################################################################################################
 
 ! reads in and initialises specfile parameters 
-subroutine ReadSpecfile(nIndSeq, lengthFile, nSnp, firstWindow, InternalEdit, EditingParameter, GeneProbThresh, GeneProbThreshMin, &
-  ReduceThr, ErrorRate, ChunkLengthA, ChunkLengthB, SuperC, PedigreeFile, ReadsFile, ReadsType, MapFile, GenoFile, &
-SnpChipsInformation, PhaseFile)
+subroutine ReadSpecfile
 
-!    use GlobalPar
-    use AlphaHouseMod, only: toLower
+    use GlobalPar
 
     implicit none
-
-    integer:: nIndSeq, lengthFile, nSnp, firstWindow,InternalEdit, ChunkLengthA, ChunkLengthB, superC 
-    real(real64):: EditingParameter, GeneProbThresh, GeneProbThreshMin, ReduceThr, ErrorRate 
-    character(len=*):: PedigreeFile, ReadsFile, ReadsType, MapFile, GenoFile, SnpChipsInformation, PhaseFile
-
-
-
 
     integer :: FileLength, stat, i
     character(len=256) :: Var
     character(len=30) :: SpecParam
+   	character (len=512) :: TLC
 
     open(unit=1, file="AlphaFamSeqSpec.txt", status="old")
 
@@ -157,7 +280,7 @@ SnpChipsInformation, PhaseFile)
     do i=1, FileLength
         read(1,'(a30,A)', advance='NO', iostat=stat) SpecParam 
         
-        select case(trim(toLower(SpecParam)))
+        select case(trim(TLC(SpecParam)))
 
         	case('numberofindividuals')
                 read(1, *, iostat=stat) nIndSeq
@@ -167,10 +290,10 @@ SnpChipsInformation, PhaseFile)
                 endif 
                
 			case('numberofsnps')
-                read(1, *, iostat=stat) LengthFile,nSnp,firstWindow
+                read(1, *, iostat=stat) LenghtSequenceDataFile,nSnp,fistWindow
                 if (stat /= 0) then
                     print *, "NumberOfSnps not set properly in spec file"
-                    print *, LengthFile,nSnp
+                    print *, LenghtSequenceDataFile,nSnp
                     stop 2
                 endif 
 
@@ -675,11 +798,11 @@ subroutine ChunkDefinition
 	!print*,"CL",ChunkLength2(1)
 	
 	
-	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (nInd,nSnp,FounderAssignment,ChunkLength2)
+	!!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (nInd,nSnp,FounderAssignment,ChunkLength2)
 	do i=1,nInd
 		do k=1,2 ! paternal or maternal gamete
 			e=k+1 ! position parents in Pedigree
-
+			
 			FounderAssignmentF=0
 			FounderAssignmentB=0
 
@@ -734,7 +857,7 @@ subroutine ChunkDefinition
 			endif
 		enddo
 	enddo
-	!$OMP END PARALLEL DO
+	!!$OMP END PARALLEL DO
 
 	deallocate(FounderAssignmentF)
 	deallocate(FounderAssignmentB)
@@ -914,34 +1037,28 @@ end subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 !################################################################################################
 
 
-subroutine RunGeneProb(nInd, RecPed, nSnp, ErrorRate, RawReads, FilledGenos, Pr00, Pr01, Pr10, Pr11)
+subroutine RunGeneProb
 	
-	!use GlobalPar
+	use GlobalPar
 	use AlphaVarCallFuture
 	use omp_lib
-
+	
 	implicit none
-  integer, intent(in):: nInd, nSNp
-  integer, dimension(:,:):: RecPed, filledGenos
-  real(real64), dimension(:,:,:):: rawReads
-  real(real32), dimension(:,:):: pr00, pr01, pr10, pr11
 
-	integer(int32),allocatable,dimension(:) :: SeqId,SeqSire,SeqDam
-  real(real64):: ErrorRate
+	integer,allocatable,dimension(:) :: SeqId,SeqSire,SeqDam
 	
 	!integer :: i,j
-	!real(real64),allocatable,dimension(:,:,:) :: ReadCounts
+	!real(kind=8),allocatable,dimension(:,:,:) :: ReadCounts
     
 	
-  write(*,*) "BEGIN"
 	allocate(SeqId(nInd))
     allocate(SeqSire(nInd))
     allocate(SeqDam(nInd))
-WRITE(*,*) "ALLOCATED"
+
     SeqId=RecPed(1:nInd,1)
 	SeqSire=RecPed(1:nInd,2)
 	SeqDam=RecPed(1:nInd,3)
-	write(*,*) "OTHERALLOCATIONS"
+	
 	! do i=1,nInd
 	! 	do j=1,nSnp
 	! 		if (FilledGenos(i,j)==1) then
@@ -966,14 +1083,13 @@ WRITE(*,*) "ALLOCATED"
 	! Pr01=0.0
 	! Pr10=0.0
 	! Pr11=0.0
-
+	
 	call AlphaVarCall(nInd,nSnp,1,nSnp,ErrorRate,0,SeqId,SeqSire,SeqDam,RawReads,FilledGenos,Pr00,Pr01,Pr10,Pr11)
-  write(*,*) "AFTERALPHAVARCALL"
 
 	deallocate(SeqId)
 	deallocate(SeqSire)
 	deallocate(Seqdam)
-  write(*,*) "AFTER dealloc"
+
 end subroutine RunGeneProb
 
 !################################################################################################
@@ -1106,7 +1222,7 @@ subroutine ReadsLikelihood(nRef,nAlt,ErrorRate,Pr0,Pr1,Pr2)
 	implicit none
 	
 	real,intent(in) :: nRef,nAlt
-	real(real64),intent(in) :: ErrorRate
+	real(kind=8),intent(in) :: ErrorRate
 	real,intent(inout) :: Pr0,Pr1,Pr2
 	real :: lPr0,lPr1,lPr2
 
@@ -1303,8 +1419,8 @@ subroutine InternalEdititing
 	implicit none
 
 	integer :: i,j
-	real(real64),allocatable,dimension(:) :: RefAllele
-	real(real64) :: maf
+	real(kind=8),allocatable,dimension(:) :: RefAllele
+	real(kind=8) :: maf
 
 	allocate(RefAllele(nSnp))
 	allocate(GeneProbYesOrNo(nSnp))
@@ -1379,26 +1495,13 @@ end subroutine ReadPedigree
 
 !###########################################################################################################################################################
 
-subroutine ReadData(GenoFile, PhaseFile, ReadsType, ReadsFile, SequenceData, rawReads, nInd, ID, position, TrueGenos, TruePhase)
+subroutine ReadData
  	use ISO_Fortran_Env
 
- ! 	use GlobalPar
-
+  	use GlobalPar
 	use MaraModule
 
   	implicit none
-    character(len=*):: GenoFile, PhaseFile, ReadsType, ReadsFile
-    character(len=100), dimension(:), allocatable::IDs
-    integer,dimension(:), allocatable:: position, ID
-    integer, dimension(:,:), allocatable:: TrueGenos
-    integer, dimension(:,:,:), allocatable:: TruePhase
-    
-	real(real64), allocatable, dimension(:) :: quality
-  real(real64), dimension(:,:,:), allocatable:: rawReads
-  integer, dimension(:,:,:), allocatable:: sequenceData
-  integer:: LenghtSequenceDataFile, nSnp, startSnp, endSnp, nIndSeq
-  integer:: nInd
-
   
 	integer :: i,DumI,j,PosReads,PosGeno,PosPhase,FileLength,stat
 	integer,allocatable,dimension(:) :: TempImput
@@ -1412,8 +1515,8 @@ subroutine ReadData(GenoFile, PhaseFile, ReadsType, ReadsFile, SequenceData, raw
 
 	if (trim(ReadsType)=="VcfTools") call readRogerData(ReadsFile, Ids, position, quality, SequenceData,LenghtSequenceDataFile,nSnp,StartSnp,EndSnp,nIndSeq)
 	if (trim(ReadsType)=="AlphaSim") call readAlphaSimReads(ReadsFile, Ids, SequenceData,LenghtSequenceDataFile,nSnp,StartSnp,EndSnp,nIndSeq)
-	allocate(RawReads(nInd,nSnp,2))
 	
+	allocate(RawReads(nInd,nSnp,2))
 	RawReads(:,:,:)=0.0
 	do i=1, nIndSeq
 		PosReads=0
@@ -1423,11 +1526,7 @@ subroutine ReadData(GenoFile, PhaseFile, ReadsType, ReadsFile, SequenceData, raw
 	    if (PosReads/=0) RawReads(PosReads,:,:)= real(SequenceData(i,:,:))
 	enddo
 
-
-	
-
 	deallocate(SequenceData)
-
 	allocate(TempImput(LenghtSequenceDataFile))
 	call AllocateArrays
 
@@ -1545,7 +1644,7 @@ subroutine WriteResults
 	implicit none
 
 	integer :: i,j
-	real(real32),allocatable,dimension(:) :: AlleleDosage
+	real(kind=4),allocatable,dimension(:) :: AlleleDosage
 	character(len=30) :: nChar
 	character(len=80) :: FmtInt,FmtCha,FmtReal,FmtIntF,filout1,filout2,filout3,filout4
 
@@ -1632,26 +1731,25 @@ subroutine WriteStatistics
 	!write (3,'(a110)') "What x Geno%Yield Geno%Correct GenoCor Phase%Yield Phase%Correct PhaseCor"
 
 
-	allocate(meanTG(nSnp))
-	allocate(sdTG(nSnp))
-	allocate(meanFG(nSnp))
-	allocate(sdFG(nSnp))
+	! allocate(meanTG(nSnp))
+	! allocate(sdTG(nSnp))
+	! allocate(meanFG(nSnp))
+	! allocate(sdFG(nSnp))
 
-	do j=1,nSnp
-		stat=DescStat(TrueGenos(:,j))
-		meanTG(j)=stat%Mean
-		sdTG(j)=stat%SD
+	! do j=1,nSnp
+	! 	stat=DescStat(TrueGenos(:,j))
+	! 	meanTG(j)=stat%Mean
+	! 	sdTG(j)=stat%SD
 
-		meanFG=D_QNAN
-		sdFG=D_QNAN
-		if (count(FilledGenos(:,j)==9)<(nInd-1)) then
-			stat=DescStat(RemoveMissing(FilledGenos(:,j), 9))
-			meanFG(j)=stat%Mean
-			sdFG(j)=stat%SD
-		endif
-
+	! 	meanFG=D_QNAN
+	! 	sdFG=D_QNAN
+	! 	if (count(FilledGenos(:,j)==9)<(nInd-1)) then
+	! 		stat=DescStat(RemoveMissing(FilledGenos(:,j), 9))
+	! 		meanFG(j)=stat%Mean
+	! 		sdFG(j)=stat%SD
+	! 	endif
 		
-	enddo
+	! enddo
 
 	do i=1,nInd
 
@@ -1659,12 +1757,12 @@ subroutine WriteStatistics
 			gYield=nSnp-count(CheckGenos(i,:)=='_')
 			gCorrect=dble(count(CheckGenos(i,:)=='*'))/dble(gYield)*100
 
+			allocate(trueVector(gYield))
+			allocate(impVector(gYield))
+
 			if (gYield==nSnp) then
 				gCor = Cor(TrueGenos(i,:),FilledGenos(i,:))
 			else if (gYield<nSnp) then
-				allocate(trueVector(gYield))
-				allocate(impVector(gYield))
-
 				p=1
 				do j=1,nSnp
 					if (FilledGenos(i,j)/=9) then
@@ -1675,11 +1773,15 @@ subroutine WriteStatistics
 				enddo
 				
 				gCor=Cor(trueVector,impVector)
-
-				IF (ALLOCATED(trueVector)) deallocate(trueVector)
-				IF (ALLOCATED(impVector)) deallocate(impVector)
 			endif
+
+			IF (ALLOCATED(trueVector)) deallocate(trueVector)
+			IF (ALLOCATED(impVector)) deallocate(impVector)
+
+
 		endif
+
+
 
 
 		if (trim(PhaseFile)/="None") then ! Check Phase
@@ -1939,133 +2041,3 @@ subroutine WriteStatistics
 ! 	close (7)
 
 end subroutine WriteStatistics
-end module AnotherModule
-!################################################################################################
-
-program FamilyPhase
-
-	use GlobalPar
-  use AnotherModule
-
-	implicit none
-
-	integer :: OldCount,NewCount,i
-	real(real64) :: InitialGeneProbThresh
-
-	call ReadSpecfile(nIndSeq, LenghtSequenceDataFile,nSnp, fistWindow, InternalEdit, EditingParameter, GeneProbThresh,&
-  GEneProbThreshMin,&
-    ReduceThr, ErrorRate, ChunkLengthA, ChunkLengthB, SuperC, PedigreeFile, ReadsFile, ReadsType, MapFile, GenoFile, &
-    SnpChipsInformation, PhaseFile)
-	call ReadPedigree
-	
-	Windows=fistWindow
-	EndSnp=(Windows*nSnp)
-	StartSnp=EndSnp-nSnp+1
-	if (EndSnp>LenghtSequenceDataFile) EndSnp=LenghtSequenceDataFile
-	
-	InitialGeneProbThresh=GeneProbThresh
-
-	do while(StartSnp.le.LenghtSequenceDataFile)
-		write(*,'(1a10,2i10,1a1,1i10)')"Windows",Windows,StartSnp,"-",EndSnp
-
-		CurrentCountFilledPhase=0
-		CurrentCountFilledGenos=0
-		GeneProbThresh=InitialGeneProbThresh
-
-		!call AllocateArrays
-    write(*,*) trim(GenoFile)
-		call ReadData(trim(Genofile), trim(PhaseFile), trim(ReadsType), trim(readsFile), sequenceData, rawReads &
-      &, nInd, ID , position, TrueGenos, TruePhase)
-    write(*,*) "DATA read"
-		call InitialiseArrays
-    write(*,*) "DATA Initialised"
-		call CheckMissingData
-    write(*,*) "DATA Checked"
-		call RunGeneProb(nInd, RecPed, nSnp, ErrorRate, RawReads, FilledGenos, Pr00, Pr01, Pr10, Pr11)
-
-		write (*,'(1a39)') "      Iter   ProbThr    %Phase   %Geno"
-
-
-		IterationNumber=0
-		SolutionChanged=1
-		do while ((SolutionChanged==1))!.and.(IterationNumber<2))
-
-			OldCount=CurrentCountFilledPhase+CurrentCountFilledGenos
-			IterationNumber=IterationNumber+1
-			
-			if ((IterationNumber>1).and.(GeneProbThresh>GeneProbThreshMin)) then 
-				GeneProbThresh=GeneProbThresh-ReduceThr!0.001
-			endif
-
-			!print*,IterationNumber,GeneProbThresh,GeneProbThreshMin
-			!if (InternalEdit==1) then
-			!	call SimpleFillInBasedOnOwnReads   ! Old Subroutine that don't use AlphaVarCall
-			!	call SimpleCleanUpFillIn
-			!	call CurrentCountFilled
-			!endif
-
-			!if ((GeneProbThresh>GeneProbThreshMin).or.(IterationNumber==1)) then
-			!	if (GeneProbThresh<GeneProbThreshMin) GeneProbThresh=GeneProbThreshMin
-				call UseGeneProbToSimpleFillInBasedOnOwnReads
-			!endif
-			call SimpleCleanUpFillIn
-			!call CurrentCountFilled
-
-			!if (IterationNumber==1) call UseSnpChipInformation 
-
-			call SimpleFillInBasedOnParentsReads
-			call SimpleCleanUpFillIn
-			!call CurrentCountFilled
-			
-			call SimpleFillInBasedOnProgenyReads
-			call SimpleCleanUpFillIn
-			!call CurrentCountFilled
-
-			call CalculateFounderAssignment
-			call ChunkDefinition
-			
-			call BuildConsensus
-			call SimpleCleanUpFillIn
-			call CurrentCountFilled
-
-			if (SuperC==1) then
-				!call FerdosiSerap
-				call SimpleCleanUpFillIn
-			!	call CurrentCountFilled
-			endif
-
-			NewCount=CurrentCountFilledPhase+CurrentCountFilledGenos
-			
-			if (OldCount/=NewCount) then
-				SolutionChanged=1
-			else
-				SolutionChanged=0
-				!print*,"Run Gene Prob Filled Genos"
-				!call RunGeneProbWithFilledGenos
-				!call UseGeneProbToSimpleFillInBasedOnOwnReads
-				!call CurrentCountFilled
-				!NewCount=CurrentCountFilledPhase+CurrentCountFilledGenos
-				!if (OldCount/=NewCount) SolutionChanged=1
-			endif
-
-			write (*,'(1i10,3f10.5)') IterationNumber,GeneProbThresh,(dble(CurrentCountFilledPhase)/(dble(nInd*nSnp*2))*100),(dble(CurrentCountFilledGenos)/(dble(nInd*nSnp))*100)
-		enddo
-
-		if ((trim(PhaseFile)/="None").or.(trim(GenoFile)/="None")) then 
-			call Checker
-		endif
-		call WriteResults
-		call WriteStatistics
-
-		StartSnp=EndSnp+1
-		EndSnp=EndSnp+nSnp
-		if (EndSnp>LenghtSequenceDataFile) then 
-			EndSnp=LenghtSequenceDataFile
-			nSnp=EndSnp-StartSnp+1
-		endif
-		Windows=Windows+1
-
-		call DeallocateArrays
-
-	enddo
-end program FamilyPhase

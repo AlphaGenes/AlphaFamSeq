@@ -121,7 +121,7 @@ subroutine readRogerData(filename, Ids, position, quality, SequenceData,nSnpIn,S
     read(fileUnit, *) dumI,dumE
     read(dumE(StartSnp:EndSnp), *) SequenceData(i,:, 2)
   end do
-
+  
 end subroutine readAlphaSimReads
 
 

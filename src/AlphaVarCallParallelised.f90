@@ -1,5 +1,4 @@
 module AlphaVarCallFuture
-      use ISO_Fortran_Env, only: int32, real32, real64, int64
 
 implicit none
 
@@ -11,65 +10,58 @@ contains
 
     subroutine AlphaVarCall(nAnis,nSnp,StartSnp,EndSnp,ErrorRate,Seq0Snp1Mode,SeqId,SeqSire,SeqDam,ReadCountsTmp,InputGenosTmp,Pr00,Pr01,Pr10,Pr11)
 
-!      use omp_lib
+      use omp_lib
 
       implicit none
 
-      integer (int32), intent(in) :: nAnis,nSnp,StartSnp,EndSnp,Seq0Snp1Mode
-      real(real64),intent(in) :: ErrorRate
+      integer, intent(in) :: nAnis,nSnp,StartSnp,EndSnp,Seq0Snp1Mode
+      real(kind=8),intent(in) :: ErrorRate
       
-      integer, intent(in), dimension (:) :: SeqId,SeqSire,SeqDam
+      integer, intent(in), dimension (:) :: SeqId(nAnis),SeqSire(nAnis),SeqDam(nAnis)
       
-      real(real64),intent(in),dimension(:,:,:) :: ReadCountsTmp 
+      real(kind=8),intent(in),dimension(:,:,:) :: ReadCountsTmp 
       integer,intent(inout),dimension(:,:) :: InputGenosTmp 
       
 
-      real(real32),intent(inout),dimension(:,:) :: Pr00(nAnis,EndSnp-StartSnp+1)
-      real(real32),intent(inout),dimension(:,:) :: Pr01(nAnis,EndSnp-StartSnp+1)
-      real(real32),intent(inout),dimension(:,:) :: Pr10(nAnis,EndSnp-StartSnp+1)
-      real(real32),intent(inout),dimension(:,:) :: Pr11(nAnis,EndSnp-StartSnp+1)
+      real(kind=4),intent(inout),dimension(:,:) :: Pr00(nAnis,EndSnp-StartSnp+1)
+      real(kind=4),intent(inout),dimension(:,:) :: Pr01(nAnis,EndSnp-StartSnp+1)
+      real(kind=4),intent(inout),dimension(:,:) :: Pr10(nAnis,EndSnp-StartSnp+1)
+      real(kind=4),intent(inout),dimension(:,:) :: Pr11(nAnis,EndSnp-StartSnp+1)
       
       integer :: MaxFs,MaxMates,MaxReadCounts
 
-      real(real64),allocatable,dimension(:) :: nReadCounts
-      real(real64),allocatable,dimension(:,:,:) :: ReadCounts                                         
+      real(kind=8),allocatable,dimension(:) :: nReadCounts
+      real(kind=8),allocatable,dimension(:,:,:) :: ReadCounts                                         
       
       integer,allocatable,dimension(:,:) :: InputGenos                                          
 
-      real(real64),dimension(:) :: OutputMaf(EndSnp-StartSnp+1)
+      real(kind=8),dimension(:) :: OutputMaf(EndSnp-StartSnp+1)
 
-      real(real64),allocatable,dimension(:,:) :: GMatSnp 
-      real(real64),allocatable,dimension(:,:,:) :: GMatRds
+      real(kind=8),allocatable,dimension(:,:) :: GMatSnp 
+      real(kind=8),allocatable,dimension(:,:,:) :: GMatRds
 
       integer :: mxeq
       INTEGER,allocatable,dimension(:) :: mate,prog,next,ifirst,p1,p2
       
-      real(real64)::tstart,tend
-      integer(int32) :: i ,j
-
-      write(*,*) "One1"
+      real(kind=8)::tstart,tend
+      integer :: i ,j
+      
       call GetMaxFamilySize(nAnis,SeqSire,SeqDam,MaxFs,MaxMates)
-      write(*,*) "One2"
       call SetUpData(Seq0Snp1Mode,ReadCounts,InputGenos,nAnis,nSnp,EndSnp,StartSnp,nReadCounts,ReadCountsTmp,InputGenosTmp)
-      write(*,*) "One23"
       call SetUpEquationsForSnp(nAnis,Seq0Snp1Mode,nReadCounts,GMatSnp,GMatRds,ErrorRate,MaxReadCounts)
-      write(*,*) "One4"
       call CreateLinkListArrays(nAnis,SeqSire,SeqDam,mxeq,mate,ifirst,next,prog,p1,p2)
-      write(*,*) "One5"
-
-      write(*,*) "BEFORE", nAnis, Seq0Snp1Mode, EndSnp, startSnp, size(seqDam)
-      write(*,*) "SEQDAM", seqDam(1), seqDam(2), seqDam(3:7)
-!      tstart = omp_get_wtime()
-      write(*,*) "THREAD"
+      tstart = omp_get_wtime()
+      !!$OMP PARALLEL DO DEFAULT(FIRSTPRIVATE) PRIVATE(i) SHARED(ReadCounts,nReadCounts,InputGenos,MaxReadCounts,GMatSnp,GMatRds,Pr00, Pr01, Pr10, Pr11)
       do i=1,(EndSnp-StartSnp+1)
-        write(*,*) i, nAnis, Seq0Snp1Mode, EndSnp, startSnp, seqDam(1)
         call geneprob(i,ErrorRate,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,nReadCounts,EndSnp,StartSnp, &
                       maxfs,MaxMates,MaxReadCounts,GMatSnp,GMatRds,OutputMaf,SeqId,SeqSire,SeqDam, &
                       Pr00,Pr01,Pr10,Pr11, &
                       mxeq,mate,ifirst,next,prog,p1,p2)
       enddo
-!      tend = omp_get_wtime()
- !     write(*,*) "Total wall time for GeneProbController is ", tend - tstart
+      !!$OMP END PARALLEL DO
+      
+      tend = omp_get_wtime()
+      write(*,*) "Total wall time for GeneProbController is ", tend - tstart
 
 
       if (Seq0Snp1Mode==0) then
@@ -146,17 +138,17 @@ contains
 
         integer,intent(in) :: nAnis,Seq0Snp1Mode
         integer,intent(inout) :: MaxReadCounts
-        real(real64),intent(in) :: ErrorRate
+        real(kind=8),intent(in) :: ErrorRate
 
 
-        real(real64),intent(in),dimension(:) :: nReadCounts(nAnis)
-        real(real64),intent(inout),allocatable,dimension(:,:) :: GMatSnp 
-        real(real64),intent(inout),allocatable,dimension(:,:,:) :: GMatRds
+        real(kind=8),intent(in),dimension(:) :: nReadCounts(nAnis)
+        real(kind=8),intent(inout),allocatable,dimension(:,:) :: GMatSnp 
+        real(kind=8),intent(inout),allocatable,dimension(:,:,:) :: GMatRds
 
 
         integer :: i,k
 
-        real(real64) :: ProdFactTmp !DFactorial,DFactorialInLog,
+        real(kind=8) :: ProdFactTmp !DFactorial,DFactorialInLog,
         
 
         if (Seq0Snp1Mode==0) then
@@ -204,14 +196,14 @@ contains
 
         integer, intent(in) :: nAnis,nSnp,StartSnp,EndSnp,Seq0Snp1Mode
         
-        real(real64),intent(in),dimension(:,:,:) :: ReadCountsTmp(:,:,:) !(nAnis,nSnp,2)
+        real(kind=8),intent(in),dimension(:,:,:) :: ReadCountsTmp(:,:,:) !(nAnis,nSnp,2)
         integer,intent(inout),dimension(:,:) :: InputGenosTmp(:,:)
 
-        real(real64),intent(inout),allocatable,dimension(:,:,:) :: ReadCounts
-        real(real64),intent(inout),allocatable,dimension(:) :: nReadCounts
+        real(kind=8),intent(inout),allocatable,dimension(:,:,:) :: ReadCounts
+        real(kind=8),intent(inout),allocatable,dimension(:) :: nReadCounts
         integer,intent(inout),allocatable,dimension(:,:) :: InputGenos
 
-        real(real64),allocatable,dimension(:) :: nReadCountsTmp
+        real(kind=8),allocatable,dimension(:) :: nReadCountsTmp
 
         integer :: i,j,k
 
@@ -266,200 +258,200 @@ contains
 
     subroutine GetMaxFamilySize(nAnis,SeqSire,SeqDam,MaxFs,MaxMates) !!(maxfs, maxmates, nfamilies)
 
-      implicit none
+        implicit none
 
+     
+        integer,intent(in) :: nAnis
+        integer,intent(inout) :: MaxFs,MaxMates
+        integer, intent(in), dimension (:) :: SeqSire(nAnis),SeqDam(nAnis)
 
-      integer,intent(in) :: nAnis
-      integer,intent(inout) :: MaxFs,MaxMates
-      integer, intent(in), dimension (:) :: SeqSire,SeqDam
+        INTEGER (KIND= 8), allocatable :: family(:)       ! max value is 9,223,372,036,854,775,807 allowing for plenty of space
+        INTEGER (KIND= 8)              :: holdfamily, multiplier
+        !!INTEGER :: maxfs, maxmates, maxmates1, maxmates2, nfamilies
+        INTEGER :: nFamilies,maxmates1, maxmates2
+        INTEGER :: i, Noffset, Limit, Switch, fs, mates, parent1, parent2, oldparent1, oldparent2
 
-      integer(int64),dimension(:), allocatable :: family       ! max value is 9,223,372,036,854,775,807 allowing for plenty of space
-      integer(int64)              :: holdfamily, multiplier
-      !!INTEGER :: maxfs, maxmates, maxmates1, maxmates2, nfamilies
-      INTEGER :: nFamilies,maxmates1, maxmates2
-      INTEGER :: i, Noffset, Limit, Switch, fs, mates, parent1, parent2, oldparent1, oldparent2
+        ALLOCATE (family(nAnis))
 
-      ALLOCATE (family(nAnis))
+        !PRINT*,  ' Finding maximum FS family size and maximum mates ... '
 
-      !PRINT*,  ' Finding maximum FS family size and maximum mates ... '
+        holdfamily=0
+        multiplier = 100000000   ! allows for up to 99,999,999 in number system.
 
-      holdfamily=0
-      multiplier = 100000000   ! allows for up to 99,999,999 in number system.
-
-      do i=1,nAnis
-        family(i) = multiplier * seqsire(i) + seqdam(i)
+        do i=1,nAnis
+         family(i) = multiplier * seqsire(i) + seqdam(i)
         ! IF(family(i) /= 0) PRINT'(3i7,i15)', i, seqsire(i), seqdam(i), family(i)
-      end do
+        end do
 
-      Noffset = INT(nAnis/2)
-      DO WHILE (Noffset>0)
-        Limit = nAnis - Noffset
-        Switch=1
-        DO WHILE (Switch.ne.0)
-          Switch = 0
-          do i = 1, Limit
-            IF (family(i).gt.family(i + Noffset)) THEN
-              holdfamily=family(i)
-              family(i)=family(i + Noffset)
-              family(i + Noffset)=holdfamily
+          Noffset = INT(nAnis/2)
+          DO WHILE (Noffset>0)
+              Limit = nAnis - Noffset
+              Switch=1
+            DO WHILE (Switch.ne.0)
+               Switch = 0
+               do i = 1, Limit
+                  IF (family(i).gt.family(i + Noffset)) THEN
+                       holdfamily=family(i)
+                       family(i)=family(i + Noffset)
+                       family(i + Noffset)=holdfamily
 
-              Switch = i
-            endif
+                       Switch = i
+                  endif
+               enddo
+               Limit = Switch - Noffset
+            enddo
+            Noffset = INT(Noffset/2)
           enddo
-          Limit = Switch - Noffset
-        enddo
-        Noffset = INT(Noffset/2)
-      enddo
 
-      nfamilies=0
-      do i=2,nAnis
-        IF(family(i) /= family(i-1)) then
-          nfamilies=nfamilies+1
-        endif
-      end do
+        nfamilies=0
+        do i=2,nAnis
+          IF(family(i) /= family(i-1)) then
+            nfamilies=nfamilies+1
+          endif
+        end do
 
 
-      MaxFs = 0
-      fs=1
+        MaxFs = 0
+        fs=1
 
-      do i=2,nAnis
-        parent1=INT(family(i)/multiplier)
-        parent2=family(i)-multiplier*parent1
-        IF(parent1 /= 0 .and. parent2 /= 0) then  ! note how this is handled
+        do i=2,nAnis
+          parent1=INT(family(i)/multiplier)
+          parent2=family(i)-multiplier*parent1
+         IF(parent1 /= 0 .and. parent2 /= 0) then  ! note how this is handled
           IF(family(i) == family(i-1)) then
             fs = fs + 1
           else
             IF(fs > maxfs) then
-              maxfs = fs
-              holdfamily=family(i-1)
+             maxfs = fs
+             holdfamily=family(i-1)
             endif
             fs = 1
           endif
-        endif
-      end do
+         endif
+        end do
 
-      if (fs > maxfs) then ! From GeneProb in AlphaImpute commited 50a88a3 by RAntolin
-        maxfs = fs
-        holdfamily = family(nAnis)
-      end if
+        if (fs > maxfs) then ! From GeneProb in AlphaImpute commited 50a88a3 by RAntolin
+          maxfs = fs
+          holdfamily = family(nAnis)
+        end if
+        
+        parent1=INT(holdfamily/multiplier)
+        parent2=holdfamily-multiplier*parent1
+        !PRINT*, '  Maximum FS family size ... ',maxfs, ' for parents: ',parent1,' ',parent2
+        !JH knocked out this line to avoid the need to allocate the vector "id"
+        !PRINT*, '  Maximum FS family size ... ',maxfs, ' for parents: ',id(parent1),' ',id(parent2)
 
-      parent1=INT(holdfamily/multiplier)
-      parent2=holdfamily-multiplier*parent1
-      !PRINT*, '  Maximum FS family size ... ',maxfs, ' for parents: ',parent1,' ',parent2
-      !JH knocked out this line to avoid the need to allocate the vector "id"
-      !PRINT*, '  Maximum FS family size ... ',maxfs, ' for parents: ',id(parent1),' ',id(parent2)
+        Maxmates1 = 0
+        mates=1
+        oldparent1=0
+        oldparent2=0
 
-      Maxmates1 = 0
-      mates=1
-      oldparent1=0
-      oldparent2=0
+        do i=2,nAnis
 
-      do i=2,nAnis
-
-        parent1=INT(family(i)/multiplier)
-        IF(parent1 /= 0) then
+          parent1=INT(family(i)/multiplier)
+         IF(parent1 /= 0) then
           parent2=family(i)-multiplier*parent1
-          IF(parent1 == oldparent1) then
-            IF(parent2 /= oldparent2) mates=mates+1
-          else
+           IF(parent1 == oldparent1) then
+             IF(parent2 /= oldparent2) mates=mates+1
+           else
             IF(mates > maxmates1)then
-              maxmates1 = mates
-              Limit=oldparent1  ! to record the one with most mates
+             maxmates1 = mates
+             Limit=oldparent1  ! to record the one with most mates
             endif
             mates=1
-          endif
-          If (i==nAnis .and. mates > maxmates1) Then  ! need to cover the last observation
-            maxmates1 = mates
-            Limit = oldparent1 ! to record the one with most mates
-          End If
-          oldparent1=parent1
-          oldparent2=parent2
-        endif
-      enddo
-
-      !JH knocked out this line to avoid the need to allocate the vector "id"
-      !if (Limit > 0) then
-      ! PRINT*, '  Max female mates of males=', maxmates1, ', for male ID, seqID: ', id(Limit), Limit
-      !else
-      ! PRINT*, '  Max female mates of males=', maxmates1
-      !endif
-
-
-      !Now max mates for females
-      do i=1,nAnis
-        family(i) = multiplier * seqdam(i) + seqsire(i)
-      end do
-
-      Noffset = INT(nAnis/2)
-      DO WHILE (Noffset>0)
-        Limit = nAnis - Noffset
-        switch=1
-        DO WHILE (Switch.ne.0)
-          Switch = 0
-          do i = 1, Limit
-            IF (family(i).gt.family(i + Noffset)) THEN
-              holdfamily=family(i)
-              family(i)=family(i + Noffset)
-              family(i + Noffset)=holdfamily
-
-              Switch = i
-            endif
-          enddo
-          Limit = Switch - Noffset
+           endif
+            If (i==nAnis .and. mates > maxmates1) Then  ! need to cover the last observation
+                maxmates1 = mates
+                Limit = oldparent1 ! to record the one with most mates
+            End If
+           oldparent1=parent1
+           oldparent2=parent2
+         endif
         enddo
-        Noffset = INT(Noffset/2)
-      enddo
+
+        !JH knocked out this line to avoid the need to allocate the vector "id"
+        !if (Limit > 0) then
+        ! PRINT*, '  Max female mates of males=', maxmates1, ', for male ID, seqID: ', id(Limit), Limit
+        !else
+        ! PRINT*, '  Max female mates of males=', maxmates1
+        !endif
 
 
-      Maxmates2 = 0
-      mates=1
-      oldparent1=0
-      oldparent2=0
+        !Now max mates for females
+        do i=1,nAnis
+         family(i) = multiplier * seqdam(i) + seqsire(i)
+        end do
 
-      do i=2,nAnis
-        parent1=INT(family(i)/multiplier)
-        IF(parent1 /= 0) then
+          Noffset = INT(nAnis/2)
+          DO WHILE (Noffset>0)
+              Limit = nAnis - Noffset
+              switch=1
+            DO WHILE (Switch.ne.0)
+               Switch = 0
+               do i = 1, Limit
+                  IF (family(i).gt.family(i + Noffset)) THEN
+                       holdfamily=family(i)
+                       family(i)=family(i + Noffset)
+                       family(i + Noffset)=holdfamily
+
+                       Switch = i
+                  endif
+               enddo
+               Limit = Switch - Noffset
+            enddo
+            Noffset = INT(Noffset/2)
+          enddo
+
+
+        Maxmates2 = 0
+        mates=1
+        oldparent1=0
+        oldparent2=0
+
+        do i=2,nAnis
+          parent1=INT(family(i)/multiplier)
+         IF(parent1 /= 0) then
           parent2=family(i)-multiplier*parent1
-          IF(parent1 == oldparent1) then
-            IF(parent2 /= oldparent2) mates=mates+1
-          else
+           IF(parent1 == oldparent1) then
+             IF(parent2 /= oldparent2) mates=mates+1
+           else
             IF(mates > maxmates2)then
-              maxmates2 = mates
-              Limit=oldparent1  ! to record the one with most mates
+             maxmates2 = mates
+             Limit=oldparent1  ! to record the one with most mates
             endif
             mates=1
-          endif
-          If (i==nAnis .and. mates > maxmates2) Then  ! need to cover the last observation
-            maxmates2 = mates
-            Limit = oldparent1 ! to record the one with most mates
-          End If
-          oldparent1=parent1
-          oldparent2=parent2
+           endif
+            If (i==nAnis .and. mates > maxmates2) Then  ! need to cover the last observation
+                maxmates2 = mates
+                Limit = oldparent1 ! to record the one with most mates
+            End If
+           oldparent1=parent1
+           oldparent2=parent2
 
-        endif
-      enddo
+         endif
+        enddo
 
 
-      !JH knocked out this line to avoid the need to allocate the vector "id"
-      !if (Limit > 0) then
-      ! PRINT*, '  Max male mates of females=', maxmates2, ', for female ID, seqID: ', id(Limit), Limit
-      !else
-      ! PRINT*, '  Max male mates of females=', maxmates2
-      !endif
+        !JH knocked out this line to avoid the need to allocate the vector "id"
+        !if (Limit > 0) then
+        ! PRINT*, '  Max male mates of females=', maxmates2, ', for female ID, seqID: ', id(Limit), Limit
+        !else
+        ! PRINT*, '  Max male mates of females=', maxmates2
+        !endif
 
-      maxmates = MAX(maxmates1,maxmates2)
+        maxmates = MAX(maxmates1,maxmates2)
 
-      deallocate (family) ! added by MBattagin
+        deallocate (family) ! added by MBattagin
     end subroutine GetMaxFamilySize
 
     !######################################################################################################################################################
 
-    real(real64) function DFactorialInLog(n)
+    real(kind=8) function DFactorialInLog(n)
 
         implicit none
         integer,intent(in) :: n
         integer :: i
-        real(real64) :: Ans
+        real(kind=8) :: Ans
 
         Ans=0.0
         do i=1,n
@@ -470,12 +462,12 @@ contains
 
     !######################################################################################################################################################
 
-    real(real64) function DFactorial(n)
+    real(kind=8) function DFactorial(n)
 
         implicit none
         integer,intent(in) :: n
         integer :: i
-        real(real64) :: Ans
+        real(kind=8) :: Ans
 
         Ans=1.0
         do i=1,n
@@ -491,24 +483,23 @@ contains
                         Pr00,Pr01,Pr10,Pr11, &
                         mxeq,mate,ifirst,next,prog,p1,p2)
 
-      use iso_fortran_env, only: int32
       implicit none
 
-      integer(int32), intent(in)   :: currentSnp,Seq0Snp1Mode,EndSnp,StartSnp,maxfs,MaxMates,MaxReadCounts
-      integer(int32), intent(in) :: nAnis
+      integer, intent(in)   :: currentSnp,Seq0Snp1Mode,EndSnp,StartSnp,maxfs,MaxMates,MaxReadCounts
+      integer, intent(in) :: nAnis
       integer, intent(in), dimension (:) :: SeqId(nAnis),SeqSire(nAnis),SeqDam(nAnis)
 
-      real(real64),intent(in) :: ErrorRate
-      real(real64),intent(in),dimension(:) :: nReadCounts                                          
+      real(kind=8),intent(in) :: ErrorRate
+      real(kind=8),intent(in),dimension(:) :: nReadCounts                                          
 
-      real(real64),intent(in),dimension(:,:) :: GMatSnp(1:3,1:3)
-      real(real64),intent(in),dimension(:,:,:) :: GMatRds(0:MaxReadCounts,3,MaxReadCounts)
+      real(kind=8),intent(in),dimension(:,:) :: GMatSnp(1:3,1:3)
+      real(kind=8),intent(in),dimension(:,:,:) :: GMatRds(0:MaxReadCounts,3,MaxReadCounts)
 
       integer,intent(in),dimension(:,:) :: InputGenos
-      real(real64),intent(in),dimension(:,:,:) :: ReadCounts(nAnis,EndSnp-StartSnp+1,2)                                       
+      real(kind=8),intent(in),dimension(:,:,:) :: ReadCounts(nAnis,EndSnp-StartSnp+1,2)                                       
 
-      real(real32),intent(inout),dimension(:,:) :: Pr00,Pr01,Pr10,Pr11
-      real(real64),intent(inout),dimension(:) :: OutputMaf(EndSnp-StartSnp+1)
+      real(kind=4),intent(inout),dimension(:,:) :: Pr00(nAnis,EndSnp-StartSnp+1),Pr01(nAnis,EndSnp-StartSnp+1),Pr10(nAnis,EndSnp-StartSnp+1),Pr11(nAnis,EndSnp-StartSnp+1)
+      real(kind=8),intent(inout),dimension(:) :: OutputMaf(EndSnp-StartSnp+1)
 
       integer,intent(in) :: mxeq
 
@@ -529,7 +520,7 @@ contains
       INTEGER :: MM                                                           ! Added by MBattagin - used here and in LNKLST and ANotherOne
       INTEGER :: NN                                                           ! Added by MBattagin - used here and in LNKLST   
       
-      real(real64), ALLOCATABLE :: POST(:,:)                                  ! Added by MBattagin - used here and in FLIPPT
+      REAL(KIND=8), ALLOCATABLE :: POST(:,:)                                  ! Added by MBattagin - used here and in FLIPPT
 
       
       integer                 :: i, j, k, l, i2, i3,  iticks2,ifix !iticks1,
@@ -554,8 +545,6 @@ contains
       REAL (KIND=8), allocatable,dimension(:,:)     :: ant,term,freq
       REAL (KIND=8), allocatable,dimension(:,:,:)   :: work
 
-     write(*,*) "BEGIN GENEPROB" 
-     write(*,*) currentSnp, errorRate, nAnis, seq0Snp1Mode
       !JH TO FIX THESE UP LATER
       pprior_hold = 0.5
       qprior_hold = 1-pprior_hold ! MBattagin "pprior_hold" was "pprior"
@@ -617,7 +606,6 @@ contains
       ntype(3,2,2)=3
       nonzed(3,3)=1
       ntype(3,3,1)=3
-      write(*,*) "CONTINUE GENEPROB"
 
       allocate(phenhold(0:nAnis))
       ALLOCATE(post(3,0:2*nAnis),phen(nAnis), &
@@ -648,24 +636,16 @@ contains
       pnor=0.
       freq=log(1.)
       HoldInt = MAX(2*maxfs,maxmates)
-      write(*,*) "CONTINUE GENEPROB 2"
       
       ALLOCATE(nmem(HoldInt),isib(maxmates,2*maxfs),damGP(maxmates),work(3,2*maxfs,2*maxfs),term(3,HoldInt))
-
-      write(*,*) "CONtINUE GENEPRBO 3-1"
 
       HoldInt=0
       isib=0
 
-      write(*,*) nAnis
       if (Seq0Snp1Mode==0) allocate(sumReadsCurrentSnp(nAnis))
-    
-      write(*,*) "AfterAlloc", nAnis
 
       do ia=1,nAnis ! THIS LOOP CONVERT THE INPUT DATA IN LOG-LIKELIHOOD
-        write(*,*) ia
         
-      write(*,*) "CONtINUE GENEPRBO 3-2"
         phen(ia)=phenhold(ia)   ! was phen(ia)=phenhold(passedorder(ia)) -- MBattagin
         iflag=0
         
@@ -698,7 +678,6 @@ contains
             endif
         endif
 
-        write(*,*) "CONTINUEGENEPROB3", Seq0Snp1Mode
         if (Seq0Snp1Mode==1) then
             if (phen(ia).eq.9) then
                 iflag=1
@@ -1316,7 +1295,7 @@ contains
         integer,intent(in),dimension(:) :: MATE(0:2*nAnis) 
         
         integer,intent(inout),dimension(:) :: IFIRST(0:nAnis),NEXT(2*nAnis)
-        real(real64),intent(inout),dimension(:,:) :: POST(3,0:2*nAnis) 
+        REAL(KIND=8),intent(inout),dimension(:,:) :: POST(3,0:2*nAnis) 
 
         integer :: k,kc,NEWPT,IOLDPT,i
 
@@ -1345,10 +1324,10 @@ contains
     SUBROUTINE LOGADD(summ,n)
       implicit none
       integer,intent(in) :: n
-      real(real64),intent(inout),dimension(:) :: summ(3)
+      real(kind=8),intent(inout),dimension(:) :: summ(3)
       
       integer :: i,mm,j
-      real(real64) :: t
+      real(kind=8) :: t
 
       if(n.eq.1) return
       if(n.eq.2) then
@@ -1374,8 +1353,8 @@ contains
 
     function add(x1,x2)
         implicit none
-        real(real64) :: add,diff,expmax
-        real(real64),intent(in) ::  x1,x2
+        real(kind=8) :: add,diff,expmax
+        real(kind=8),intent(in) ::  x1,x2
           expmax=300.d0
           diff=x1-x2
           if(diff.gt.expmax) then
