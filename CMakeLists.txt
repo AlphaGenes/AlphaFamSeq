@@ -2,6 +2,7 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.8.5)
 PROJECT(AlphaFamSeq)
 enable_language (Fortran)
 
+MESSAGE("You need to set the AlphaHouse Source (ALPHAHOUSESRC) and the path to the CMAKE Modules (CMAKEPATH) in your enviroment before using CMAKE")
 #find_package(Doxygen)
 OPTION(RUN_TESTS "Run and compile tests"
   OFF)
