@@ -86,7 +86,7 @@ program FamilyPhase
 
 	implicit none
 
-	integer :: OldCount,NewCount,i
+	integer :: OldCount,NewCount
 	real(kind=8) :: InitialGeneProbThresh
 
 	call ReadSpecfile
@@ -261,7 +261,7 @@ subroutine ReadSpecfile
     implicit none
 
     integer :: FileLength, stat, i
-    character(len=256) :: Var
+    !character(len=256) :: Var
     character(len=30) :: SpecParam
    	character (len=512) :: TLC
 
@@ -492,7 +492,7 @@ subroutine SimpleCleanUpFillIn
 
 	implicit none
 
-	integer i,j,Change,e,k,g1,g2
+	integer i,j,Change !,e,k,g1,g2
 
 	Change=1
 	do while (Change==1)
@@ -677,7 +677,7 @@ subroutine BuildConsensus
 
 	implicit none
 
-	integer :: i,k,e,j,l,m,Count1,Count0,CountG,CountG2,AlternativeGamete
+	integer :: i,k,e,j,m,Count1,Count0
 
 	integer,allocatable,dimension(:) :: ConsensusHaplotype
 	integer,allocatable,dimension(:,:,:) :: ConsensusIds
@@ -900,7 +900,7 @@ subroutine SimpleFillInBasedOnProgenyReads
 
 	implicit none
 
-	integer :: i,j,e,k,alternative,IdSire,IdDam
+	integer :: i,j,IdSire,IdDam
 
 	do i=1,nInd
 
@@ -1045,17 +1045,17 @@ subroutine RunGeneProb
 	
 	implicit none
 
-	integer,allocatable,dimension(:) :: SeqId,SeqSire,SeqDam
+	integer,allocatable,dimension(:) :: SeqSire,SeqDam !SeqId
 	
 	!integer :: i,j
 	!real(kind=8),allocatable,dimension(:,:,:) :: ReadCounts
     
 	
-	allocate(SeqId(nInd))
+	!allocate(SeqId(nInd))
     allocate(SeqSire(nInd))
     allocate(SeqDam(nInd))
 
-    SeqId=RecPed(1:nInd,1)
+    !SeqId=RecPed(1:nInd,1)
 	SeqSire=RecPed(1:nInd,2)
 	SeqDam=RecPed(1:nInd,3)
 	
@@ -1084,9 +1084,9 @@ subroutine RunGeneProb
 	! Pr10=0.0
 	! Pr11=0.0
 	
-	call AlphaVarCall(nInd,nSnp,1,nSnp,ErrorRate,0,SeqId,SeqSire,SeqDam,RawReads,FilledGenos,Pr00,Pr01,Pr10,Pr11)
+	call AlphaVarCall(nInd,nSnp,1,nSnp,ErrorRate,0,SeqSire,SeqDam,RawReads,FilledGenos(1:nInd,nSnp),Pr00,Pr01,Pr10,Pr11)
 
-	deallocate(SeqId)
+	!deallocate(SeqId)
 	deallocate(SeqSire)
 	deallocate(Seqdam)
 
@@ -1102,13 +1102,13 @@ subroutine RunGeneProbWithFilledGenos
 	
 	implicit none
 
-	integer,allocatable,dimension(:) :: SeqId,SeqSire,SeqDam
+	integer,allocatable,dimension(:) :: SeqSire,SeqDam !SeqId,
 	
-	allocate(SeqId(nInd))
+	!allocate(SeqId(nInd))
     allocate(SeqSire(nInd))
     allocate(SeqDam(nInd))
 
-    SeqId=RecPed(1:nInd,1)
+    !SeqId=RecPed(1:nInd,1)
 	SeqSire=RecPed(1:nInd,2)
 	SeqDam=RecPed(1:nInd,3)
 	
@@ -1116,9 +1116,9 @@ subroutine RunGeneProbWithFilledGenos
 	! Pr01=0.0
 	! Pr10=0.0
 	! Pr11=0.0
-	 call AlphaVarCall(nInd,nSnp,1,nSnp,ErrorRate,1,SeqId,SeqSire,SeqDam,RawReads,FilledGenos,Pr00,Pr01,Pr10,Pr11)
+	 call AlphaVarCall(nInd,nSnp,1,nSnp,ErrorRate,1,SeqSire,SeqDam,RawReads,FilledGenos,Pr00,Pr01,Pr10,Pr11)
 
-	deallocate(SeqId)
+	!deallocate(SeqId)
 	deallocate(SeqSire)
 	deallocate(Seqdam)
 end subroutine RunGeneProbWithFilledGenos
@@ -1327,7 +1327,7 @@ subroutine CurrentCountFilled
 
 	implicit none
 
-	integer :: i,j,e,p
+	!integer :: i,j,e,p
 	character(len=30) :: FmtCha,nChar
 	
 	write(nChar,*) nSnp
@@ -1459,9 +1459,9 @@ subroutine ReadPedigree
 
 	implicit none
 
-	integer :: i,DumI,j,PosReads,PosGeno,PosPhase,FileLength,stat
-	integer,allocatable,dimension(:) :: TempImput
-	integer :: TmpID
+	integer :: i,DumI,j,stat
+	!integer,allocatable,dimension(:) :: TempImput
+	!integer :: TmpID
 
 	open (unit=2,file=trim(PedigreeFile),status="old")
 	
@@ -1503,7 +1503,7 @@ subroutine ReadData
 
   	implicit none
   
-	integer :: i,DumI,j,PosReads,PosGeno,PosPhase,FileLength,stat
+	integer :: i,PosReads,PosGeno,PosPhase
 	integer,allocatable,dimension(:) :: TempImput
 	integer :: TmpID
 
@@ -1596,7 +1596,7 @@ subroutine Checker
 
 	implicit none
 
-	integer :: i,j,e,p
+	integer :: i,j,e
 	character(len=50) :: filout1
 
 	write (filout1,'("AlphaFamSeqMistakeIdentifiers",i0,".txt")') Windows
@@ -1646,7 +1646,7 @@ subroutine WriteResults
 	integer :: i,j
 	real(kind=4),allocatable,dimension(:) :: AlleleDosage
 	character(len=30) :: nChar
-	character(len=80) :: FmtInt,FmtCha,FmtReal,FmtIntF,filout1,filout2,filout3,filout4
+	character(len=80) :: FmtInt,FmtCha,FmtReal,FmtIntF,filout1,filout2,filout3,filout4,filout5
 
 	
 	write(nChar,*) nSnp
@@ -1658,11 +1658,13 @@ subroutine WriteResults
 	write (filout1,'("AlphaFamSeqFinalPhase",i0,".txt")') Windows
 	write (filout2,'("AlphaFamSeqFinalGenos",i0,".txt")') Windows
 	write (filout3,'("AlphaFamSeqFinalAlleleDosage",i0,".txt")') Windows
+	write (filout5,'("AlphaFamSeqFinalGeneProb",i0,".txt")') Windows
 	write (filout4,'("AlphaFamSeqFounderAssignment",i0,".txt")') Windows
 	
 	open (unit=1,file=trim(filout1),status="unknown")
 	open (unit=2,file=trim(filout2),status="unknown")
 	open (unit=3,file=trim(filout3),status="unknown")
+	open (unit=5,file=trim(filout5),status="unknown")
 	open (unit=4,file=trim(filout4),status="unknown")
 	
 	allocate(AlleleDosage(nSnp))
@@ -1677,6 +1679,10 @@ subroutine WriteResults
 		enddo
 
 		write (3,FmtReal) Ped(i,1),AlleleDosage(:)
+		write (5,FmtReal) Ped(i,1),Pr00(i,:)
+		write (5,FmtReal) Ped(i,1),Pr01(i,:)
+		write (5,FmtReal) Ped(i,1),Pr10(i,:)
+		write (5,FmtReal) Ped(i,1),Pr11(i,:)
 
 		write (4,FmtIntF) Ped(i,1),FounderAssignment(i,:,1)
 		write (4,FmtIntF) Ped(i,1),FounderAssignment(i,:,2)
@@ -1703,14 +1709,14 @@ subroutine WriteStatistics
 	REAL(8), PARAMETER :: D_QNAN = &
 	TRANSFER((/ Z'00000000', Z'7FF80000' /),1.0_8) ! NaN value
 
-	integer :: i,j,e,DumI,p,gYield,pYield1,pYield2,nZeroReads,nOneReads,meanCoverage
-	integer,allocatable,dimension(:) :: trueVector,impVector,excludeMissing
-	real :: Af,gCorrect,pCorrect1,pCorrect2,AFtrue,AFimp
-	real,allocatable,dimension(:) :: meanTG,sdTG,meanFG,sdFG
+	integer :: i,j,p,gYield,pYield1,pYield2,nZeroReads,nOneReads,meanCoverage
+	integer,allocatable,dimension(:) :: trueVector,impVector
+	real :: gCorrect,pCorrect1,pCorrect2,AFtrue
+	!real,allocatable,dimension(:) :: meanTG,sdTG,meanFG,sdFG
 	character(len=30) :: nChar
-	character(len=80) :: FmtInt,FmtCha,FmtIntF,filout1,filout2,filout3
-	type(CorrelationReal32) :: gCor,gCorSTD,pCor1,pCor2
-	type(DescStatReal32) :: stat
+	character(len=80) :: FmtInt,FmtCha,FmtIntF,filout1,filout2
+	type(CorrelationReal32) :: gCor,pCor1,pCor2
+	!type(DescStatReal32) :: stat
 
 	write(nChar,*) nSnp
 	FmtInt='(i10,'//trim(adjustl(nChar))//'i2)'

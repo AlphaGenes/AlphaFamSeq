@@ -8,7 +8,7 @@ contains
 
     !######################################################################################################################################################
 
-    subroutine AlphaVarCall(nAnis,nSnp,StartSnp,EndSnp,ErrorRate,Seq0Snp1Mode,SeqId,SeqSire,SeqDam,ReadCountsTmp,InputGenosTmp,Pr00,Pr01,Pr10,Pr11)
+    subroutine AlphaVarCall(nAnis,nSnp,StartSnp,EndSnp,ErrorRate,Seq0Snp1Mode,SeqSire,SeqDam,ReadCountsTmp,InputGenosTmp,Pr00,Pr01,Pr10,Pr11)
 
       use omp_lib
 
@@ -17,10 +17,10 @@ contains
       integer, intent(in) :: nAnis,nSnp,StartSnp,EndSnp,Seq0Snp1Mode
       real(kind=8),intent(in) :: ErrorRate
       
-      integer, intent(in), dimension (:) :: SeqId(nAnis),SeqSire(nAnis),SeqDam(nAnis)
+      integer, intent(in), dimension (:) :: SeqSire(nAnis),SeqDam(nAnis)
       
-      real(kind=8),intent(in),dimension(:,:,:) :: ReadCountsTmp 
-      integer,intent(inout),dimension(:,:) :: InputGenosTmp 
+      real(kind=8),intent(in),dimension(:,:,:) :: ReadCountsTmp(1:nAnis,nSnp,2) 
+      integer,intent(inout),dimension(:,:) :: InputGenosTmp(1:nAnis,nSnp) 
       
 
       real(kind=4),intent(inout),dimension(:,:) :: Pr00(nAnis,EndSnp-StartSnp+1)
@@ -44,22 +44,23 @@ contains
       INTEGER,allocatable,dimension(:) :: mate,prog,next,ifirst,p1,p2
       
       real(kind=8)::tstart,tend
-      integer :: i ,j
+      integer :: i 
       
       call GetMaxFamilySize(nAnis,SeqSire,SeqDam,MaxFs,MaxMates)
       call SetUpData(Seq0Snp1Mode,ReadCounts,InputGenos,nAnis,nSnp,EndSnp,StartSnp,nReadCounts,ReadCountsTmp,InputGenosTmp)
       call SetUpEquationsForSnp(nAnis,Seq0Snp1Mode,nReadCounts,GMatSnp,GMatRds,ErrorRate,MaxReadCounts)
       call CreateLinkListArrays(nAnis,SeqSire,SeqDam,mxeq,mate,ifirst,next,prog,p1,p2)
       tstart = omp_get_wtime()
-      !!$OMP PARALLEL DO DEFAULT(FIRSTPRIVATE) PRIVATE(i) SHARED(ReadCounts,nReadCounts,InputGenos,MaxReadCounts,GMatSnp,GMatRds,Pr00, Pr01, Pr10, Pr11)
+
+      !$OMP PARALLEL DO DEFAULT(FIRSTPRIVATE) PRIVATE(i) SHARED(ReadCounts,InputGenos,MaxReadCounts,GMatSnp,GMatRds,Pr00, Pr01, Pr10, Pr11)
       do i=1,(EndSnp-StartSnp+1)
-        call geneprob(i,ErrorRate,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,nReadCounts,EndSnp,StartSnp, &
-                      maxfs,MaxMates,MaxReadCounts,GMatSnp,GMatRds,OutputMaf,SeqId,SeqSire,SeqDam, &
+        call geneprob(i,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,EndSnp,StartSnp, &
+                      maxfs,MaxMates,MaxReadCounts,GMatSnp,GMatRds,OutputMaf,SeqSire,SeqDam, &
                       Pr00,Pr01,Pr10,Pr11, &
                       mxeq,mate,ifirst,next,prog,p1,p2)
       enddo
-      !!$OMP END PARALLEL DO
-      
+      !$OMP END PARALLEL DO
+
       tend = omp_get_wtime()
       write(*,*) "Total wall time for GeneProbController is ", tend - tstart
 
@@ -73,7 +74,10 @@ contains
       endif
 
     deallocate(MATE,NEXT,IFIRST,prog,p1,p2)
- 
+
+ 	IF( ALLOCATED(ReadCounts)) DEALLOCATE(ReadCounts) 
+ 	IF( ALLOCATED(InputGenos)) DEALLOCATE(InputGenos)
+ 	IF( ALLOCATED(nReadCounts)) DEALLOCATE(nReadCounts)
       
     end subroutine AlphaVarCall
 
@@ -478,8 +482,8 @@ contains
 
     !######################################################################################################################################################
 
-    subroutine geneprob(currentSnp,ErrorRate,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,nReadCounts,EndSnp,StartSnp, &
-                        maxfs,MaxMates,MaxReadCounts,GMatSnp,GMatRds,OutputMaf,SeqId,SeqSire,SeqDam, &
+    subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,EndSnp,StartSnp, &
+                        maxfs,MaxMates,MaxReadCounts,GMatSnp,GMatRds,OutputMaf,SeqSire,SeqDam, &
                         Pr00,Pr01,Pr10,Pr11, &
                         mxeq,mate,ifirst,next,prog,p1,p2)
 
@@ -487,15 +491,12 @@ contains
 
       integer, intent(in)   :: currentSnp,Seq0Snp1Mode,EndSnp,StartSnp,maxfs,MaxMates,MaxReadCounts
       integer, intent(in) :: nAnis
-      integer, intent(in), dimension (:) :: SeqId(nAnis),SeqSire(nAnis),SeqDam(nAnis)
-
-      real(kind=8),intent(in) :: ErrorRate
-      real(kind=8),intent(in),dimension(:) :: nReadCounts                                          
+      integer, intent(in), dimension (:) :: SeqSire(nAnis),SeqDam(nAnis)
 
       real(kind=8),intent(in),dimension(:,:) :: GMatSnp(1:3,1:3)
       real(kind=8),intent(in),dimension(:,:,:) :: GMatRds(0:MaxReadCounts,3,MaxReadCounts)
 
-      integer,intent(in),dimension(:,:) :: InputGenos
+      integer,intent(in),dimension(:,:) :: InputGenos(1:nAnis,EndSnp-StartSnp+1)
       real(kind=8),intent(in),dimension(:,:,:) :: ReadCounts(nAnis,EndSnp-StartSnp+1,2)                                       
 
       real(kind=4),intent(inout),dimension(:,:) :: Pr00(nAnis,EndSnp-StartSnp+1),Pr01(nAnis,EndSnp-StartSnp+1),Pr10(nAnis,EndSnp-StartSnp+1),Pr11(nAnis,EndSnp-StartSnp+1)
@@ -505,22 +506,22 @@ contains
 
       INTEGER, intent(inout),dimension(:) :: mate(0:2*nAnis),prog(0:2*nAnis)
       INTEGER, intent(inout),dimension(:) :: next(2*nAnis),ifirst(0:nAnis)
-      INTEGER, intent(inout),dimension(:) :: p1,p2 
+      INTEGER, intent(inout),dimension(:) :: p1(nAnis),p2(nAnis)
 
 
       REAL (KIND=8)         :: pprior_hold,qprior_hold,StopCrit_hold         ! Added by MBattagin
 
-      INTEGER :: Imprinting_hold,PauseAtEnd_hold,nobs_hold,nfreq_max_hold     ! Added by MBattagin
+      INTEGER :: Imprinting_hold,PauseAtEnd_hold,nfreq_max_hold     ! Added by MBattagin
 
       REAL (KIND=8) :: pprior, qprior, StopCrit !SeqError                      ! Added by MBattagin
       
       INTEGER :: Imprinting,PauseAtEnd,nfreq_max !phenotypes                   ! Added by MBattagin
-      INTEGER, allocatable:: phenhold(:)                                      ! Added by MBattagin
+      INTEGER, allocatable,dimension(:) :: phenhold                                      ! Added by MBattagin
 
       INTEGER :: MM                                                           ! Added by MBattagin - used here and in LNKLST and ANotherOne
-      INTEGER :: NN                                                           ! Added by MBattagin - used here and in LNKLST   
+      !INTEGER :: NN                                                           ! Added by MBattagin - used here and in LNKLST   
       
-      REAL(KIND=8), ALLOCATABLE :: POST(:,:)                                  ! Added by MBattagin - used here and in FLIPPT
+      REAL(KIND=8), ALLOCATABLE,dimension(:,:) :: POST                        ! Added by MBattagin - used here and in FLIPPT
 
       
       integer                 :: i, j, k, l, i2, i3,  iticks2,ifix !iticks1,
@@ -536,7 +537,7 @@ contains
       REAL (KIND=8)                 :: pt(3,3,3)
       REAL (KIND=8)                 :: phethw,phomhw  ! this is needed for info - or compile with dble.  Don't know why!
       REAL (KIND=8)                 :: s0,s1,s2, areg, breg, meanX, meanY, sumY, sumXY, sumX, sumX2
-      real                          :: LnkStart,LnkEnd
+      !real                          :: LnkStart,LnkEnd
 
       INTEGER, allocatable,dimension(:)  :: phen,nmem,damGP ! note this is a different p1,p2 to sequence's
       INTEGER, ALLOCATABLE,dimension(:,:):: isib
@@ -544,6 +545,8 @@ contains
       REAL (KIND=8), allocatable,dimension(:)       :: phom,phet,pnor,pHold,pResult,pDev,sumReadsCurrentSnp
       REAL (KIND=8), allocatable,dimension(:,:)     :: ant,term,freq
       REAL (KIND=8), allocatable,dimension(:,:,:)   :: work
+
+      !print*,currentSnp
 
       !JH TO FIX THESE UP LATER
       pprior_hold = 0.5
