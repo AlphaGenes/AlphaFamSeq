@@ -50,6 +50,7 @@ contains
       call SetUpData(Seq0Snp1Mode,ReadCounts,InputGenos,nAnis,nSnp,EndSnp,StartSnp,ReadCountsTmp,InputGenosTmp,MaxReadCounts)
       call SetUpEquationsForSnp(Seq0Snp1Mode,GMatSnp,GMatRds,ErrorRate,MaxReadCounts)
       call CreateLinkListArrays(nAnis,SeqSire,SeqDam,mxeq,mate,ifirst,next,prog)
+      print*,shape(ReadCounts)
       tstart = omp_get_wtime()
 
       !$OMP PARALLEL DO DEFAULT(FIRSTPRIVATE) PRIVATE(i) SHARED(ReadCounts,InputGenos,MaxReadCounts,GMatSnp,GMatRds,Pr00, Pr01, Pr10, Pr11)
@@ -496,7 +497,7 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	      
 	      integer                 :: i, j, k, l, i2, i3,  iticks2
 	      integer                 :: ia, is, idd, ifreq_iterate, maxint, maxiter, itersused, kl, kc, kd, kj, nfams, last
-	      integer                 :: nf, im, ns, mf, iaa, ii, ms, m, n, maxvalspost, ierrors, iflag, nwritten
+	      integer                 :: nf, im, ns, mf, iaa, ii, ms, m, n, maxvalspost, ierrors, nwritten
 	      integer                 :: f,ff
 	      integer                 :: maxRegpoints,LeastPositive, LeastNegative, HoldInt, LimitAnimals, LimitNumber
 	      integer                 :: nonzed(3,3)
@@ -588,25 +589,20 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	      HoldInt=0
 	      isib=0
 
-	      if (Seq0Snp1Mode==0) allocate(sumReadsCurrentSnp(nAnis))
+        if (Seq0Snp1Mode==0) allocate(sumReadsCurrentSnp(nAnis))
 
 	      do ia=1,nAnis ! THIS LOOP CONVERT THE INPUT DATA IN LOG-LIKELIHOOD
-	        
-   	        if (Seq0Snp1Mode==0) phen(i) = ReadCounts(i,currentSnp,2) !!!! was ReadCounts(i,1,2) - MBattagin
-	        if (Seq0Snp1Mode==1) phen(i) = InputGenos(i,currentSnp)
+	        if (Seq0Snp1Mode==0) phen(ia) = ReadCounts(ia,currentSnp,2) !!!! was ReadCounts(i,1,2) - MBattagin
+	        if (Seq0Snp1Mode==1) phen(ia) = InputGenos(ia,currentSnp)
 
-
-	        iflag=0
-	        
 	        if (Seq0Snp1Mode==0) then
 	            sumReadsCurrentSnp(ia)=sum(ReadCounts(ia,currentSnp,:))
 	            if (sumReadsCurrentSnp(ia).eq.0) THEN
-	                iflag=1
+
 	                freq(:,ia) =log(1.)
 	            else
 	                do i = 0, sumReadsCurrentSnp(ia)
 	                    IF (phen(ia).eq.i) THEN
-	                        iflag=1
 	                        IF (GMatRds(i, 1,sumReadsCurrentSnp(ia)).lt.log(.000000001))then 
 	                            freq(1,ia) =-9999
 	                        else
@@ -629,7 +625,6 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 
 	        if (Seq0Snp1Mode==1) then
 	            if (phen(ia).eq.9) then
-	                iflag=1
 	                freq(1,ia) =log(1.)
 	                freq(2,ia) =log(1.)
 	                freq(3,ia) =log(1.)
@@ -637,7 +632,6 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	                do i = 1,3
 	                    !ifix=i+1
 	                    if (phen(ia).eq.i) then
-	                        iflag=1
 	                        
 	                        if (GMatSnp(i,1).lt.(.000000001)) then 
 	                            freq(1,ia) =-9999
@@ -1108,18 +1102,6 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	        do i=1,nwritten
 	          !call info(phet(i), phom(i), phethw, phomhw, probindex)
 
-	          iflag=0 
-
-	          !!!MBattagin - the following 8 lines in GeneProb4AlphaImpute are not commented!
-	          !           if (ABS(1. - pnor(i)-phet(i)-phom(i)) > .0001 ) iflag=iflag+10
-
-	          !           do j=1, phenotypes
-	          !               if (phen(i)==phenotype(j)) then
-	          !                   if (g(j,0)<0.000001 .and. pnor(i)>0.01 ) iflag=iflag+1
-	          !                   if (g(j,1)<0.000001 .and. phet(i)>0.01 ) iflag=iflag+1
-	          !                   if (g(j,2)<0.000001 .and. phom(i)>0.01 ) iflag=iflag+1
-	          !               endif
-	          !           enddo
 	         
 	          if(Imprinting>0) then
 	            if(phet(i)<0.0000001) then
