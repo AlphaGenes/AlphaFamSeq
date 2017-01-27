@@ -50,7 +50,7 @@ contains
       call SetUpData(Seq0Snp1Mode,ReadCounts,InputGenos,nAnis,nSnp,EndSnp,StartSnp,ReadCountsTmp,InputGenosTmp,MaxReadCounts)
       call SetUpEquationsForSnp(Seq0Snp1Mode,GMatSnp,GMatRds,ErrorRate,MaxReadCounts)
       call CreateLinkListArrays(nAnis,SeqSire,SeqDam,mxeq,mate,ifirst,next,prog)
-      print*,shape(ReadCounts)
+      
       tstart = omp_get_wtime()
 
       !$OMP PARALLEL DO DEFAULT(FIRSTPRIVATE) PRIVATE(i) SHARED(ReadCounts,InputGenos,MaxReadCounts,GMatSnp,GMatRds,Pr00, Pr01, Pr10, Pr11)
@@ -725,7 +725,9 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	          ! THE PARENT WITH ON AVERAGE THE MOST MATES OR PROGENY, USUALLY THE SIRE
 	          ! IGNORE THE ROWS OF THE OTHER PARENT.
 	          ! ----------------------------------------------------------------
-	          do is=1,nAnis
+	          
+
+            do is=1,nAnis
 	            kc=ifirst(is)
 	            if(kc.eq.0.or.kc.gt.nAnis) then
 	              ! do nothing
