@@ -30,7 +30,6 @@ contains
       
       integer :: MaxFs,MaxMates,MaxReadCounts
 
-      real(kind=8),allocatable,dimension(:) :: nReadCounts
       real(kind=8),allocatable,dimension(:,:,:) :: ReadCounts                                         
       
       integer,allocatable,dimension(:,:) :: InputGenos                                          
@@ -47,8 +46,8 @@ contains
       integer :: i 
       
       call GetMaxFamilySize(nAnis,SeqSire,SeqDam,MaxFs,MaxMates)
-      call SetUpData(Seq0Snp1Mode,ReadCounts,InputGenos,nAnis,nSnp,EndSnp,StartSnp,nReadCounts,ReadCountsTmp,InputGenosTmp)
-      call SetUpEquationsForSnp(nAnis,Seq0Snp1Mode,nReadCounts,GMatSnp,GMatRds,ErrorRate,MaxReadCounts)
+      call SetUpData(Seq0Snp1Mode,ReadCounts,InputGenos,nAnis,nSnp,EndSnp,StartSnp,ReadCountsTmp,InputGenosTmp,MaxReadCounts)
+      call SetUpEquationsForSnp(nAnis,Seq0Snp1Mode,GMatSnp,GMatRds,ErrorRate,MaxReadCounts)
       call CreateLinkListArrays(nAnis,SeqSire,SeqDam,mxeq,mate,ifirst,next,prog)
       tstart = omp_get_wtime()
 
@@ -77,7 +76,6 @@ contains
 
  	IF( ALLOCATED(ReadCounts)) DEALLOCATE(ReadCounts) 
  	IF( ALLOCATED(InputGenos)) DEALLOCATE(InputGenos)
- 	IF( ALLOCATED(nReadCounts)) DEALLOCATE(nReadCounts)
       
     end subroutine AlphaVarCall
 
@@ -118,7 +116,7 @@ contains
       mate=0
       next=0
       ifirst=0
-      prog=0. 
+      prog=0 
       MXEQ=0 ! Added by MBattagin - it was not initialised!!
       
       do ia=1,nAnis
@@ -131,7 +129,7 @@ contains
 
     !######################################################################################################################################################
 
-    subroutine SetUpEquationsForSnp(nAnis,Seq0Snp1Mode,nReadCounts,GMatSnp,GMatRds,ErrorRate,MaxReadCounts)
+    subroutine SetUpEquationsForSnp(nAnis,Seq0Snp1Mode,GMatSnp,GMatRds,ErrorRate,MaxReadCounts)
 
         implicit none
 
@@ -141,7 +139,6 @@ contains
         real(kind=8),intent(in) :: ErrorRate
 
 
-        real(kind=8),intent(in),dimension(:) :: nReadCounts(nAnis)
         real(kind=8),intent(inout),allocatable,dimension(:,:) :: GMatSnp 
         real(kind=8),intent(inout),allocatable,dimension(:,:,:) :: GMatRds
 
@@ -152,8 +149,6 @@ contains
         
 
         if (Seq0Snp1Mode==0) then
-
-            MaxReadCounts=maxval(nReadCounts)                       
 
             allocate(GMatRds(0:MaxReadCounts,3,MaxReadCounts))      
 
@@ -190,43 +185,33 @@ contains
 
     !######################################################################################################################################################
 
-    subroutine SetUpData(Seq0Snp1Mode,ReadCounts,InputGenos,nAnis,nSnp,EndSnp,StartSnp,nReadCounts,ReadCountsTmp,InputGenosTmp)
+    subroutine SetUpData(Seq0Snp1Mode,ReadCounts,InputGenos,nAnis,nSnp,EndSnp,StartSnp,ReadCountsTmp,InputGenosTmp,MaxReadCounts)
 
         implicit none
 
         integer, intent(in) :: nAnis,nSnp,StartSnp,EndSnp,Seq0Snp1Mode
+        integer, intent(inout) :: MaxReadCounts
         
         real(kind=8),intent(in),dimension(:,:,:) :: ReadCountsTmp(:,:,:) !(nAnis,nSnp,2)
         integer,intent(inout),dimension(:,:) :: InputGenosTmp(:,:)
 
         real(kind=8),intent(inout),allocatable,dimension(:,:,:) :: ReadCounts
-        real(kind=8),intent(inout),allocatable,dimension(:) :: nReadCounts
         integer,intent(inout),allocatable,dimension(:,:) :: InputGenos
-
-        real(kind=8),allocatable,dimension(:) :: nReadCountsTmp
 
         integer :: i,j,k
 
         if (Seq0Snp1Mode==0) then
-
+        	MaxReadCounts=0
             allocate(ReadCounts(nAnis,EndSnp-StartSnp+1,2)) ! Commented by MBattagin
-            allocate(nReadCounts(nAnis))                    ! Commented by MBattagin
-            allocate(nReadCountsTmp(EndSnp-StartSnp+1))    ! For each Individual save the reads for all the SNP
 
             do i=1,nAnis
-                nReadCountsTmp=0
                 k=1
                 do j=StartSnp,EndSnp
                     ReadCounts(i,k,:)=ReadCountsTmp(i,j,:)
-                    !nReadCounts(i)=sum(ReadCounts(i,k,:))
-                    nReadCountsTmp(k)=sum(ReadCounts(i,k,:))
+                    if (sum(ReadCounts(i,k,:)).gt.MaxReadCounts) MaxReadCounts=sum(ReadCounts(i,k,:))
                     k=k+1
                 end do
-                nReadCounts(i)=maxval(nReadCountsTmp(:))
             end do
-
-            deallocate(nReadCountsTmp)
-
         endif
 
 
@@ -537,7 +522,7 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,EndSnp,S
 	      REAL (KIND=8), allocatable,dimension(:,:)     :: ant,term,freq
 	      REAL (KIND=8), allocatable,dimension(:,:,:)   :: work
 
-	      print*,currentSnp
+	     ! print*,currentSnp
 
 	      !JH TO FIX THESE UP LATER
 	      pprior_hold = 0.5
