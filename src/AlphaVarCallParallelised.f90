@@ -86,11 +86,7 @@ contains
       ! OF THEIR MATES AND PROGENY. MATES CAN BE REPEATED AT SUCCESSIVE NODES
       ! REFLECT FULL SIB FAMILIES. NOTE, THE FIRST NODE FOR A PARTICULAR MATE
       ! CONTAIN THE POST(i,j) term, (the jth mate of the ith animal)
-      ! To initialise the iterative peeling up and peeling down cycles, the an
-      ! term for founder animals is set equal to the HW probs. Post. terms for
-      ! animals and ant. terms for non founders are set to 1 (reflecting no
-      ! information)
-
+ 
     subroutine CreateLinkListArrays(nAnis,SeqSire,SeqDam,mxeq,mate,ifirst,next,prog)
  
       implicit none
@@ -495,7 +491,7 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	      REAL(KIND=8), ALLOCATABLE,dimension(:,:) :: POST                        ! Added by MBattagin - used here and in FLIPPT
 
 	      
-	      integer                 :: i, j, k, l, i2, i3,  iticks2
+	      integer                 :: i, j, k, l, i2, i3,  iticks2,sumReads
 	      integer                 :: ia, is, idd, ifreq_iterate, maxint, maxiter, itersused, kl, kc, kd, kj, nfams, last
 	      integer                 :: nf, im, ns, mf, iaa, ii, ms, m, n, maxvalspost, ierrors, nwritten
 	      integer                 :: f,ff
@@ -512,7 +508,7 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	      INTEGER, allocatable,dimension(:)  :: phen,nmem,damGP ! note this is a different p1,p2 to sequence's
 	      INTEGER, ALLOCATABLE,dimension(:,:):: isib
 
-	      REAL (KIND=8), allocatable,dimension(:)       :: phom,phet,pnor,pHold,pResult,pDev,sumReadsCurrentSnp
+	      REAL (KIND=8), allocatable,dimension(:)       :: phom,phet,pnor,pHold,pResult,pDev
 	      REAL (KIND=8), allocatable,dimension(:,:)     :: ant,term,freq
 	      REAL (KIND=8), allocatable,dimension(:,:,:)   :: work
 
@@ -569,19 +565,91 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	      nonzed(3,3)=1
 	      ntype(3,3,1)=3
 
-	      ALLOCATE(post(3,0:2*nAnis),phen(nAnis), &
-	              ant(3,0:nAnis),phom(0:nAnis),phet(0:nAnis), &
-	              freq(3,0:nAnis),pnor(0:nAnis))
+	      ALLOCATE(phen(nAnis),freq(3,0:nAnis))
 
 	      if (Seq0Snp1Mode==0) phen=0
 	      if (Seq0Snp1Mode==1) phen=9 ! covers unlisted parents
+
+        ! THIS LOOP CONVERT THE INPUT DATA IN LOG-LIKELIHOOD
+        ! Freq is the LOG-LIKELIHOOD from own information
+
+        freq=log(1.)
+        
+        do ia=1,nAnis 
+
+          if (Seq0Snp1Mode==0) phen(ia) = ReadCounts(ia,currentSnp,2) !!!! was ReadCounts(i,1,2) - MBattagin
+          if (Seq0Snp1Mode==1) phen(ia) = InputGenos(ia,currentSnp)
+
+          if (Seq0Snp1Mode==0) then
+              sumReads=0
+              sumReads=sum(ReadCounts(ia,currentSnp,:))
+              if (sumReads.eq.0) THEN
+                  freq(:,ia) =log(1.)
+              else
+                  do i = 0, sumReads
+                      IF (phen(ia).eq.i) THEN
+                          IF (GMatRds(i, 1,sumReads).lt.log(.000000001))then 
+                              freq(1,ia) =-9999
+                          else
+                              freq(1,ia) =GMatRds(i, 1,sumReads)
+                          endif
+                          IF(GMatRds(i, 2,sumReads).lt.log(.000000001))then
+                              freq(2,ia) =-9999
+                          else
+                              freq(2,ia)=GMatRds(i, 2,sumReads)
+                          endif
+                          IF(GMatRds(i, 3,sumReads).lt.log(.000000001))then
+                              freq(3,ia) =-9999
+                          else
+                              freq(3,ia) =GMatRds(i, 3,sumReads)
+                          endif
+                      endif
+                  enddo
+              endif
+          endif
+
+          if (Seq0Snp1Mode==1) then
+              if (phen(ia).eq.9) then
+                  freq(1,ia) =log(1.)
+                  freq(2,ia) =log(1.)
+                  freq(3,ia) =log(1.)
+              else
+                  do i = 1,3
+                      
+                      if (phen(ia).eq.i) then
+                          
+                          if (GMatSnp(i,1).lt.(.000000001)) then 
+                              freq(1,ia) =-9999
+                          else
+                              freq(1,ia) =log(GMatSnp(i, 1)) 
+                          endif
+                          if (GMatSnp(i,2).lt.(.000000001)) then 
+                              freq(2,ia) =-9999
+                          else
+                              freq(2,ia) =log(GMatSnp(i, 2)) 
+                          endif
+                          if (GMatSnp(i,3).lt.(.000000001)) then 
+                              freq(3,ia) =-9999
+                          else
+                              freq(3,ia) =log(GMatSnp(i, 3)) 
+                          endif
+                      endif
+                  enddo
+              endif
+          endif
+        end do
+
+
+        ALLOCATE(post(3,0:2*nAnis), &
+                ant(3,0:nAnis),phom(0:nAnis),phet(0:nAnis), &
+                pnor(0:nAnis))
 
 
 	      post=0. 
 	      phom=0.
 	      phet=0.
 	      pnor=0.
-	      freq=log(1.)
+	      
 	      HoldInt = MAX(2*maxfs,maxmates)
 	      
 	      ALLOCATE(nmem(HoldInt),isib(maxmates,2*maxfs),damGP(maxmates),work(3,2*maxfs,2*maxfs),term(3,HoldInt))
@@ -589,72 +657,6 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	      HoldInt=0
 	      isib=0
 
-        if (Seq0Snp1Mode==0) allocate(sumReadsCurrentSnp(nAnis))
-
-	      do ia=1,nAnis ! THIS LOOP CONVERT THE INPUT DATA IN LOG-LIKELIHOOD
-	        if (Seq0Snp1Mode==0) phen(ia) = ReadCounts(ia,currentSnp,2) !!!! was ReadCounts(i,1,2) - MBattagin
-	        if (Seq0Snp1Mode==1) phen(ia) = InputGenos(ia,currentSnp)
-
-	        if (Seq0Snp1Mode==0) then
-	            sumReadsCurrentSnp(ia)=sum(ReadCounts(ia,currentSnp,:))
-	            if (sumReadsCurrentSnp(ia).eq.0) THEN
-
-	                freq(:,ia) =log(1.)
-	            else
-	                do i = 0, sumReadsCurrentSnp(ia)
-	                    IF (phen(ia).eq.i) THEN
-	                        IF (GMatRds(i, 1,sumReadsCurrentSnp(ia)).lt.log(.000000001))then 
-	                            freq(1,ia) =-9999
-	                        else
-	                            freq(1,ia) =GMatRds(i, 1,sumReadsCurrentSnp(ia))
-	                        endif
-	                        IF(GMatRds(i, 2,sumReadsCurrentSnp(ia)).lt.log(.000000001))then
-	                            freq(2,ia) =-9999
-	                        else
-	                            freq(2,ia)=GMatRds(i, 2,sumReadsCurrentSnp(ia))
-	                        endif
-	                        IF(GMatRds(i, 3,sumReadsCurrentSnp(ia)).lt.log(.000000001))then
-	                            freq(3,ia) =-9999
-	                        else
-	                            freq(3,ia) =GMatRds(i, 3,sumReadsCurrentSnp(ia))
-	                        endif
-	                    endif
-	                enddo
-	            endif
-	        endif
-
-	        if (Seq0Snp1Mode==1) then
-	            if (phen(ia).eq.9) then
-	                freq(1,ia) =log(1.)
-	                freq(2,ia) =log(1.)
-	                freq(3,ia) =log(1.)
-	            else
-	                do i = 1,3
-	                    !ifix=i+1
-	                    if (phen(ia).eq.i) then
-	                        
-	                        if (GMatSnp(i,1).lt.(.000000001)) then 
-	                            freq(1,ia) =-9999
-	                        else
-	                            freq(1,ia) =log(GMatSnp(i, 1)) 
-	                        endif
-	                        if (GMatSnp(i,2).lt.(.000000001)) then 
-	                            freq(2,ia) =-9999
-	                        else
-	                            freq(2,ia) =log(GMatSnp(i, 2)) 
-	                        endif
-	                        if (GMatSnp(i,3).lt.(.000000001)) then 
-	                            freq(3,ia) =-9999
-	                        else
-	                            freq(3,ia) =log(GMatSnp(i, 3)) 
-	                        endif
-	                    endif
-	                enddo
-	            endif
-	        endif
-	      end do
-
-	      if (Seq0Snp1Mode==0) deallocate(sumReadsCurrentSnp)
 
 	      maxRegpoints=5
 
@@ -681,13 +683,12 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	        ifreq_iterate = ifreq_iterate + 1 
 
 	        pprior = pHold(ifreq_iterate)
-
 	        qprior = 1-pprior
-	        !print*,currentSnp,ifreq_iterate,pHold(ifreq_iterate)
-	        !   initialise
+
 	        post=0.
 	        phet=0.
-	        do i=1,nAnis
+
+	        do i=1,nAnis ! M Battagin - removed use of the prior (i.e., AlleleFrequencies)
 	          ant(1,i)=log(.000000001)!log(qprior*qprior) 
 	          ant(2,i)=log(.000000001)!log(2.0*pprior*qprior) 
 	          ant(3,i)=log(.000000001)!log(pprior*pprior) 
@@ -709,6 +710,7 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	        ! term for founder animals is set equal to the HW probs. Post. terms for
 	        ! animals and ant. terms for non founders are set to 1 (reflecting no
 	        ! information)
+
 	        maxint=9999999
 	        maxiter=7
 	        itersUsed=maxiter
