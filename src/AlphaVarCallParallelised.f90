@@ -23,10 +23,10 @@ contains
       integer,intent(inout),dimension(:,:) :: InputGenosTmp(1:nAnis,nSnp) 
       
 
-      real(kind=4),intent(inout),dimension(:,:) :: Pr00(nAnis,EndSnp-StartSnp+1)
-      real(kind=4),intent(inout),dimension(:,:) :: Pr01(nAnis,EndSnp-StartSnp+1)
-      real(kind=4),intent(inout),dimension(:,:) :: Pr10(nAnis,EndSnp-StartSnp+1)
-      real(kind=4),intent(inout),dimension(:,:) :: Pr11(nAnis,EndSnp-StartSnp+1)
+      real(kind=8),intent(inout),dimension(:,:) :: Pr00(nAnis,EndSnp-StartSnp+1)
+      real(kind=8),intent(inout),dimension(:,:) :: Pr01(nAnis,EndSnp-StartSnp+1)
+      real(kind=8),intent(inout),dimension(:,:) :: Pr10(nAnis,EndSnp-StartSnp+1)
+      real(kind=8),intent(inout),dimension(:,:) :: Pr11(nAnis,EndSnp-StartSnp+1)
       
       integer :: MaxFs,MaxMates,MaxReadCounts
 
@@ -45,20 +45,21 @@ contains
       real(kind=8)::tstart,tend
       integer :: i 
       
+      print*,"startGeneProb"
       call GetMaxFamilySize(nAnis,SeqSire,SeqDam,MaxFs,MaxMates)
       call SetUpData(Seq0Snp1Mode,ReadCounts,InputGenos,nAnis,nSnp,EndSnp,StartSnp,ReadCountsTmp,InputGenosTmp,MaxReadCounts)
-      call SetUpEquationsForSnp(nAnis,Seq0Snp1Mode,GMatSnp,GMatRds,ErrorRate,MaxReadCounts)
+      call SetUpEquationsForSnp(Seq0Snp1Mode,GMatSnp,GMatRds,ErrorRate,MaxReadCounts)
       call CreateLinkListArrays(nAnis,SeqSire,SeqDam,mxeq,mate,ifirst,next,prog)
       tstart = omp_get_wtime()
 
-      !!$OMP PARALLEL DO DEFAULT(FIRSTPRIVATE) PRIVATE(i) SHARED(ReadCounts,InputGenos,MaxReadCounts,GMatSnp,GMatRds,Pr00, Pr01, Pr10, Pr11)
+      !$OMP PARALLEL DO DEFAULT(FIRSTPRIVATE) PRIVATE(i) SHARED(ReadCounts,InputGenos,MaxReadCounts,GMatSnp,GMatRds,Pr00, Pr01, Pr10, Pr11)
       do i=1,(EndSnp-StartSnp+1)
-        call geneprob(i,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,EndSnp,StartSnp, &
+        call geneprob(i,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos, &
                       maxfs,MaxMates,MaxReadCounts,GMatSnp,GMatRds,SeqSire,SeqDam, &
                       Pr00,Pr01,Pr10,Pr11, &
                       mxeq,mate,ifirst,next,prog)
       enddo
-      !!$OMP END PARALLEL DO
+      !$OMP END PARALLEL DO
 
       tend = omp_get_wtime()
       write(*,*) "Total wall time for GeneProbController is ", tend - tstart
@@ -129,12 +130,12 @@ contains
 
     !######################################################################################################################################################
 
-    subroutine SetUpEquationsForSnp(nAnis,Seq0Snp1Mode,GMatSnp,GMatRds,ErrorRate,MaxReadCounts)
+    subroutine SetUpEquationsForSnp(Seq0Snp1Mode,GMatSnp,GMatRds,ErrorRate,MaxReadCounts)
 
         implicit none
 
 
-        integer,intent(in) :: nAnis,Seq0Snp1Mode
+        integer,intent(in) :: Seq0Snp1Mode
         integer,intent(inout) :: MaxReadCounts
         real(kind=8),intent(in) :: ErrorRate
 
@@ -265,7 +266,7 @@ contains
 
         do i=1,nAnis
          family(i) = multiplier * seqsire(i) + seqdam(i)
-        ! IF(family(i) /= 0) PRINT'(3i7,i15)', i, seqsire(i), seqdam(i), family(i)
+         IF(family(i) /= 0) PRINT'(3i7,i15)', i, seqsire(i), seqdam(i), family(i)
         end do
 
           Noffset = INT(nAnis/2)
@@ -463,23 +464,22 @@ contains
 
     !######################################################################################################################################################
 
-subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,EndSnp,StartSnp,maxfs,MaxMates,MaxReadCounts,GMatSnp,GMatRds,SeqSire,SeqDam,Pr00,Pr01,Pr10,Pr11,mxeq,mate,ifirst,next,prog)
+subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,MaxMates,MaxReadCounts,GMatSnp,GMatRds,SeqSire,SeqDam,Pr00,Pr01,Pr10,Pr11,mxeq,mate,ifirst,next,prog)
 
 	      implicit none
 
-	      integer, intent(in)   :: currentSnp,Seq0Snp1Mode,EndSnp,StartSnp,maxfs,MaxMates,MaxReadCounts
+	      integer, intent(in) :: currentSnp,Seq0Snp1Mode,maxfs,MaxMates,MaxReadCounts
 	      integer, intent(in) :: nAnis
 	      integer, intent(in), dimension (:) :: SeqSire(nAnis),SeqDam(nAnis)
 
 	      real(kind=8),intent(in),dimension(:,:) :: GMatSnp(1:3,1:3)
 	      real(kind=8),intent(in),dimension(:,:,:) :: GMatRds(0:MaxReadCounts,3,MaxReadCounts)
 
-	      integer,intent(in),dimension(:,:) :: InputGenos(1:nAnis,EndSnp-StartSnp+1)
-	      real(kind=8),intent(in),dimension(:,:,:) :: ReadCounts(nAnis,EndSnp-StartSnp+1,2)                                       
+	      integer,intent(in),dimension(:,:) :: InputGenos 
+	      real(kind=8),intent(in),dimension(:,:,:) :: ReadCounts 
 
-	      real(kind=4),intent(inout),dimension(:,:) :: Pr00(nAnis,EndSnp-StartSnp+1),Pr01(nAnis,EndSnp-StartSnp+1),Pr10(nAnis,EndSnp-StartSnp+1),Pr11(nAnis,EndSnp-StartSnp+1)
-	      !real(kind=8),intent(inout),dimension(:) :: OutputMaf(EndSnp-StartSnp+1)
-
+	      real(kind=8),intent(inout),dimension(:,:) :: Pr00,Pr01,Pr10,Pr11 
+	      
 	      integer,intent(in) :: mxeq
 
 	      INTEGER, intent(inout),dimension(:) :: mate(0:2*nAnis),prog(0:2*nAnis)
@@ -489,9 +489,9 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,EndSnp,S
 
 	      INTEGER :: Imprinting_hold,PauseAtEnd_hold,nfreq_max_hold     ! Added by MBattagin
 
-	      REAL (KIND=8) :: pprior, qprior, StopCrit !SeqError                      ! Added by MBattagin
+	      REAL (KIND=8) :: pprior, qprior, StopCrit                       ! Added by MBattagin
 	      
-	      INTEGER :: Imprinting,PauseAtEnd,nfreq_max !phenotypes                   ! Added by MBattagin
+	      INTEGER :: Imprinting,PauseAtEnd,nfreq_max                   ! Added by MBattagin
 	      INTEGER, allocatable,dimension(:) :: phenhold                                      ! Added by MBattagin
 
 	      INTEGER :: MM                                                           ! Added by MBattagin - used here and in LNKLST and ANotherOne
@@ -500,7 +500,7 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,EndSnp,S
 	      REAL(KIND=8), ALLOCATABLE,dimension(:,:) :: POST                        ! Added by MBattagin - used here and in FLIPPT
 
 	      
-	      integer                 :: i, j, k, l, i2, i3,  iticks2,ifix !iticks1,
+	      integer                 :: i, j, k, l, i2, i3,  iticks2
 	      integer                 :: ia, is, idd, ifreq_iterate, maxint, maxiter, itersused, kl, kc, kd, kj, nfams, last
 	      integer                 :: nf, im, ns, mf, iaa, ii, ms, m, n, maxvalspost, ierrors, iflag, nwritten
 	      integer                 :: f,ff
@@ -513,7 +513,6 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,EndSnp,S
 	      REAL (KIND=8)                 :: pt(3,3,3)
 	      REAL (KIND=8)                 :: phethw,phomhw  ! this is needed for info - or compile with dble.  Don't know why!
 	      REAL (KIND=8)                 :: s0,s1,s2, areg, breg, meanX, meanY, sumY, sumXY, sumX, sumX2
-	      !real                          :: LnkStart,LnkEnd
 
 	      INTEGER, allocatable,dimension(:)  :: phen,nmem,damGP ! note this is a different p1,p2 to sequence's
 	      INTEGER, ALLOCATABLE,dimension(:,:):: isib
