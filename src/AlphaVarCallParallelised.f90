@@ -45,7 +45,6 @@ contains
       real(kind=8)::tstart,tend
       integer :: i 
       
-      print*,"startGeneProb"
       call GetMaxFamilySize(nAnis,SeqSire,SeqDam,MaxFs,MaxMates)
       call SetUpData(Seq0Snp1Mode,ReadCounts,InputGenos,nAnis,nSnp,EndSnp,StartSnp,ReadCountsTmp,InputGenosTmp,MaxReadCounts)
       call SetUpEquationsForSnp(Seq0Snp1Mode,GMatSnp,GMatRds,ErrorRate,MaxReadCounts)
@@ -263,7 +262,7 @@ contains
 
         do i=1,nAnis
          family(i) = multiplier * seqsire(i) + seqdam(i)
-         IF(family(i) /= 0) PRINT'(3i7,i15)', i, seqsire(i), seqdam(i), family(i)
+         !IF(family(i) /= 0) PRINT'(3i7,i15)', i, seqsire(i), seqdam(i), family(i)
         end do
 
           Noffset = INT(nAnis/2)
