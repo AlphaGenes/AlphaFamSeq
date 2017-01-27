@@ -488,10 +488,8 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	      REAL (KIND=8) :: pprior, qprior, StopCrit                       ! Added by MBattagin
 	      
 	      INTEGER :: Imprinting,PauseAtEnd,nfreq_max                   ! Added by MBattagin
-	      INTEGER, allocatable,dimension(:) :: phenhold                                      ! Added by MBattagin
-
+	      
 	      INTEGER :: MM                                                           ! Added by MBattagin - used here and in LNKLST and ANotherOne
-	      !INTEGER :: NN                                                           ! Added by MBattagin - used here and in LNKLST   
 	      
 	      REAL(KIND=8), ALLOCATABLE,dimension(:,:) :: POST                        ! Added by MBattagin - used here and in FLIPPT
 
@@ -519,8 +517,6 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 
 	     ! print*,currentSnp
 
-
-	      
 	      pprior= 0.5 
 	      qprior= 1-pprior
 	      nfreq_max=50 
@@ -572,27 +568,17 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	      nonzed(3,3)=1
 	      ntype(3,3,1)=3
 
-	      allocate(phenhold(0:nAnis))
 	      ALLOCATE(post(3,0:2*nAnis),phen(nAnis), &
 	              ant(3,0:nAnis),phom(0:nAnis),phet(0:nAnis), &
 	              freq(3,0:nAnis),pnor(0:nAnis))
 
-	      if (Seq0Snp1Mode==0) then
-	          phenhold=0
-	          phen=0
-	      endif
-	      if (Seq0Snp1Mode==1) then
-	          phenhold=9
-	          phen=9 ! covers unlisted parents
-	      endif
+	      if (Seq0Snp1Mode==0) phen=0
+	      if (Seq0Snp1Mode==1) phen=9 ! covers unlisted parents
+
 
 	      do i=1,nAnis
-	        if (Seq0Snp1Mode==0) then
-	            phenhold(i) = ReadCounts(i,currentSnp,2) !!!! was ReadCounts(i,1,2) - MBattagin
-	        endif
-	        if (Seq0Snp1Mode==1) then
-	            phenhold(i) = InputGenos(i,currentSnp)
-	        endif
+	        if (Seq0Snp1Mode==0) phen(i) = ReadCounts(i,currentSnp,2) !!!! was ReadCounts(i,1,2) - MBattagin
+	        if (Seq0Snp1Mode==1) phen(i) = InputGenos(i,currentSnp)
 	      end do
 
 	      post=0. 
@@ -611,7 +597,6 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 
 	      do ia=1,nAnis ! THIS LOOP CONVERT THE INPUT DATA IN LOG-LIKELIHOOD
 	        
-	        phen(ia)=phenhold(ia)   ! was phen(ia)=phenhold(passedorder(ia)) -- MBattagin
 	        iflag=0
 	        
 	        if (Seq0Snp1Mode==0) then
@@ -676,7 +661,6 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	        endif
 	      end do
 
-	      deallocate (phenhold)
 	      if (Seq0Snp1Mode==0) deallocate(sumReadsCurrentSnp)
 
 	      maxRegpoints=5
