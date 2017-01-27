@@ -576,11 +576,6 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	      if (Seq0Snp1Mode==1) phen=9 ! covers unlisted parents
 
 
-	      do i=1,nAnis
-	        if (Seq0Snp1Mode==0) phen(i) = ReadCounts(i,currentSnp,2) !!!! was ReadCounts(i,1,2) - MBattagin
-	        if (Seq0Snp1Mode==1) phen(i) = InputGenos(i,currentSnp)
-	      end do
-
 	      post=0. 
 	      phom=0.
 	      phet=0.
@@ -597,6 +592,10 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 
 	      do ia=1,nAnis ! THIS LOOP CONVERT THE INPUT DATA IN LOG-LIKELIHOOD
 	        
+   	        if (Seq0Snp1Mode==0) phen(i) = ReadCounts(i,currentSnp,2) !!!! was ReadCounts(i,1,2) - MBattagin
+	        if (Seq0Snp1Mode==1) phen(i) = InputGenos(i,currentSnp)
+
+
 	        iflag=0
 	        
 	        if (Seq0Snp1Mode==0) then
