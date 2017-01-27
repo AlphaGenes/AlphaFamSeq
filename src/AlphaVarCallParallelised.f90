@@ -485,10 +485,6 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	      INTEGER, intent(inout),dimension(:) :: mate(0:2*nAnis),prog(0:2*nAnis)
 	      INTEGER, intent(inout),dimension(:) :: next(2*nAnis),ifirst(0:nAnis)
 	      
-	      REAL (KIND=8)         :: pprior_hold,qprior_hold,StopCrit_hold         ! Added by MBattagin
-
-	      INTEGER :: Imprinting_hold,PauseAtEnd_hold,nfreq_max_hold     ! Added by MBattagin
-
 	      REAL (KIND=8) :: pprior, qprior, StopCrit                       ! Added by MBattagin
 	      
 	      INTEGER :: Imprinting,PauseAtEnd,nfreq_max                   ! Added by MBattagin
@@ -523,23 +519,14 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 
 	     ! print*,currentSnp
 
-	      !JH TO FIX THESE UP LATER
-	      pprior_hold = 0.5
-	      qprior_hold = 1-pprior_hold ! MBattagin "pprior_hold" was "pprior"
 
-	      !phenotypes_hold = 3
-	      Imprinting_hold = 1
-	      PauseAtEnd_hold = 0
-	      nfreq_max_hold = 50
-	      StopCrit_hold = 0.0001
-	      !JH TO FIX THESE UP LATER
-
-	      pprior=pprior_hold
-	      qprior=qprior_hold
-	      nfreq_max=nfreq_max_hold
-	      Imprinting=Imprinting_hold
-	      PauseAtEnd=PauseAtEnd_hold
-	      StopCrit=StopCrit_hold
+	      
+	      pprior= 0.5 
+	      qprior= 1-pprior
+	      nfreq_max=50 
+	      Imprinting=1 
+	      PauseAtEnd=0 
+	      StopCrit=0.0001
 
 	      ! ----------------------------------------------------------------
 	      !  P-MATRIX: PROB. OF OFFSPRING GENOTYPE GIVEN GENOTYPE OF PARENTS
