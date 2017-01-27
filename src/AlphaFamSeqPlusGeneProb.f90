@@ -64,10 +64,10 @@ module GlobalPar
 	integer,allocatable,dimension(:) :: GeneProbYesOrNo			! Temporary Array - use gene prob or not
 	integer,allocatable,dimension(:,:,:) :: FounderAssignment   ! Temporary File - Save the IDs of the grandparents
 
-	real(kind=4),allocatable,dimension(:,:) :: Pr00   			! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Homozygote for Reference Allele 
-    real(kind=4),allocatable,dimension(:,:) :: Pr01	  			! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Heterozygote (0 from dad, 1 from mum)
-    real(kind=4),allocatable,dimension(:,:) :: Pr10				! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Heterozygote (1 from dad, 0 from mum)
-    real(kind=4),allocatable,dimension(:,:) :: Pr11				! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Homozygote for Alternative Allele 
+	real(kind=8),allocatable,dimension(:,:) :: Pr00   			! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Homozygote for Reference Allele 
+    real(kind=8),allocatable,dimension(:,:) :: Pr01	  			! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Heterozygote (0 from dad, 1 from mum)
+    real(kind=8),allocatable,dimension(:,:) :: Pr10				! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Heterozygote (1 from dad, 0 from mum)
+    real(kind=8),allocatable,dimension(:,:) :: Pr11				! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Homozygote for Alternative Allele 
 
 
 	integer,allocatable,dimension(:,:) :: FilledGenos 			! Output - Imputed Genotypes
@@ -1644,7 +1644,7 @@ subroutine WriteResults
 	implicit none
 
 	integer :: i,j
-	real(kind=4),allocatable,dimension(:) :: AlleleDosage
+	real(kind=8),allocatable,dimension(:) :: AlleleDosage
 	character(len=30) :: nChar
 	character(len=80) :: FmtInt,FmtCha,FmtReal,FmtIntF,filout1,filout2,filout3,filout4,filout5
 
