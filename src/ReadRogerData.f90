@@ -97,7 +97,7 @@ subroutine readRogerData(filename, Ids, position, quality, SequenceData,nSnpIn,S
   character(len=*), intent(in)::filename
   character(len=100), allocatable, dimension(:), intent(out):: Ids
   
-  character(len=100), dimension(:), allocatable::dumE
+  integer, dimension(:), allocatable::dumE
   integer(int32), dimension(:,:,:), allocatable::SequenceData
 
   integer(int32), intent(in)::SnpUsed,nSnpIn,StartSnp,EndSnp,nIndivIn
@@ -117,19 +117,17 @@ subroutine readRogerData(filename, Ids, position, quality, SequenceData,nSnpIn,S
   
   do i = 1, nIndiv
     read(fileUnit, *) Ids(i),dumE
-    read(dumE(StartSnp:EndSnp), *) SequenceData(i,:, 1)
+    !read(dumE(StartSnp:EndSnp), *) 
+    SequenceData(i,:, 1)=dumE(StartSnp:EndSnp)
     read(fileUnit, *) dumI,dumE
-    read(dumE(StartSnp:EndSnp), *) SequenceData(i,:, 2)
+    !read(dumE(StartSnp:EndSnp), *) 
+    SequenceData(i,:, 2)=dumE(StartSnp:EndSnp)
   end do
   
 end subroutine readAlphaSimReads
 
 
 end module MaraModule
-
-
-
-  !So we want to read in and inver
 
 
 

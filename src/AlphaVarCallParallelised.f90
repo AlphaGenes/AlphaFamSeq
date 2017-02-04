@@ -19,7 +19,7 @@ contains
       
       integer, intent(in), dimension (:) :: SeqSire(nAnis),SeqDam(nAnis)
       
-      real(kind=8),intent(in),dimension(:,:,:) :: ReadCountsTmp(1:nAnis,nSnp,2) 
+      real(kind=4),intent(in),dimension(:,:,:) :: ReadCountsTmp(1:nAnis,nSnp,2) 
       integer,intent(inout),dimension(:,:) :: InputGenosTmp(1:nAnis,nSnp) 
       
 
@@ -30,7 +30,7 @@ contains
       
       integer :: MaxFs,MaxMates,MaxReadCounts
 
-      real(kind=8),allocatable,dimension(:,:,:) :: ReadCounts                                         
+      real(kind=4),allocatable,dimension(:,:,:) :: ReadCounts                                         
       
       integer,allocatable,dimension(:,:) :: InputGenos                                          
 
@@ -189,10 +189,10 @@ contains
         integer, intent(in) :: nAnis,nSnp,StartSnp,EndSnp,Seq0Snp1Mode
         integer, intent(inout) :: MaxReadCounts
         
-        real(kind=8),intent(in),dimension(:,:,:) :: ReadCountsTmp(:,:,:) !(nAnis,nSnp,2)
+        real(kind=4),intent(in),dimension(:,:,:) :: ReadCountsTmp(:,:,:) !(nAnis,nSnp,2)
         integer,intent(inout),dimension(:,:) :: InputGenosTmp(:,:)
 
-        real(kind=8),intent(inout),allocatable,dimension(:,:,:) :: ReadCounts
+        real(kind=4),intent(inout),allocatable,dimension(:,:,:) :: ReadCounts
         integer,intent(inout),allocatable,dimension(:,:) :: InputGenos
 
         integer :: i,j,k
@@ -472,7 +472,7 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	      real(kind=8),intent(in),dimension(:,:,:) :: GMatRds(0:MaxReadCounts,3,MaxReadCounts)
 
 	      integer,intent(in),dimension(:,:) :: InputGenos 
-	      real(kind=8),intent(in),dimension(:,:,:) :: ReadCounts 
+	      real(kind=4),intent(in),dimension(:,:,:) :: ReadCounts 
 
 	      real(kind=8),intent(inout),dimension(:,:) :: Pr00,Pr01,Pr10,Pr11 
 	      
@@ -688,9 +688,9 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	        phet=0.
 
 	        do i=1,nAnis ! M Battagin - removed use of the prior (i.e., AlleleFrequencies)
-	          ant(1,i)=log(.000000001)!log(qprior*qprior) 
-	          ant(2,i)=log(.000000001)!log(2.0*pprior*qprior) 
-	          ant(3,i)=log(.000000001)!log(pprior*pprior) 
+	          ant(1,i)=log(.000000001)! log(qprior*qprior) !
+	          ant(2,i)=log(.000000001)! log(2.0*pprior*qprior) !
+	          ant(3,i)=log(.000000001)!log(pprior*pprior) !
 	        enddo
 
 	        ! ----------------------------------------------
@@ -727,7 +727,7 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	          
 
             do is=1,nAnis
-	            kc=ifirst(is)
+              kc=ifirst(is)
 	            if(kc.eq.0.or.kc.gt.nAnis) then
 	              ! do nothing
 	            else
@@ -811,6 +811,8 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	                !  NOW WE ARE READY To CALCULATE THE BLOODY THING
 	                do ns=1,nmem(nf)
 	                  ia=isib(nf,ns)
+                    !if (currentSnp==1) write(*,'(2i10,3f10.5)') currentSnp,ia,ant(:,ia)
+              
 	                  ! Here we will get the anterior probability for the progeny in question.  For appendix equations' m, f, s and i:
 	                  ! m is here is   - the sire of i as in the outer loop
 	                  ! f is here imum - the dam of i
@@ -856,10 +858,11 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	                    temp(i)=sum1(1)
 	                  enddo
 	                  call LOGADD(temp,3)
-	                  do i=1,3
+                    do i=1,3
 	                    ant(i,ia)=ant(i,ia)-temp(1)
-	                    ! print*, currentSnp,ia,i,ant(i,ia)
 	                  enddo
+                    !write(*,'(2i10,3f10.5)') currentSnp,ia,ant(:,ia)
+                    
 	                enddo
 	              enddo
 	            endif

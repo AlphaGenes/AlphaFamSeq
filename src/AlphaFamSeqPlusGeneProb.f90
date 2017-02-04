@@ -48,7 +48,7 @@ module GlobalPar
 	integer,allocatable,dimension(:) :: Id                      ! Read Data - used to read unsorted data
 
 	integer(int32),allocatable,dimension(:,:,:) :: SequenceData	! Input File - Snp array to add more information to the Reads
-	real(kind=8),allocatable,dimension(:,:,:) :: RawReads		! Input File - Snp array to add more information to the Reads
+	real(kind=4),allocatable,dimension(:,:,:) :: RawReads		! Input File - Snp array to add more information to the Reads
 	character(len=100), allocatable, dimension(:) :: Ids
 	integer(int32), dimension(:), allocatable :: position
 	real(real64), allocatable, dimension(:) :: quality
@@ -59,7 +59,6 @@ module GlobalPar
 	
 	character(len=1),allocatable,dimension(:,:) :: CheckGenos   ! Control Results - Use character to check True vs Imputed Genotypes
 	character(len=1),allocatable,dimension(:,:,:) :: CheckPhase ! Control Results - Use character to check True vs Imputed Phase
-	character(len=1),allocatable,dimension(:,:) :: CharPhase    ! Control Results - Use character to check True vs Imputed Genotypes
 	
 	integer,allocatable,dimension(:) :: GeneProbYesOrNo			! Temporary Array - use gene prob or not
 	integer,allocatable,dimension(:,:,:) :: FounderAssignment   ! Temporary File - Save the IDs of the grandparents
@@ -113,7 +112,6 @@ program FamilyPhase
 		call RunGeneProb
 		write (*,'(1a39)') "      Iter   ProbThr    %Phase   %Geno"
 
-
 		IterationNumber=0
 		SolutionChanged=1
 		do while ((SolutionChanged==1))!.and.(IterationNumber<2))
@@ -132,10 +130,7 @@ program FamilyPhase
 			!	call CurrentCountFilled
 			!endif
 
-			!if ((GeneProbThresh>GeneProbThreshMin).or.(IterationNumber==1)) then
-			!	if (GeneProbThresh<GeneProbThreshMin) GeneProbThresh=GeneProbThreshMin
-				call UseGeneProbToSimpleFillInBasedOnOwnReads
-			!endif
+			call UseGeneProbToSimpleFillInBasedOnOwnReads
 			call SimpleCleanUpFillIn
 			!call CurrentCountFilled
 
@@ -180,7 +175,8 @@ program FamilyPhase
 			write (*,'(1i10,3f10.5)') IterationNumber,GeneProbThresh,(dble(CurrentCountFilledPhase)/(dble(nInd*nSnp*2))*100),(dble(CurrentCountFilledGenos)/(dble(nInd*nSnp))*100)
 		enddo
 
-		if ((trim(PhaseFile)/="None").or.(trim(GenoFile)/="None")) then 
+		if ((trim(PhaseFile)/="None").or.(trim(GenoFile)/="None")) then
+			call ReadTrueDataIfTheyExist
 			call Checker
 		endif
 		call WriteResults
@@ -481,7 +477,6 @@ subroutine CheckMissingData
 	!$OMP END PARALLEL DO
 
 	close (1)
-
 end subroutine CheckMissingData
 
 !###########################################################################################
@@ -498,8 +493,8 @@ subroutine SimpleCleanUpFillIn
 	do while (Change==1)
 		Change=0
 		!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase,nInd,nSnp)
-		do i=1,nInd
-			do j=1,nSnp
+		do j=1,nSnp
+			do i=1,nInd
 				if (FilledGenos(i,j)==9) then
 					if ((FilledPhase(i,j,1)/=9).and.(FilledPhase(i,j,2)/=9)) then
 						FilledGenos(i,j)=sum(FilledPhase(i,j,:))
@@ -875,10 +870,11 @@ subroutine CalculateFounderAssignment
 	FounderAssignment(:,:,:)=0 
 	
 	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase,RecPed,FounderAssignment,nInd,nSnp)
-	do i=1,nInd
-		do e=2,3 ! Sire and Dam pos in the ped
-			k=e-1 ! Sire and Dam gamete
-			do j=1,nSnp
+	do j=1,nSnp
+		do i=1,nInd
+			do e=2,3 ! Sire and Dam pos in the ped
+				k=e-1 ! Sire and Dam gamete
+
 				if (FilledGenos(RecPed(i,e),j)==1) then
 					if (sum(FilledPhase(RecPed(i,e),j,:))<3) then
 						if (FilledPhase(RecPed(i,e),j,1)==FilledPhase(i,j,k)) FounderAssignment(i,j,k)=RecPed(RecPed(i,e),2) !Sire of Parent !FounderId(k,1)
@@ -902,10 +898,11 @@ subroutine SimpleFillInBasedOnProgenyReads
 
 	integer :: i,j,IdSire,IdDam
 
-	do i=1,nInd
-
-		!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (RawReads,FilledGenos,FilledPhase,RecPed,i,nSnp)
+	
 		do j=1,nSnp
+		!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (RawReads,FilledGenos,FilledPhase,RecPed,j,nSnp)
+			do i=1,nInd
+
 
 			if ((FilledGenos(i,j)==0).or.(FilledGenos(i,j)==2)) then
 				IdSire=RecPed(i,2)
@@ -957,9 +954,10 @@ subroutine SimpleFillInBasedOnParentsReads
 	integer :: i,j,e,k
 	real :: nRef,nAlt,Pr0,Pr1,Pr2
 
-	do i=1,nInd
-	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (RawReads,FilledGenos,FilledPhase,RecPed,ErrorRate,GeneProbThresh,i,nSnp)
-		do j=1,nSnp
+	do j=1,nSnp
+	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (RawReads,FilledGenos,FilledPhase,RecPed,ErrorRate,GeneProbThresh,j,nSnp)
+		do i=1,nInd
+
 			if (maxval(FilledPhase(i,j,:))==9) then
 				nRef=RawReads(i,j,1)
 				nAlt=RawReads(i,j,2)
@@ -1002,8 +1000,8 @@ subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
     integer :: i,j
 
     !$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (Pr00,Pr11,Pr01,Pr10,FilledGenos,FilledPhase,nInd,nSnp,GeneProbThresh)
-	do i=1,nInd
-		do j=1,nSnp
+	do j=1,nSnp
+		do i=1,nInd
 			!if (sum(RawReads(i,j,:)).ge.10) write(*,'(3i10,6f10.4)'),i,j,Ped(i,1),RawReads(i,j,:),Pr00(i,j),Pr01(i,j),Pr10(i,j),Pr11(i,j)
 			!if (i==7) write(*,'(3i10,6f10.4)'),i,j,Ped(i,1),RawReads(i,j,:),Pr00(i,j),Pr01(i,j),Pr10(i,j),Pr11(i,j)
 			if ((Pr00(i,j)>=GeneProbThresh).and.(sum(FilledPhase(i,j,:))>3)) then
@@ -1033,9 +1031,7 @@ subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 	!$OMP END PARALLEL DO
 end subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 
-
 !################################################################################################
-
 
 subroutine RunGeneProb
 	
@@ -1089,7 +1085,6 @@ subroutine RunGeneProb
 	!deallocate(SeqId)
 	deallocate(SeqSire)
 	deallocate(Seqdam)
-
 end subroutine RunGeneProb
 
 !################################################################################################
@@ -1135,8 +1130,8 @@ subroutine UseGeneProbToSimpleFillInBasedOnFilledGenos
     integer :: i,j
 
     !$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (Pr00,Pr11,Pr01,Pr10,FilledGenos,FilledPhase,nInd,nSnp,GeneProbThresh)
-	do i=1,nInd
-		do j=1,nSnp
+	do j=1,nSnp
+		do i=1,nInd
 			!if (sum(RawReads(i,j,:)).ge.10) write(*,'(3i10,6f10.4)'),i,j,Ped(i,1),RawReads(i,j,:),Pr00(i,j),Pr01(i,j),Pr10(i,j),Pr11(i,j)
 			!if (i==7) write(*,'(3i10,6f10.4)'),i,j,Ped(i,1),RawReads(i,j,:),Pr00(i,j),Pr01(i,j),Pr10(i,j),Pr11(i,j)
 			if ((Pr00(i,j)>=GeneProbThresh).and.(sum(FilledPhase(i,j,:))>3)) then
@@ -1166,9 +1161,7 @@ subroutine UseGeneProbToSimpleFillInBasedOnFilledGenos
 	!$OMP END PARALLEL DO
 end subroutine UseGeneProbToSimpleFillInBasedOnFilledGenos
 
-
 !################################################################################################
-
 
 subroutine SimpleFillInBasedOnOwnReads
 
@@ -1182,8 +1175,9 @@ subroutine SimpleFillInBasedOnOwnReads
 	nRef=0.00
 	nAlt=0.00
 	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (RawReads,FilledGenos,FilledPhase,nInd,nSnp,ErrorRate,GeneProbThresh,GeneProbYesOrNo)
-	do i=1,nInd
-		do j=1,nSnp
+	do j=1,nSnp
+		do i=1,nInd
+
 			
 			!if (GeneProbYesOrNo(j)==0) then ! Only Snps that are Fixed
 				if ((maxval(RawReads(i,j,:))/=0).and.(FilledGenos(i,j)/=9)) then
@@ -1254,8 +1248,6 @@ subroutine AllocateArrays
 
 	! Input Files
 	allocate(Id(0:nInd))
- 	if (trim(GenoFile)/="None")  allocate(TrueGenos(nInd,nSnp))
-	if (trim(PhaseFile)/="None")  allocate(TruePhase(nInd,nSnp,2))
 
 	! New phase/geno
 	allocate(FilledGenos(0:nInd,nSnp))
@@ -1276,11 +1268,6 @@ subroutine AllocateArrays
 	! Founders
 	allocate(FounderAssignment(nInd,nSnp,2))
 	!allocate(ConsensusFounders(nInd,2))
-
-	! Checks
-	allocate(CheckPhase(nInd,nSnp,2))
-	allocate(CheckGenos(nInd,nSnp))
-	allocate(CharPhase(nSnp,2))
 end subroutine AllocateArrays
 
 !################################################################################################
@@ -1316,7 +1303,6 @@ subroutine DeallocateArrays
 	! Checks
 	deallocate(CheckPhase)
 	deallocate(CheckGenos)
-	deallocate(CharPhase)
 end subroutine DeallocateArrays
 
 !################################################################################################
@@ -1500,15 +1486,15 @@ subroutine ReadData
 
   	use GlobalPar
 	use MaraModule
+	use omp_lib
 
   	implicit none
   
 	integer :: i,PosReads,PosGeno,PosPhase
 	integer,allocatable,dimension(:) :: TempImput
 	integer :: TmpID
+	real(kind=8)::tstart,tend
 
-	if (trim(GenoFile)/="None") open (unit=3,file=trim(GenoFile),status="old")
-	if (trim(PhaseFile)/="None") open (unit=4,file=trim(PhaseFile),status="old")
 	!For CurrentCount
 	!open (unit=99,file="AlphaFamSeqSummary.log",status="unknown")
 
@@ -1518,6 +1504,9 @@ subroutine ReadData
 	
 	allocate(RawReads(nInd,nSnp,2))
 	RawReads(:,:,:)=0.0
+
+    tstart = omp_get_wtime()
+	!$OMP PARALLEL DO DEFAULT(FIRSTPRIVATE) PRIVATE(i) SHARED(nIndSeq,Ids,RawReads,SequenceData)
 	do i=1, nIndSeq
 		PosReads=0
 		read(Ids(i),*) TmpID
@@ -1525,39 +1514,13 @@ subroutine ReadData
 	    !print*,i,TmpID,PosReads
 	    if (PosReads/=0) RawReads(PosReads,:,:)= real(SequenceData(i,:,:))
 	enddo
-
+	!$OMP END PARALLEL DO
+	tend = omp_get_wtime()
+	write(*,*) "Total wall time for Reads sorting ", tend - tstart
+	
 	deallocate(SequenceData)
 	allocate(TempImput(LenghtSequenceDataFile))
 	call AllocateArrays
-
-	do i=1,nInd
-		
-	    if (trim(GenoFile)/="None") then
-		    PosGeno=0
-		    read(3,*) Id(i), TempImput(:) 
-		    call GetID(Id(i), PosGeno)
-		    TrueGenos(PosGeno,:) = TempImput(StartSnp:EndSnp)
-		endif
-
-		if (trim(PhaseFile)/="None") then
-		 	PosPhase=0
-		    read(4,*) Id(i), TempImput(:) 
-		    call GetID(Id(i), PosPhase)
-		    TruePhase(PosPhase,:,1)= TempImput(StartSnp:EndSnp)
-
-		    PosPhase=0
-			read(4,*) Id(i), TempImput(:) 
-		    call GetID(Id(i), PosPhase)
-		    TruePhase(PosPhase,:,2)= TempImput(StartSnp:EndSnp)
-
-		endif
-
-	enddo
-
-	deallocate(TempImput)
-	
-	if (trim(GenoFile)/="None") close (3)
-	if (trim(PhaseFile)/="None") close (4)
 end subroutine ReadData
 
 !###########################################################################################################################################################
@@ -1590,6 +1553,64 @@ end subroutine GetID
 
 !###########################################################################################################################################################
 
+subroutine ReadTrueDataIfTheyExist
+ 	use ISO_Fortran_Env
+
+  	use GlobalPar
+	use omp_lib
+
+  	implicit none
+  
+	integer :: i,PosReads,PosGeno,PosPhase
+	integer,allocatable,dimension(:) :: TempImput
+	integer :: TmpID
+	real(kind=8)::tstart,tend
+
+ 	if (trim(GenoFile)/="None")  allocate(TrueGenos(nInd,nSnp))
+	if (trim(PhaseFile)/="None")  allocate(TruePhase(nInd,nSnp,2))
+
+	if (trim(GenoFile)/="None") open (unit=3,file=trim(GenoFile),status="old")
+	if (trim(PhaseFile)/="None") open (unit=4,file=trim(PhaseFile),status="old")
+
+		tstart = omp_get_wtime()
+	!$OMP PARALLEL DO DEFAULT(FIRSTPRIVATE) PRIVATE(i) SHARED(nInd,GenoFile,PhaseFile,Id,TrueGenos,TruePhase,StartSnp,EndSnp)
+	do i=1,nInd
+		
+	    if (trim(GenoFile)/="None") then
+		    PosGeno=0
+		    read(3,*) Id(i), TempImput(:) 
+		    call GetID(Id(i), PosGeno)
+		    TrueGenos(PosGeno,:) = TempImput(StartSnp:EndSnp)
+		endif
+
+		if (trim(PhaseFile)/="None") then
+		 	PosPhase=0
+		    read(4,*) Id(i), TempImput(:) 
+		    call GetID(Id(i), PosPhase)
+		    TruePhase(PosPhase,:,1)= TempImput(StartSnp:EndSnp)
+
+		    PosPhase=0
+			read(4,*) Id(i), TempImput(:) 
+		    call GetID(Id(i), PosPhase)
+		    TruePhase(PosPhase,:,2)= TempImput(StartSnp:EndSnp)
+
+		endif
+
+	enddo
+	!$OMP END PARALLEL DO
+	tend = omp_get_wtime()
+	write(*,*) "Total wall time for Geno/Phase sorting ", tend - tstart
+	
+	if (trim(GenoFile)/="None") close (3)
+	if (trim(PhaseFile)/="None") close (4)
+
+
+	deallocate(TempImput)
+end subroutine ReadTrueDataIfTheyExist
+
+!###########################################################################################################################################################
+
+
 subroutine Checker
 
 	use GlobalPar
@@ -1603,11 +1624,16 @@ subroutine Checker
 	open (unit=1,file=trim(filout1),status="unknown")
 	write (1,'(a95)') "i,j,e,FilledPhase(i,j,e),TruePhase(i,j,e),RawReads(i,j,:),FilledGenos(i,j),TrueGenos(i,j)"
 
+	! Checks
+	allocate(CheckPhase(nInd,nSnp,2))
+	allocate(CheckGenos(nInd,nSnp))
+
+
 	CheckPhase='_'
 	CheckGenos='_'
 
-	do i=1,nInd
-		do j=1,nSnp
+	do j=1,nSnp
+		do i=1,nInd
 			if (trim(PhaseFile)/="None") then
 				do e=1,2
 					if (FilledPhase(i,j,e)/=9) then
@@ -1851,7 +1877,16 @@ subroutine WriteStatistics
 			meanCoverage=meanCoverage+sum(RawReads(i,j,:))
 		enddo
 		
-		write(1,'(1i10,9f10.5)') Ped(i,1),(dble(meanCoverage)/dble(nSnp)),(dble(nZeroReads)/dble(nSnp)*100),(dble(nOneReads)/dble(nSnp)*100),(dble(gYield)/(dble(nSnp))*100),gCorrect,gCor%Cor,(dble(pYield1+pYield2)/dble(2*nSnp)*100),(pCorrect1+pCorrect2)/2,((pCor1%Cor+pCor2%Cor)/2)
+		write(1,'(1i10,9f10.5)') Ped(i,1), &
+								(dble(meanCoverage)/dble(nSnp)), & 
+								(dble(nZeroReads)/dble(nSnp)*100), &
+								(dble(nOneReads)/dble(nSnp)*100), & 
+								(dble(gYield)/(dble(nSnp))*100), &
+								 gCorrect, & 
+								 gCor%Cor, &
+								(dble(pYield1+pYield2)/dble(2*nSnp)*100), & 
+								(pCorrect1+pCorrect2)/2, &
+								((pCor1%Cor+pCor2%Cor)/2)
 	enddo
 
 	IF (ALLOCATED(trueVector)) deallocate(trueVector)
@@ -1957,7 +1992,17 @@ subroutine WriteStatistics
 			meanCoverage=meanCoverage+sum(RawReads(i,j,:))
 		enddo
 		
-		write(2,'(1i10,10f10.5)') j,AFtrue,(dble(meanCoverage)/dble(nInd)),(dble(nZeroReads)/dble(nInd)*100),(dble(nOneReads)/dble(nInd)*100),(dble(gYield)/(dble(nInd))*100),gCorrect,gCor%Cor,(dble(pYield1+pYield2)/dble(2*nInd)*100),(pCorrect1+pCorrect2)/2,((pCor1%Cor+pCor2%Cor)/2)
+		write(2,'(1i10,10f10.5)') j, &
+								  AFtrue, &
+								  (dble(meanCoverage)/dble(nInd)), &
+								  (dble(nZeroReads)/dble(nInd)*100), &
+								  (dble(nOneReads)/dble(nInd)*100), &
+								  (dble(gYield)/(dble(nInd))*100), &
+								  gCorrect, &
+								  gCor%Cor, &
+								  (dble(pYield1+pYield2)/dble(2*nInd)*100), &
+								  (pCorrect1+pCorrect2)/2, &
+								  ((pCor1%Cor+pCor2%Cor)/2)
 	enddo
 
 
