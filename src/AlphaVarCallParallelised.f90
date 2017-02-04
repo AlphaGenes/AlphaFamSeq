@@ -20,19 +20,19 @@ contains
       integer, intent(in), dimension (:) :: SeqSire(nAnis),SeqDam(nAnis)
       
       real(kind=4),intent(in),dimension(:,:,:) :: ReadCountsTmp(1:nAnis,nSnp,2) 
-      integer,intent(inout),dimension(:,:) :: InputGenosTmp(1:nAnis,nSnp) 
+      integer(kind=1),intent(inout),dimension(:,:) :: InputGenosTmp(1:nAnis,nSnp) 
       
 
-      real(kind=8),intent(inout),dimension(:,:) :: Pr00(nAnis,EndSnp-StartSnp+1)
-      real(kind=8),intent(inout),dimension(:,:) :: Pr01(nAnis,EndSnp-StartSnp+1)
-      real(kind=8),intent(inout),dimension(:,:) :: Pr10(nAnis,EndSnp-StartSnp+1)
-      real(kind=8),intent(inout),dimension(:,:) :: Pr11(nAnis,EndSnp-StartSnp+1)
+      real(kind=4),intent(inout),dimension(:,:) :: Pr00(nAnis,EndSnp-StartSnp+1)
+      real(kind=4),intent(inout),dimension(:,:) :: Pr01(nAnis,EndSnp-StartSnp+1)
+      real(kind=4),intent(inout),dimension(:,:) :: Pr10(nAnis,EndSnp-StartSnp+1)
+      real(kind=4),intent(inout),dimension(:,:) :: Pr11(nAnis,EndSnp-StartSnp+1)
       
       integer :: MaxFs,MaxMates,MaxReadCounts
 
       real(kind=4),allocatable,dimension(:,:,:) :: ReadCounts                                         
       
-      integer,allocatable,dimension(:,:) :: InputGenos                                          
+      integer(kind=1),allocatable,dimension(:,:) :: InputGenos                                          
 
       !real(kind=8),dimension(:) :: OutputMaf(EndSnp-StartSnp+1)
 
@@ -190,10 +190,10 @@ contains
         integer, intent(inout) :: MaxReadCounts
         
         real(kind=4),intent(in),dimension(:,:,:) :: ReadCountsTmp(:,:,:) !(nAnis,nSnp,2)
-        integer,intent(inout),dimension(:,:) :: InputGenosTmp(:,:)
+        integer(kind=1),intent(inout),dimension(:,:) :: InputGenosTmp(:,:)
 
         real(kind=4),intent(inout),allocatable,dimension(:,:,:) :: ReadCounts
-        integer,intent(inout),allocatable,dimension(:,:) :: InputGenos
+        integer(kind=1),intent(inout),allocatable,dimension(:,:) :: InputGenos
 
         integer :: i,j,k
 
@@ -471,10 +471,10 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	      real(kind=8),intent(in),dimension(:,:) :: GMatSnp(1:3,1:3)
 	      real(kind=8),intent(in),dimension(:,:,:) :: GMatRds(0:MaxReadCounts,3,MaxReadCounts)
 
-	      integer,intent(in),dimension(:,:) :: InputGenos 
+	      integer(kind=1),intent(in),dimension(:,:) :: InputGenos 
 	      real(kind=4),intent(in),dimension(:,:,:) :: ReadCounts 
 
-	      real(kind=8),intent(inout),dimension(:,:) :: Pr00,Pr01,Pr10,Pr11 
+	      real(kind=4),intent(inout),dimension(:,:) :: Pr00,Pr01,Pr10,Pr11 
 	      
 	      integer,intent(in) :: mxeq
 

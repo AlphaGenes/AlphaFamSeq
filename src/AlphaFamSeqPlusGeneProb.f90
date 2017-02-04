@@ -53,8 +53,8 @@ module GlobalPar
 	integer(int32), dimension(:), allocatable :: position
 	real(real64), allocatable, dimension(:) :: quality
 
-	integer,allocatable,dimension(:,:) :: TrueGenos				! Control Results - True Genotypes to check results 
-	integer,allocatable,dimension(:,:,:) :: TruePhase				! Control Results - True Phase to check results 
+	integer(kind=1),allocatable,dimension(:,:) :: TrueGenos				! Control Results - True Genotypes to check results 
+	integer(kind=1),allocatable,dimension(:,:,:) :: TruePhase				! Control Results - True Phase to check results 
 
 	
 	character(len=1),allocatable,dimension(:,:) :: CheckGenos   ! Control Results - Use character to check True vs Imputed Genotypes
@@ -63,14 +63,14 @@ module GlobalPar
 	integer,allocatable,dimension(:) :: GeneProbYesOrNo			! Temporary Array - use gene prob or not
 	integer,allocatable,dimension(:,:,:) :: FounderAssignment   ! Temporary File - Save the IDs of the grandparents
 
-	real(kind=8),allocatable,dimension(:,:) :: Pr00   			! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Homozygote for Reference Allele 
-    real(kind=8),allocatable,dimension(:,:) :: Pr01	  			! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Heterozygote (0 from dad, 1 from mum)
-    real(kind=8),allocatable,dimension(:,:) :: Pr10				! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Heterozygote (1 from dad, 0 from mum)
-    real(kind=8),allocatable,dimension(:,:) :: Pr11				! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Homozygote for Alternative Allele 
+	real(kind=4),allocatable,dimension(:,:) :: Pr00   			! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Homozygote for Reference Allele 
+    real(kind=4),allocatable,dimension(:,:) :: Pr01	  			! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Heterozygote (0 from dad, 1 from mum)
+    real(kind=4),allocatable,dimension(:,:) :: Pr10				! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Heterozygote (1 from dad, 0 from mum)
+    real(kind=4),allocatable,dimension(:,:) :: Pr11				! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Homozygote for Alternative Allele 
 
 
-	integer,allocatable,dimension(:,:) :: FilledGenos 			! Output - Imputed Genotypes
-	integer,allocatable,dimension(:,:,:) :: FilledPhase  		! Output - Imputed Phase
+	integer(kind=1),allocatable,dimension(:,:) :: FilledGenos 			! Output - Imputed Genotypes
+	integer(kind=1),allocatable,dimension(:,:,:) :: FilledPhase  		! Output - Imputed Phase
 
 
 
@@ -1246,9 +1246,6 @@ subroutine AllocateArrays
 
 	implicit none
 
-	! Input Files
-	allocate(Id(0:nInd))
-
 	! New phase/geno
 	allocate(FilledGenos(0:nInd,nSnp))
 	allocate(FilledPhase(0:nInd,nSnp,2))
@@ -1544,11 +1541,11 @@ subroutine GetID(InputId, PosId)
         endif
     enddo
 
-    if (PosId == 0) then ! just a check, you don't need this really but may be useful for testing!
+    !if (PosId == 0) then ! just a check, you don't need this really but may be useful for testing!
     !    print*, "individual not present, please check file"
     !   stop
-    check=check+1
-    endif
+    !check=check+1
+    !endif
 end subroutine GetID
 
 !###########################################################################################################################################################
@@ -1562,23 +1559,31 @@ subroutine ReadTrueDataIfTheyExist
   	implicit none
   
 	integer :: i,PosReads,PosGeno,PosPhase
-	integer,allocatable,dimension(:) :: TempImput
+	integer(kind=1),allocatable,dimension(:) :: TempImput
 	integer :: TmpID
 	real(kind=8)::tstart,tend
 
  	if (trim(GenoFile)/="None")  allocate(TrueGenos(nInd,nSnp))
 	if (trim(PhaseFile)/="None")  allocate(TruePhase(nInd,nSnp,2))
+	! Input Files
+	allocate(Id(0:nInd))
+	allocate(TempImput(nSnp))
+	TrueGenos=9
+	TruePhase=9
+	TempImput=9
+	Id=0
+	
+	open (unit=3,file=trim(GenoFile),status="old")
+	open (unit=4,file=trim(PhaseFile),status="old")
 
-	if (trim(GenoFile)/="None") open (unit=3,file=trim(GenoFile),status="old")
-	if (trim(PhaseFile)/="None") open (unit=4,file=trim(PhaseFile),status="old")
+	print*,StartSnp,EndSnp
 
-		tstart = omp_get_wtime()
+	tstart = omp_get_wtime()
 	!$OMP PARALLEL DO DEFAULT(FIRSTPRIVATE) PRIVATE(i) SHARED(nInd,GenoFile,PhaseFile,Id,TrueGenos,TruePhase,StartSnp,EndSnp)
 	do i=1,nInd
-		
 	    if (trim(GenoFile)/="None") then
 		    PosGeno=0
-		    read(3,*) Id(i), TempImput(:) 
+		    read(3,*) Id(i), TempImput(:)
 		    call GetID(Id(i), PosGeno)
 		    TrueGenos(PosGeno,:) = TempImput(StartSnp:EndSnp)
 		endif
@@ -1596,7 +1601,8 @@ subroutine ReadTrueDataIfTheyExist
 
 		endif
 
-	enddo
+	enddo		
+
 	!$OMP END PARALLEL DO
 	tend = omp_get_wtime()
 	write(*,*) "Total wall time for Geno/Phase sorting ", tend - tstart
