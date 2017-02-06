@@ -133,8 +133,8 @@ program FamilyPhase
 			call SimpleCleanUpFillIn
 			!call CurrentCountFilled
 			
-			call SimpleFillInBasedOnProgenyReads
-			call SimpleCleanUpFillIn
+			!call SimpleFillInBasedOnProgenyReads
+			!call SimpleCleanUpFillIn
 			!call CurrentCountFilled
 
 			call CalculateFounderAssignment
@@ -887,7 +887,7 @@ subroutine SimpleFillInBasedOnProgenyReads
 
 	
 		do j=1,nSnp
-		!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (RawReads,FilledGenos,FilledPhase,RecPed,j,nSnp)
+		!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase,RecPed,j,nSnp)
 			do i=1,nInd
 
 
@@ -1042,30 +1042,6 @@ subroutine RunGeneProb
 	SeqSire=RecPed(1:nInd,2)
 	SeqDam=RecPed(1:nInd,3)
 	
-	! do i=1,nInd
-	! 	do j=1,nSnp
-	! 		if (FilledGenos(i,j)==1) then
-	! 			RawReads(i,j,:)=15.0
-	! 		endif
-			
-	! 		if (FilledGenos(i,j)==0) then 
-	! 			RawReads(i,j,1)=30.0
-	! 			RawReads(i,j,2)=0.0
-	! 		endif
-			
-	! 		if (FilledGenos(i,j)==2) then 
-	! 			RawReads(i,j,1)=0.0
-	! 			RawReads(i,j,2)=30.0
-	! 		endif
-
-	! 	enddo
-	! enddo
-
-	
-	! Pr00=0.0
-	! Pr01=0.0
-	! Pr10=0.0
-	! Pr11=0.0
 	
 	call AlphaVarCall(nInd,nSnp,1,nSnp,ErrorRate,0,SeqSire,SeqDam,RawReads,FilledGenos(1:nInd,nSnp),Pr00,Pr01,Pr10,Pr11)
 
@@ -1443,7 +1419,6 @@ subroutine ReadTrueDataIfTheyExist
 	print*,StartSnp,EndSnp
 
 	tstart = omp_get_wtime()
-	!$OMP PARALLEL DO DEFAULT(FIRSTPRIVATE) PRIVATE(i) SHARED(nInd,GenoFile,PhaseFile,Id,TrueGenos,TruePhase,StartSnp,EndSnp)
 	do i=1,nInd
 	    if (trim(GenoFile)/="None") then
 		    PosGeno=0
@@ -1451,7 +1426,9 @@ subroutine ReadTrueDataIfTheyExist
 		    call GetID(Id(i), PosGeno)
 		    TrueGenos(PosGeno,:) = TempImput(StartSnp:EndSnp)
 		endif
+	enddo
 
+	do i=1,nInd
 		if (trim(PhaseFile)/="None") then
 		 	PosPhase=0
 		    read(4,*) Id(i), TempImput(:) 
@@ -1467,7 +1444,6 @@ subroutine ReadTrueDataIfTheyExist
 
 	enddo		
 
-	!$OMP END PARALLEL DO
 	tend = omp_get_wtime()
 	write(*,*) "Total wall time for Geno/Phase sorting ", tend - tstart
 	
@@ -1538,7 +1514,7 @@ subroutine WriteResults
 	implicit none
 
 	integer :: i,j
-	real(kind=8),allocatable,dimension(:) :: AlleleDosage
+	real(kind=4),allocatable,dimension(:) :: AlleleDosage
 	character(len=30) :: nChar
 	character(len=80) :: FmtInt,FmtCha,FmtReal,FmtIntF,filout1,filout2,filout3,filout4,filout5
 
