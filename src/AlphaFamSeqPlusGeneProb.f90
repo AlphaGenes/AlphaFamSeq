@@ -123,13 +123,6 @@ program FamilyPhase
 				GeneProbThresh=GeneProbThresh-ReduceThr!0.001
 			endif
 
-			!print*,IterationNumber,GeneProbThresh,GeneProbThreshMin
-			!if (InternalEdit==1) then
-			!	call SimpleFillInBasedOnOwnReads   ! Old Subroutine that don't use AlphaVarCall
-			!	call SimpleCleanUpFillIn
-			!	call CurrentCountFilled
-			!endif
-
 			call UseGeneProbToSimpleFillInBasedOnOwnReads
 			call SimpleCleanUpFillIn
 			!call CurrentCountFilled
@@ -164,23 +157,19 @@ program FamilyPhase
 				SolutionChanged=1
 			else
 				SolutionChanged=0
-				!print*,"Run Gene Prob Filled Genos"
-				!call RunGeneProbWithFilledGenos
-				!call UseGeneProbToSimpleFillInBasedOnOwnReads
-				!call CurrentCountFilled
-				!NewCount=CurrentCountFilledPhase+CurrentCountFilledGenos
-				!if (OldCount/=NewCount) SolutionChanged=1
 			endif
 
 			write (*,'(1i10,3f10.5)') IterationNumber,GeneProbThresh,(dble(CurrentCountFilledPhase)/(dble(nInd*nSnp*2))*100),(dble(CurrentCountFilledGenos)/(dble(nInd*nSnp))*100)
 		enddo
 
+		call WriteResults
+
+
 		if ((trim(PhaseFile)/="None").or.(trim(GenoFile)/="None")) then
 			call ReadTrueDataIfTheyExist
 			call Checker
+			call WriteStatistics
 		endif
-		call WriteResults
-		call WriteStatistics
 
 		StartSnp=EndSnp+1
 		EndSnp=EndSnp+nSnp
@@ -520,152 +509,150 @@ end subroutine SimpleCleanUpFillIn
 
 !###########################################################################################
 
-! subroutine FerdosiSerap
+ !subroutine FerdosiSerap
 
-! 	use GlobalPar
-! 	use Ferdosi
-! 	implicit none
+	! 	use GlobalPar
+	! 	use Ferdosi
+	! 	implicit none
 
-! 	integer :: nHalfSib,i,k,p,hs,ParentGender,j,ChunckStart,ChunckStop,count1,count2,j2,nHalfSibOwnReads
-! 	integer, allocatable, dimension(:) :: HalfSibID,ParentGeno,HasOwnReads
-! 	integer, allocatable, dimension(:,:) :: ParentPhase, HalfSibGeno
-! 	integer, allocatable, dimension(:,:,:) :: HalfSibPhase
-	
+	! 	integer :: nHalfSib,i,k,p,hs,ParentGender,j,ChunckStart,ChunckStop,count1,count2,j2,nHalfSibOwnReads
+	! 	integer, allocatable, dimension(:) :: HalfSibID,ParentGeno,HasOwnReads
+	! 	integer, allocatable, dimension(:,:) :: ParentPhase, HalfSibGeno
+	! 	integer, allocatable, dimension(:,:,:) :: HalfSibPhase
+		
 
-! 	nHalfSib=0
-! 	do i=nInd,1,-1 ! count how many time is a parent
-! 		do k=2,3 ! sire or dam
-! 			ParentGender=k-1
-! 			nHalfSib=count(RecPed(:,k)==i)
-	
-! 			allocate(HalfSibID(nHalfSib))
-! 			allocate(HasOwnReads(nHalfSib))
+	! 	nHalfSib=0
+	! 	do i=nInd,1,-1 ! count how many time is a parent
+	! 		do k=2,3 ! sire or dam
+	! 			ParentGender=k-1
+	! 			nHalfSib=count(RecPed(:,k)==i)
+		
+	! 			allocate(HalfSibID(nHalfSib))
+	! 			allocate(HasOwnReads(nHalfSib))
 
-! 			HasOwnReads=0
-! 			nHalfSibOwnReads=0
+	! 			HasOwnReads=0
+	! 			nHalfSibOwnReads=0
 
-! 			p=1
-! 			do hs=1,nInd
-! 				if (RecPed(hs,k)==i) then
-! 					HalfSibID(p)=hs
-! 					if ((maxval(RawReads(hs,:,:))>0).and.(count(FilledGenos(hs,:)==9)<20000)) then
-! 						HasOwnReads(p)=1
-! 						nHalfSibOwnReads=nHalfSibOwnReads+1
-! 					endif
-! 					p=p+1
-! 				endif
-! 			enddo
+	! 			p=1
+	! 			do hs=1,nInd
+	! 				if (RecPed(hs,k)==i) then
+	! 					HalfSibID(p)=hs
+	! 					if ((maxval(RawReads(hs,:,:))>0).and.(count(FilledGenos(hs,:)==9)<20000)) then
+	! 						HasOwnReads(p)=1
+	! 						nHalfSibOwnReads=nHalfSibOwnReads+1
+	! 					endif
+	! 					p=p+1
+	! 				endif
+	! 			enddo
 
-! 			if (nHalfSibOwnReads > 19 ) then
+	! 			if (nHalfSibOwnReads > 19 ) then
 
-! 				allocate(HalfSibGeno(nHalfSibOwnReads, nSnp))
-! 				allocate(HalfSibPhase(nHalfSibOwnReads, nSnp, 2))
+	! 				allocate(HalfSibGeno(nHalfSibOwnReads, nSnp))
+	! 				allocate(HalfSibPhase(nHalfSibOwnReads, nSnp, 2))
 
-! 				allocate(ParentPhase(nSnp,2))
-! 				allocate(ParentGeno(nSnp))
+	! 				allocate(ParentPhase(nSnp,2))
+	! 				allocate(ParentGeno(nSnp))
 
-! 				p=1
-! 				do hs=1,nHalfSib
-! 					if (HasOwnReads(hs)==1) then
-! 						HalfSibGeno(p,:)=FilledGenos(HalfSibID(hs),:)
-! 						p=p+1
-! 					endif
-! 				enddo
+	! 				p=1
+	! 				do hs=1,nHalfSib
+	! 					if (HasOwnReads(hs)==1) then
+	! 						HalfSibGeno(p,:)=FilledGenos(HalfSibID(hs),:)
+	! 						p=p+1
+	! 					endif
+	! 				enddo
 
-! 				ParentGeno = 9
-! 				ParentPhase = 9
-! 				HalfSibPhase = 9
+	! 				ParentGeno = 9
+	! 				ParentPhase = 9
+	! 				HalfSibPhase = 9
 
-! 				call FerdosiRunner(nHalfSibOwnReads, nSnp, ParentGender, ParentPhase, HalfSibGeno, HalfSibPhase)
+	! 				call FerdosiRunner(nHalfSibOwnReads, nSnp, ParentGender, ParentPhase, HalfSibGeno, HalfSibPhase)
 
-! 				do j=1,nSnp ! Update Parents genotypes
-! 					if (sum(ParentPhase(j,:))<3) then 
+	! 				do j=1,nSnp ! Update Parents genotypes
+	! 					if (sum(ParentPhase(j,:))<3) then 
 
-! 						ParentGeno=sum(ParentPhase(j,:))
+	! 						ParentGeno=sum(ParentPhase(j,:))
 
-! 						if (FilledGenos(i,j)==9) then
-! 							FilledGenos(i,j)=ParentGeno(j)
-! 						endif
+	! 						if (FilledGenos(i,j)==9) then
+	! 							FilledGenos(i,j)=ParentGeno(j)
+	! 						endif
 
-! 						if (FilledGenos(i,j)==0) then
-! 							if ((FilledPhase(i,j,1)==9).and.(FilledPhase(i,j,2)==9)) then
-! 								FilledPhase(i,j,:)=0
-! 							endif
-! 						endif
-						
-! 						if (FilledGenos(i,j)==2) then
-! 							if ((FilledPhase(i,j,1)==9).and.(FilledPhase(i,j,2)==9)) then
-! 								FilledPhase(i,j,:)=1
-! 							endif
-! 						endif
-
-! 	!						if (FilledGenos(i,j)==1) then
-! 	!							if ((FilledPhase(i,j,1)/=9).or.(FilledPhase(i,j,2)/=9)) then
-! 	!								if (FilledPhase(i,j,1)==0) FilledPhase(i,j,2)=1
-! 	!								if (FilledPhase(i,j,1)==1) FilledPhase(i,j,2)=0
-! 	!								if (FilledPhase(i,j,2)==0) FilledPhase(i,j,1)=1
-! 	!								if (FilledPhase(i,j,2)==1) FilledPhase(i,j,1)=0
-! 	!							endif
-! 	!						endif
-					
-! 					! check
-! 					if (i==100) then
-! 						if ((ParentGeno(j)/=TrueGenos(i,j)).and.(ParentGeno(j)==FilledGenos(i,j))) then
-! 							write(*,'(6i6)'),j,RawReads(i,j,:),TrueGenos(i,j),FilledGenos(i,j),ParentGeno(j)
-! 						endif
-! 					endif
-
-
-! 					endif
-! 				enddo
-
-
-! 	!				p=1
-! 	!				do hs=1,nInd
-! 	!					if (RecPed(hs,k)==i) then
-! 	!						if (sum(HalfSibPhase(p,j,:))<3) then
+	! 						if (FilledGenos(i,j)==0) then
+	! 							if ((FilledPhase(i,j,1)==9).and.(FilledPhase(i,j,2)==9)) then
+	! 								FilledPhase(i,j,:)=0
+	! 							endif
+	! 						endif
 							
-! 	!							if (FilledGenos(hs,j)==9) then
-! 	!								FilledGenos(hs,j)=HalfSibGeno(p,j)
-! 	!							endif
+	! 						if (FilledGenos(i,j)==2) then
+	! 							if ((FilledPhase(i,j,1)==9).and.(FilledPhase(i,j,2)==9)) then
+	! 								FilledPhase(i,j,:)=1
+	! 							endif
+	! 						endif
 
-! 							!if (HalfSibGeno(p,j) /= FilledGenos(hs,j)) then
-! 							!	FilledGenos(hs,j)=9
-! 							!endif
-
-! 	!							if (sum(FilledPhase(hs,j,:))==9) then
-! 	!								FilledPhase(hs,j,:)=HalfSibPhase(p,j,:)
-! 	!							endif
-
-! 							!if (HalfSibPhase(p,j,1) /= FilledPhase(hs,j,1)) then
-! 							!	FilledPhase(hs,j,:)=9
-! 							!endif
-
-! 							!if (HalfSibPhase(p,j,2) /= FilledPhase(hs,j,2)) then
-! 							!	FilledPhase(hs,j,:)=9
-! 							!endif
-! 	!							p=p+1
-! 	!						endif
-! 	!					endif
-! 	!				enddo
+	! 	!						if (FilledGenos(i,j)==1) then
+	! 	!							if ((FilledPhase(i,j,1)/=9).or.(FilledPhase(i,j,2)/=9)) then
+	! 	!								if (FilledPhase(i,j,1)==0) FilledPhase(i,j,2)=1
+	! 	!								if (FilledPhase(i,j,1)==1) FilledPhase(i,j,2)=0
+	! 	!								if (FilledPhase(i,j,2)==0) FilledPhase(i,j,1)=1
+	! 	!								if (FilledPhase(i,j,2)==1) FilledPhase(i,j,1)=0
+	! 	!							endif
+	! 	!						endif
+						
+	! 					! check
+	! 					if (i==100) then
+	! 						if ((ParentGeno(j)/=TrueGenos(i,j)).and.(ParentGeno(j)==FilledGenos(i,j))) then
+	! 							write(*,'(6i6)'),j,RawReads(i,j,:),TrueGenos(i,j),FilledGenos(i,j),ParentGeno(j)
+	! 						endif
+	! 					endif
 
 
-! 				deallocate(ParentPhase)
-! 				deallocate(ParentGeno)
-! 				deallocate(HalfSibGeno)
-! 				deallocate(HalfSibPhase)
-
-! 			endif
-
-! 			deallocate(HasOwnReads)
-! 			deallocate(HalfSibID)
+	! 					endif
+	! 				enddo
 
 
-! 		enddo
-! 	enddo
-! end subroutine FerdosiSerap
+	! 	!				p=1
+	! 	!				do hs=1,nInd
+	! 	!					if (RecPed(hs,k)==i) then
+	! 	!						if (sum(HalfSibPhase(p,j,:))<3) then
+								
+	! 	!							if (FilledGenos(hs,j)==9) then
+	! 	!								FilledGenos(hs,j)=HalfSibGeno(p,j)
+	! 	!							endif
 
-!###########################################################################################
+	! 							!if (HalfSibGeno(p,j) /= FilledGenos(hs,j)) then
+	! 							!	FilledGenos(hs,j)=9
+	! 							!endif
+
+	! 	!							if (sum(FilledPhase(hs,j,:))==9) then
+	! 	!								FilledPhase(hs,j,:)=HalfSibPhase(p,j,:)
+	! 	!							endif
+
+	! 							!if (HalfSibPhase(p,j,1) /= FilledPhase(hs,j,1)) then
+	! 							!	FilledPhase(hs,j,:)=9
+	! 							!endif
+
+	! 							!if (HalfSibPhase(p,j,2) /= FilledPhase(hs,j,2)) then
+	! 							!	FilledPhase(hs,j,:)=9
+	! 							!endif
+	! 	!							p=p+1
+	! 	!						endif
+	! 	!					endif
+	! 	!				enddo
+
+
+	! 				deallocate(ParentPhase)
+	! 				deallocate(ParentGeno)
+	! 				deallocate(HalfSibGeno)
+	! 				deallocate(HalfSibPhase)
+
+	! 			endif
+
+	! 			deallocate(HasOwnReads)
+	! 			deallocate(HalfSibID)
+
+
+	! 		enddo
+	! 	enddo
+ !end subroutine FerdosiSerap
 
 subroutine BuildConsensus 
 	use GlobalPar
@@ -1089,129 +1076,6 @@ end subroutine RunGeneProb
 
 !################################################################################################
 
-subroutine RunGeneProbWithFilledGenos
-	
-	use GlobalPar
-	use AlphaVarCallFuture
-	use omp_lib
-	
-	implicit none
-
-	integer,allocatable,dimension(:) :: SeqSire,SeqDam !SeqId,
-	
-	!allocate(SeqId(nInd))
-    allocate(SeqSire(nInd))
-    allocate(SeqDam(nInd))
-
-    !SeqId=RecPed(1:nInd,1)
-	SeqSire=RecPed(1:nInd,2)
-	SeqDam=RecPed(1:nInd,3)
-	
-	! Pr00=0.0
-	! Pr01=0.0
-	! Pr10=0.0
-	! Pr11=0.0
-	 call AlphaVarCall(nInd,nSnp,1,nSnp,ErrorRate,1,SeqSire,SeqDam,RawReads,FilledGenos,Pr00,Pr01,Pr10,Pr11)
-
-	!deallocate(SeqId)
-	deallocate(SeqSire)
-	deallocate(Seqdam)
-end subroutine RunGeneProbWithFilledGenos
-
-!################################################################################################
-
-subroutine UseGeneProbToSimpleFillInBasedOnFilledGenos
-	
-	use GlobalPar
-	use omp_lib
-	
-	implicit none
-
-    integer :: i,j
-
-    !$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (Pr00,Pr11,Pr01,Pr10,FilledGenos,FilledPhase,nInd,nSnp,GeneProbThresh)
-	do j=1,nSnp
-		do i=1,nInd
-			!if (sum(RawReads(i,j,:)).ge.10) write(*,'(3i10,6f10.4)'),i,j,Ped(i,1),RawReads(i,j,:),Pr00(i,j),Pr01(i,j),Pr10(i,j),Pr11(i,j)
-			!if (i==7) write(*,'(3i10,6f10.4)'),i,j,Ped(i,1),RawReads(i,j,:),Pr00(i,j),Pr01(i,j),Pr10(i,j),Pr11(i,j)
-			if ((Pr00(i,j)>=GeneProbThresh).and.(sum(FilledPhase(i,j,:))>3)) then
-				FilledGenos(i,j)=0
-				FilledPhase(i,j,:)=0
-			endif
-
-			if (((Pr01(i,j)+Pr10(i,j))>=GeneProbThresh).and.(sum(FilledPhase(i,j,:))>3)) then
-				FilledGenos(i,j)=1
-				if (Pr01(i,j)>=GeneProbThresh) then
-					FilledPhase(i,j,1)=0
-					FilledPhase(i,j,2)=1
-				endif
-				if (Pr10(i,j)>=GeneProbThresh) then
-					FilledPhase(i,j,1)=1
-					FilledPhase(i,j,2)=0
-				endif
-			endif
-
-			if ((Pr11(i,j)>=GeneProbThresh).and.(sum(FilledPhase(i,j,:))>3)) then
-				FilledGenos(i,j)=2
-				FilledPhase(i,j,:)=1
-			endif
-
-		enddo
-	enddo
-	!$OMP END PARALLEL DO
-end subroutine UseGeneProbToSimpleFillInBasedOnFilledGenos
-
-!################################################################################################
-
-subroutine SimpleFillInBasedOnOwnReads
-
-	use GlobalPar
-
-	implicit none
-
-	integer :: i,j
-	real :: nRef,nAlt,Pr0,Pr1,Pr2
-
-	nRef=0.00
-	nAlt=0.00
-	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (RawReads,FilledGenos,FilledPhase,nInd,nSnp,ErrorRate,GeneProbThresh,GeneProbYesOrNo)
-	do j=1,nSnp
-		do i=1,nInd
-
-			
-			!if (GeneProbYesOrNo(j)==0) then ! Only Snps that are Fixed
-				if ((maxval(RawReads(i,j,:))/=0).and.(FilledGenos(i,j)/=9)) then
-					nRef=RawReads(i,j,1)
-					nAlt=RawReads(i,j,2)
-					
-					call ReadsLikelihood(nRef,nAlt,ErrorRate,Pr0,Pr1,Pr2)
-					
-					if (FilledGenos(i,j)==9) then 
-
-						if (Pr1.ge.GeneProbThresh) then
-							FilledGenos(i,j)=1
-						endif
-
-						if (Pr0.ge.GeneProbThresh) then  
-							FilledPhase(i,j,:)=0
-							FilledGenos(i,j)=0
-						endif
-
-						if (Pr2.ge.GeneProbThresh) then
-							FilledPhase(i,j,:)=1
-							FilledGenos(i,j)=2
-						endif
-						
-					endif
-				endif
-			!endif
-		enddo
-	enddo
-	!$OMP END PARALLEL DO
-end subroutine SimpleFillInBasedOnOwnReads
-
-!################################################################################################
-
 subroutine ReadsLikelihood(nRef,nAlt,ErrorRate,Pr0,Pr1,Pr2)
 	implicit none
 	
@@ -1615,8 +1479,6 @@ subroutine ReadTrueDataIfTheyExist
 end subroutine ReadTrueDataIfTheyExist
 
 !###########################################################################################################################################################
-
-
 subroutine Checker
 
 	use GlobalPar
@@ -2029,72 +1891,4 @@ subroutine WriteStatistics
 	
 	! write (6,'(a54)') "Id PhaseOrGeno Correct Wrong Missing"
 	! write (8,'(a66)') "Snp AlleleFreq Correct Wrong Missing TrueHet cHet wHet nMhomo mHet"
-
-
-
-
-
-! 	write (6,'(1i20,1a5,3i10)') Ped(i,1),"G ",count(CheckGenos(i,:)=='*'),count(CheckGenos(i,:)=='/'),count(CheckGenos(i,:)=='_')
-		
-
-
-
-
-! 		if (trim(PhaseFile)/="None") then
-! 			!write (5,FmtCha) Ped(i,1),CheckPhase(i,:,1)
-! 			!write (5,FmtCha) Ped(i,1),CheckPhase(i,:,2)
-! 			write (6,'(1i20,1a5,3i10)') Ped(i,1),"P1",count(CheckPhase(i,:,1)=='*'),count(CheckPhase(i,:,1)=='/'),count(CheckPhase(i,:,1)=='_')
-! 			write (6,'(1i20,1a5,3i10)') Ped(i,1),"P2",count(CheckPhase(i,:,2)=='*'),count(CheckPhase(i,:,2)=='/'),count(CheckPhase(i,:,2)=='_')
-
-! 			CharPhase='_'
-! 			do j=1,nSnp
-! 				do e=1,2
-! 					if (FilledPhase(i,j,e)==1) CharPhase(j,e)='1'
-! 					if (FilledPhase(i,j,e)==0) CharPhase(j,e)='0'
-! 				enddo
-! 			enddo
-! 			write (7,FmtCha) Ped(i,1),CharPhase(:,1)
-! 			write (7,FmtCha) Ped(i,1),CharPhase(:,2)
-! 		endif
-
-
-! 			if (trim(GenoFile)/="None") then
-! 		do j=1,nSnp
-! 			Af=0
-! 			nC=0
-! 			nW=0
-! 			nM=0
-! 			nThet=0
-! 			nChet=0
-! 			nWhet=0
-! 			nMhet=0
-! 			nMhomo=0
-! 			Af=real(sum(TrueGenos(:,j)))/real(nInd*2)
-! 			nC=count(CheckGenos(:,j)=='*')
-! 			nW=count(CheckGenos(:,j)=='/')
-! 			nM=count(CheckGenos(:,j)=='_')
-! 			nThet=count(TrueGenos(:,j)==1)
-! 			do i=1,nInd
-! 				if (TrueGenos(i,j)==1) then
-! 					if (FilledGenos(i,j)==1)  nChet=nChet+1
-! 					if ((FilledGenos(i,j)/=1).and.(FilledGenos(i,j)/=9))  nWhet=nWhet+1
-! 					!if (FilledGenos(i,j)==9)  nMhet=nMhet+1
-! 				endif
-
-! 				if (FilledGenos(i,j)==9) then
-! 					if (TrueGenos(i,j)==1)  nMhet=nMhet+1
-! 					if (TrueGenos(i,j)/=1)  nMhomo=nMhomo+1
-! 				endif
-
-! 			enddo
-! 			write (8,'(1i20,1f10.5,8i10)') j,Af,nC,nW,nM,nThet,nChet,nWhet,nMhomo,nMhet
-! 		enddo
-! 	endif
-
-! enddo
-
-! 	close (5)
-! 	close (6)
-! 	close (7)
-
 end subroutine WriteStatistics
