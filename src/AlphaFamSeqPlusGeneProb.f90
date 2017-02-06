@@ -129,8 +129,8 @@ program FamilyPhase
 
 			!if (IterationNumber==1) call UseSnpChipInformation 
 
-			call SimpleFillInBasedOnParentsReads
-			call SimpleCleanUpFillIn
+			!call SimpleFillInBasedOnParentsReads
+			!call SimpleCleanUpFillIn
 			!call CurrentCountFilled
 			
 			!call SimpleFillInBasedOnProgenyReads
@@ -942,7 +942,7 @@ subroutine SimpleFillInBasedOnParentsReads
 	real :: nRef,nAlt,Pr0,Pr1,Pr2
 
 	do j=1,nSnp
-	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (RawReads,FilledGenos,FilledPhase,RecPed,ErrorRate,GeneProbThresh,j,nSnp)
+	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (RawReads,FilledGenos,FilledPhase,RecPed,ErrorRate,GeneProbThresh,j,nSnp,Pr01,Pr10)
 		do i=1,nInd
 
 			if (maxval(FilledPhase(i,j,:))==9) then
@@ -956,6 +956,7 @@ subroutine SimpleFillInBasedOnParentsReads
 					if (FilledGenos(RecPed(i,e+1),j)==0) then
 						FilledPhase(i,j,e)=0
 						if (Pr1.ge.GeneProbThresh) then
+						!if ((Pr01(i,j)+Pr10(i,j)).ge.GeneProbThresh) then
 							FilledPhase(i,j,k)=1
 							FilledGenos(i,j)=1
 						endif
@@ -964,6 +965,7 @@ subroutine SimpleFillInBasedOnParentsReads
 					if (FilledGenos(RecPed(i,e+1),j)==2) then
 						FilledPhase(i,j,e)=1
 						if (Pr1.ge.GeneProbThresh) then
+						!if ((Pr01(i,j)+Pr10(i,j)).ge.GeneProbThresh) then
 							FilledPhase(i,j,k)=0
 							FilledGenos(i,j)=1
 						endif
