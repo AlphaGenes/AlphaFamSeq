@@ -82,11 +82,27 @@ end module GlobalPar
 program FamilyPhase
 
 	use GlobalPar
-
+	use IntelRNGMod
 	implicit none
 
 	integer :: OldCount,NewCount
+	integer(int32) :: Seed1,Seed2
 	real(kind=8) :: InitialGeneProbThresh
+	logical:: fileExists
+
+	inquire(file="Seed.txt", exist=fileExists)
+	if (fileExists) then
+		open(99,file="Seed.txt",action="read")
+		read(99,*) Seed1
+		close(99)
+		call IntitialiseIntelRNG(Seed1,"SeedOld.txt",Seed2)
+
+	else
+		call IntitialiseIntelRNG(Seedfile="SeedOld.txt",Out=Seed2)
+	end if
+	
+	open(101,file="AlphaFamSeqHaplotypeLengths.txt",status="unknown")
+	write(101,'(1a32)') "Window Iter HaplotypesLengthUsed" 
 
 	call ReadSpecfile
 	call ReadPedigree
@@ -129,12 +145,12 @@ program FamilyPhase
 
 			!if (IterationNumber==1) call UseSnpChipInformation 
 
-			!call SimpleFillInBasedOnParentsReads
-			!call SimpleCleanUpFillIn
+			call SimpleFillInBasedOnParentsReads
+			call SimpleCleanUpFillIn
 			!call CurrentCountFilled
 			
-			!call SimpleFillInBasedOnProgenyReads
-			!call SimpleCleanUpFillIn
+			call SimpleFillInBasedOnProgenyReads
+			call SimpleCleanUpFillIn
 			!call CurrentCountFilled
 
 			call CalculateFounderAssignment
@@ -182,6 +198,9 @@ program FamilyPhase
 		call DeallocateArrays
 
 	enddo
+	call UnintitialiseIntelRNG
+	close(101)
+
 end program FamilyPhase
 
 !###########################################################################################################################################################
@@ -460,7 +479,7 @@ subroutine CheckMissingData
 	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (RawReads,nSnp)
 		do j=1,nSnp
 			if (maxval(RawReads(:,j,:))==0) then
-				write (1,'(i10)') j
+				write (1,'(i0)') j
 			endif
 		enddo
 	!$OMP END PARALLEL DO
@@ -756,28 +775,35 @@ end subroutine BuildConsensus
 subroutine ChunkDefinition
 
 	use GlobalPar
+	use IntelRNGMod
 	implicit none
+
 
 	integer :: i,j,e,k
 	integer :: f1
-	integer :: fSnp,ChunkLength2(1)
+	integer :: fSnp
 	integer :: lSnp
-	real 	 Y, Z(1),A,B
+	integer(int32) :: ChunkLength2(1)
+	real(real32),allocatable,dimension(:) :: Z
+	real(real32) ::	 Y,A,B
+
 	
 	integer,allocatable,dimension(:) :: FounderAssignmentF,FounderAssignmentB
 
 	allocate(FounderAssignmentF(1:nSnp))
 	allocate(FounderAssignmentB(1:nSnp))
 
-	CALL RANDOM_SEED()
-	CALL RANDOM_NUMBER (HARVEST = Y)
-	CALL RANDOM_NUMBER (Z)
+	!CALL RANDOM_SEED()
+	!CALL RANDOM_NUMBER (HARVEST = Y)
+	!CALL RANDOM_NUMBER (Z)
 
+	
 	A = ChunkLengthA  
-	B = ChunkLengthB 
-	ChunkLength2=floor((A-1)+(B-(A-1))*Z)+1
+	B = ChunkLengthB
+	Z = SampleIntelUniformS(1,0.0,1.0) 
+	ChunkLength2(1)=floor((A-1)+(B-(A-1))*Z(1))+1
 
-	!print*,"CL",ChunkLength2(1)
+	write(101,'(3(1x,i0))') Windows,IterationNumber,ChunkLength2(1)
 	
 	
 	!!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (nInd,nSnp,FounderAssignment,ChunkLength2)
@@ -1518,11 +1544,12 @@ subroutine WriteResults
 	integer :: i,j
 	real(kind=4),allocatable,dimension(:) :: AlleleDosage
 	character(len=30) :: nChar
-	character(len=80) :: FmtInt,FmtCha,FmtReal,FmtIntF,filout1,filout2,filout3,filout4,filout5
+	character(len=80) :: FmtInt,FmtInt2,FmtCha,FmtReal,FmtIntF,filout1,filout2,filout3,filout4,filout5
 
 	
 	write(nChar,*) nSnp
 	FmtInt='(i10,'//trim(adjustl(nChar))//'i2)'
+	FmtInt2='(i0,'//trim(adjustl(nChar))//'(1x,i0))'
 	FmtCha='(i10,a2,'//trim(adjustl(nChar))//'a2)'
 	FmtReal='(i10,'//trim(adjustl(nChar))//'f7.4)'
 	FmtIntF='(i10,'//trim(adjustl(nChar))//'i6)'
@@ -1556,8 +1583,8 @@ subroutine WriteResults
 		write (5,FmtReal) Ped(i,1),Pr10(i,:)
 		write (5,FmtReal) Ped(i,1),Pr11(i,:)
 
-		write (4,FmtIntF) Ped(i,1),FounderAssignment(i,:,1)
-		write (4,FmtIntF) Ped(i,1),FounderAssignment(i,:,2)
+		write (4,FmtInt2) Ped(i,1),FounderAssignment(i,:,1)
+		write (4,FmtInt2) Ped(i,1),FounderAssignment(i,:,2)
 
 	enddo
 
