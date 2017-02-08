@@ -1544,7 +1544,7 @@ subroutine WriteResults
 	integer :: i,j
 	real(kind=4),allocatable,dimension(:) :: AlleleDosage
 	character(len=30) :: nChar
-	character(len=80) :: FmtInt,FmtInt2,FmtCha,FmtReal,FmtIntF,filout1,filout2,filout3,filout4,filout5
+	character(len=80) :: FmtInt,FmtInt2,FmtCha,FmtReal,filout1,filout2,filout3,filout4,filout5
 
 	
 	write(nChar,*) nSnp
@@ -1552,8 +1552,7 @@ subroutine WriteResults
 	FmtInt2='(i0,'//trim(adjustl(nChar))//'(1x,i0))'
 	FmtCha='(i10,a2,'//trim(adjustl(nChar))//'a2)'
 	FmtReal='(i10,'//trim(adjustl(nChar))//'f7.4)'
-	FmtIntF='(i10,'//trim(adjustl(nChar))//'i6)'
-
+	
 	write (filout1,'("AlphaFamSeqFinalPhase",i0,".txt")') Windows
 	write (filout2,'("AlphaFamSeqFinalGenos",i0,".txt")') Windows
 	write (filout3,'("AlphaFamSeqFinalAlleleDosage",i0,".txt")') Windows
@@ -1583,8 +1582,11 @@ subroutine WriteResults
 		write (5,FmtReal) Ped(i,1),Pr10(i,:)
 		write (5,FmtReal) Ped(i,1),Pr11(i,:)
 
-		write (4,FmtInt2) Ped(i,1),FounderAssignment(i,:,1)
-		write (4,FmtInt2) Ped(i,1),FounderAssignment(i,:,2)
+		if (maxval(FounderAssignment(i,:,:))/=0) then 
+			write (4,FmtInt2) Ped(i,1),FounderAssignment(i,:,1)
+			write (4,FmtInt2) Ped(i,1),FounderAssignment(i,:,2)
+		endif
+
 
 	enddo
 
