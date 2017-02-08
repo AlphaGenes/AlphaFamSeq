@@ -8,69 +8,69 @@ module GlobalPar
 	use ISO_Fortran_Env
 	implicit none
 
-	integer :: nIndSeq                         					! SpecFile - Number of Individuals in the sequence file
-	integer :: LenghtSequenceDataFile,nSnp,fistWindow			! SpecFile - Total number of Snps
-	integer :: nInd 											! number of Individuals in the Pedigree
-	integer :: InternalEdit                    					! SpecFile - Internal Edit 1==yes or 0==no
-	real(kind=8) :: EditingParameter							! SpecFile - 1st Number is the MAF (excluede SNP with MAF=<EditingParameter)
+	integer :: nIndSeq                         								! SpecFile - Number of Individuals in the sequence file
+	integer :: LenghtSequenceDataFile,nSnp,fistWindow						! SpecFile - Total number of Snps
+	integer :: InternalEdit                    								! SpecFile - Internal Edit 1==yes or 0==no
+	real(kind=8) :: EditingParameter										! SpecFile - 1st Number is the MAF (excluede SNP with MAF=<EditingParameter)
 
-
-	real(kind=8) :: GeneProbThresh  							! SpecFile - Threshold to call a genotype from the probabilities First Value
-	real(kind=8) :: GeneProbThreshMin							! SpecFile - Threshold to call a genotype from the probabilities Last Value
-	real(kind=8) :: ReduceThr 									! SpecFile - Reduce Geno Treshold factor
-	!integer :: nIter                        					! SpecFile - Every nIter the ReadContMaxThresh decrease of 1 value until GeneProbThresh
+	integer :: nInd 														! Calculated Internally - Number of Individuals in the Pedigree
 	
-	real(kind=8) :: ErrorRate									! SpecFile - Error rates to define the genotypes probabilities
+	real(kind=8) :: GeneProbThresh  										! SpecFile - Threshold to call a genotype from the probabilities First Value
+	real(kind=8) :: GeneProbThreshMin										! SpecFile - Threshold to call a genotype from the probabilities Last Value
+	real(kind=8) :: ReduceThr 												! SpecFile - Reduce Geno Treshold factor
+	!integer :: nIter                        								! SpecFile - Every nIter the ReadContMaxThresh decrease of 1 value until GeneProbThresh
 	
-	integer :: ChunkLengthA                 					! SpecFile - First value to define Haplotypes length
-	integer :: ChunkLengthB                 					! SpecFile - Last value to define Haplotypes length
-
-	integer :: SuperC                           				! SpecFile - Parameter to use/not use Ferdosi module
-
-	character(len=300) :: PedigreeFile      					! Input File Name - Pedigree
-	character(len=300) :: ReadsFile             				! Input File Name - Reads Count for the Reference and the Alternative Allele
-	character(len=300) :: ReadsType             				! Input File Name - Reads Count for the Reference and the Alternative Allele
+	real(kind=8) :: ErrorRate												! SpecFile - Error rates to define the genotypes probabilities
 	
-	character(len=300) :: MapFile             					! Input File Name - Map File - position of the Variants
-	character(len=300) :: SnpChipsInformation   				! Input File Name - Snp array to add more information to the Reads
-	
-	character(len=300) :: GenoFile              				! Control Results File Name - TrueGeno Genotypes to check results 
-	character(len=300) :: PhaseFile             				! Control Results File Name - True Phase to check results 
+	integer :: ChunkLengthA                 								! SpecFile - First value to define Haplotypes length
+	integer :: ChunkLengthB                 								! SpecFile - Last value to define Haplotypes length
 
-	integer :: IterationNumber                  				! Control Parameter - Define the number of Iterations
-	integer :: CurrentCountFilledPhase          				! Control Parameter - used to finish the program
-	integer :: CurrentCountFilledGenos          				! Control Parameter - used to finish the program
-	integer :: SolutionChanged                  				! Control Parameter - used to finish the program 
+	integer :: SuperC                           							! SpecFile - Parameter to use/not use Ferdosi module
+
+	character(len=300) :: PedigreeFile      								! SpecFile - Input File Name - Pedigree
+	character(len=300) :: ReadsFile             							! SpecFile - Input File Name - Reads Count for the Reference and the Alternative Allele
+	character(len=300) :: ReadsType             							! SpecFile - Input File Name - Reads Count for the Reference and the Alternative Allele
+	
+	character(len=300) :: MapFile             								! SpecFile - Input File Name - Map File - position of the Variants
+	character(len=300) :: SnpChipsInformation   							! SpecFile - Input File Name - Snp array to add more information to the Reads
+	
+	character(len=300) :: GenoFile              							! SpecFile - Control Results File Name - TrueGeno Genotypes to check results 
+	character(len=300) :: PhaseFile             							! SpecFile - Control Results File Name - True Phase to check results 
+
+	integer :: IterationNumber                  							! Control Parameter - Define the number of Iterations
+	integer :: CurrentCountFilledPhase          							! Control Parameter - used to finish the program
+	integer :: CurrentCountFilledGenos          							! Control Parameter - used to finish the program
+	integer :: SolutionChanged                  							! Control Parameter - used to finish the program 
 	integer :: StartSnp,EndSnp
 	
-	integer,allocatable,dimension(:,:) :: Ped               	! Input File - Pedigree
-	integer,allocatable,dimension(:,:) :: RecPed				! Temporary File - Pedigree Recoded
-	integer,allocatable,dimension(:) :: Id                      ! Read Data - used to read unsorted data
+	integer,allocatable,dimension(:,:) 				:: Ped          		! Input File - Pedigree
+	integer,allocatable,dimension(:,:) 				:: RecPed				! Temporary File - Pedigree Recoded
+	integer,allocatable,dimension(:) 				:: Id           		! Read Data - used to read unsorted data
 
-	integer(int32),allocatable,dimension(:,:,:) :: SequenceData	! Input File - Snp array to add more information to the Reads
-	real(kind=4),allocatable,dimension(:,:,:) :: RawReads		! Input File - Snp array to add more information to the Reads
-	character(len=100), allocatable, dimension(:) :: Ids
-	integer(int32), dimension(:), allocatable :: position
-	real(real64), allocatable, dimension(:) :: quality
+	integer(int32),allocatable,dimension(:,:,:) 	:: SequenceData			! Input File - Snp array to add more information to the Reads
+	real(kind=4),allocatable,dimension(:,:,:) 		:: RawReads				! Input File - Snp array to add more information to the Reads
+	character(len=100), allocatable, dimension(:) 	:: Ids
+	integer(int32), dimension(:), allocatable 		:: position
+	real(real64), allocatable, dimension(:) 		:: quality
 
-	integer(kind=1),allocatable,dimension(:,:) :: TrueGenos				! Control Results - True Genotypes to check results 
-	integer(kind=1),allocatable,dimension(:,:,:) :: TruePhase				! Control Results - True Phase to check results 
+	integer(kind=1),allocatable,dimension(:,:) 		:: TrueGenos			! Control Results - True Genotypes to check results 
+	integer(kind=1),allocatable,dimension(:,:,:) 	:: TruePhase			! Control Results - True Phase to check results 
 
 	
-	character(len=1),allocatable,dimension(:,:) :: CheckGenos   ! Control Results - Use character to check True vs Imputed Genotypes
-	character(len=1),allocatable,dimension(:,:,:) :: CheckPhase ! Control Results - Use character to check True vs Imputed Phase
+	character(len=1),allocatable,dimension(:,:) 	:: CheckGenos   		! Control Results - Use character to check True vs Imputed Genotypes
+	character(len=1),allocatable,dimension(:,:,:) 	:: CheckPhase 			! Control Results - Use character to check True vs Imputed PhaseFile
 	
-	integer,allocatable,dimension(:) :: GeneProbYesOrNo			! Temporary Array - use gene prob or not
-	integer,allocatable,dimension(:,:,:) :: FounderAssignment   ! Temporary File - Save the IDs of the grandparents
+	integer,allocatable,dimension(:) 				:: GeneProbYesOrNo		! Temporary Array - use gene prob or not
+	integer,allocatable,dimension(:,:,:) 			:: FounderAssignment   	! Temporary File - Save the IDs of the grandparents
 
-	real(kind=4),allocatable,dimension(:,:) :: Pr00   			! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Homozygote for Reference Allele 
-    real(kind=4),allocatable,dimension(:,:) :: Pr01	  			! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Heterozygote (0 from dad, 1 from mum)
-    real(kind=4),allocatable,dimension(:,:) :: Pr10				! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Heterozygote (1 from dad, 0 from mum)
-    real(kind=4),allocatable,dimension(:,:) :: Pr11				! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Homozygote for Alternative Allele 
+	real(kind=4),allocatable,dimension(:,:) 		:: Pr00   				! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Homozygote for Reference Allele 
+    real(kind=4),allocatable,dimension(:,:) 		:: Pr01	  				! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Heterozygote (0 from dad, 1 from mum)
+    real(kind=4),allocatable,dimension(:,:) 		:: Pr10					! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Heterozygote (1 from dad, 0 from mum)
+    real(kind=4),allocatable,dimension(:,:) 		:: Pr11					! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Homozygote for Alternative Allele 
 
 
-	integer(kind=1),allocatable,dimension(:,:) :: FilledGenos 			! Output - Imputed Genotypes
-	integer(kind=1),allocatable,dimension(:,:,:) :: FilledPhase  		! Output - Imputed Phase
+	integer(kind=1),allocatable,dimension(:,:) 		:: FilledGenos 			! Output - Imputed Genotypes
+	integer(kind=1),allocatable,dimension(:,:,:) 	:: FilledPhase  		! Output - Imputed Phase
 
 
 
@@ -90,6 +90,8 @@ program FamilyPhase
 	real(kind=8) :: InitialGeneProbThresh
 	logical:: fileExists
 
+	! Use a seed to sample the Haplotypes length of each window and iteration
+	! Print out the window/iteratin/haplotype length in a file
 	inquire(file="Seed.txt", exist=fileExists)
 	if (fileExists) then
 		open(99,file="Seed.txt",action="read")
@@ -104,9 +106,20 @@ program FamilyPhase
 	open(101,file="AlphaFamSeqHaplotypeLengths.txt",status="unknown")
 	write(101,'(1a32)') "Window Iter HaplotypesLengthUsed" 
 
+	! Read SpecFile and Pedigree. Those files are in common for all the windows
+	!  (if there are multiple Windows)
 	call ReadSpecfile
 	call ReadPedigree
 	
+	
+	! If the nSnp is really big and there are problems with memory allocation
+	!  is possible to split the chromosome in multiple windows
+	!  this will reduce the amount of memory used, but will print out several
+	!  files for each windows. 
+
+	! Multiple windows allows to restart the analysis from the last window if 
+	!  the program crash for some reasons.
+
 	Windows=fistWindow
 	EndSnp=(Windows*nSnp)
 	StartSnp=EndSnp-nSnp+1
@@ -204,40 +217,6 @@ program FamilyPhase
 end program FamilyPhase
 
 !###########################################################################################################################################################
-
-subroutine ProcessLine(Var)
-
-	use GlobalPar
-
-	implicit none
-
-	integer :: nChrom
-    integer, allocatable, dimension(:) :: nSnpPerChrom
-    
-	character(len=256), intent(inout) :: Var
-    character (len=512) :: TLC
-    character(len=8) :: temp
-    character(len=1) :: comma
-    character(len=512) :: snps
-
-    integer :: i
-
-    allocate(nSnpPerChrom(nChrom))
-
-	read(Var,'(A,a8)') comma, temp
-
-	if (trim(TLC(temp))=='constant') then
-		read(Var, '(A,a8,A,i)') comma, temp, comma, nSnp
-		do i=2, nChrom
-			nSnpPerChrom(i) = nSnpPerChrom(1)
-		enddo
-	else
-		read(Var, '(A,a8,A,a512)') comma, temp, comma, snps
-		read(snps, *) nSnpPerChrom(1:nChrom)
-	endif
-end subroutine ProcessLine
-
-!###########################################################################################################################################################
 ! STOLEN FROM ALPHASIM, WRITTEN BY DAVID WILSON 
 ! Function returns a character (Of 512 Bytes for compatibility) that is a completely lowercase copy of input str
 function TLC(str)
@@ -257,7 +236,7 @@ end function TLC
 
 !###########################################################################################################################################################
 
-! reads in and initialises specfile parameters 
+! Reads in and initialises specfile parameters 
 subroutine ReadSpecfile
 
     use GlobalPar
@@ -399,6 +378,10 @@ end subroutine ReadSpecfile
 
 !###########################################################################################
 
+! Not used at the moment. It allows to use the Snp Chip info, if available
+! TODO: istead filling the genotyepes and the phase, merge these info with the one coming 
+!       from the Reads.
+
 subroutine UseSnpChipInformation
 
 	use GlobalPar
@@ -464,6 +447,12 @@ end subroutine UseSnpChipInformation
 
 !###########################################################################################
 
+! Print out the Snp positions that have no reads. When we use low coverage sequence to simulate
+!  the data, or when we have a subset of real data, there can be markers with no info.
+!  Doesn't make sense to calculate the statistics also for them
+
+! TODO : calculate average coverage for SNP at this point. So you can deallocate the 
+!        RawReads array when you finish to use it and not at the end of the program.
 subroutine CheckMissingData
 
 	use GlobalPar
@@ -489,6 +478,8 @@ end subroutine CheckMissingData
 
 !###########################################################################################
 
+! At the end of each main step of the program, this subroutine fill the gaps
+!  i.e. if a genotype is Homozygote but the phase is missing, then it fill the phase
 subroutine SimpleCleanUpFillIn
 
 	use GlobalPar
@@ -673,6 +664,10 @@ end subroutine SimpleCleanUpFillIn
 	! 	enddo
  !end subroutine FerdosiSerap
 
+! CoreOfTheProgram 5c - Find the consensus between founder-parent-kids haplotype
+!  Here we use the chunks previously define, and we try to fill the missing value of these 
+!  three individuals if one of the three has information to do that.
+
 subroutine BuildConsensus 
 	use GlobalPar
 
@@ -771,6 +766,19 @@ subroutine BuildConsensus
 end subroutine BuildConsensus 
 
 !################################################################################################
+
+! CoreOfTheProgram 5b - Work Left/Work Rigth to find chunks of haplotypes using the Founder Assignement array.
+! 	i.e. From the previous step for the id7 we have the following 
+!        seq of founders assignment: 1 0 0 0 1 0 0 0 2 0 0 0 2. In this step we do:
+!
+!        from Left to Rigth        : 1 1 1 1 1 1 1 1 2 2 2 2 2 
+!        from Rigth to Left        : 1 1 1 1 1 2 2 2 2 2 2 2 2 and the consensus of these two vector generates
+!        FounderAssignment 		   : 1 1 1 1 1 0 0 0 2 2 2 2 2 
+!        where the 0 represent a region where the recombination happens.
+
+! TODO : there can be a lot of small chunks. Find a way to understand if they are a single chunk or if 
+!        the recombination happen in the middle of some of them.
+!        Be carefull that we can have scenarios with females parents not sequenced.
 
 subroutine ChunkDefinition
 
@@ -873,6 +881,11 @@ end subroutine ChunkDefinition
 
 !#####################################################################################################################
 
+! CoreOfTheProgram 5a - Assign from which founder the haplotype has been inherited.
+!  This is done using the heterozygous markers of the individual’s parent
+!  i.e. DAD phase = 10, KID Phase=19. The "1" of the kid is coming from the Paternal GrandSire
+!  i.e. DAD phase = 01, KID Phase=19. The "1" of the kid is coming from the Paternal GrandDam
+
 subroutine CalculateFounderAssignment
 	use GlobalPar
 
@@ -901,6 +914,13 @@ subroutine CalculateFounderAssignment
 end subroutine CalculateFounderAssignment
 
 !#####################################################################################################################
+
+! CoreOfTheProgram 4 - Phasing of heterozygous genotypes for individuals 
+!  that have their parent and their progeny with opposing homozygotes
+!  i.e. The MGS=0, DAM=?, KID=2. The genotype of the dam has to be 1 and the phase is 01
+!  from that parent at that marker can be solved.
+!  TODO : probably this subroutine is not necessary after the introduction of GeneProb.
+!         Check if it make sense to remove it.
 
 subroutine SimpleFillInBasedOnProgenyReads
 	! Fill missing gamete according to the one of progeny and the alternative gamete 
@@ -958,6 +978,10 @@ end subroutine SimpleFillInBasedOnProgenyReads
 
 !################################################################################################
 
+! CoreOfTheProgram 3 - Phasing based on parents informative markers
+!  If a parent has the homozygote markers known (filled), then the phase of the progeny for the gamete inherited 
+!  from that parent at that marker can be solved.
+
 subroutine SimpleFillInBasedOnParentsReads
 
 	use GlobalPar
@@ -1005,6 +1029,12 @@ end subroutine SimpleFillInBasedOnParentsReads
 
 !################################################################################################
 
+! CoreOfTheProgram 2 - Use the output of geneprob to fill the genotypes and the phase of the individuals
+!  This step run multiple time. At each time the genotype Threshold (i.e., threshold that measures the 
+!  ... of calling a genotype) is decreased until the value specified by the user.
+!  Input : Probabilities from the RunGeneProb
+!  Output : FilledPhase and FilledGenos
+
 subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 	
 	use GlobalPar
@@ -1048,6 +1078,10 @@ end subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 
 !################################################################################################
 
+! CoreOfTheProgram 1 - Use geneprob to call the variants.
+!  This step run only one time. 
+!  Input : Pedigree and the RawReads to call the variants.
+!  Output : 4 array of dimension(nInd,nSnp) with probabilities for the genotype 00, 01, 10 and 11
 subroutine RunGeneProb
 	
 	use GlobalPar
