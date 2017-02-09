@@ -72,6 +72,9 @@ module GlobalPar
 	integer(kind=1),allocatable,dimension(:,:) 		:: FilledGenos 			! Output - Imputed Genotypes
 	integer(kind=1),allocatable,dimension(:,:,:) 	:: FilledPhase  		! Output - Imputed Phase
 
+	!												:: StatBySnp            ! Save coverage, nr 
+	!												:: StatByInd            ! 
+
 
 
 	integer :: Windows
@@ -106,6 +109,10 @@ program FamilyPhase
 	open(101,file="AlphaFamSeqHaplotypeLengths.txt",status="unknown")
 	write(101,'(1a32)') "Window Iter HaplotypesLengthUsed" 
 
+	open(102,file="AlphaFamSeqWindowsInfo.txt",status="unknown")
+	write(102,'(1a22)') "Window StartSnp EndSnp" 
+	
+
 	! Read SpecFile and Pedigree. Those files are in common for all the windows
 	!  (if there are multiple Windows)
 	call ReadSpecfile
@@ -128,7 +135,11 @@ program FamilyPhase
 	InitialGeneProbThresh=GeneProbThresh
 
 	do while(StartSnp.le.LenghtSequenceDataFile)
-		write(*,'(1a10,2i10,1a1,1i10)')"Windows",Windows,StartSnp,"-",EndSnp
+		if (StartSnp>ChunkLengthB) StartSnp=StartSnp-ChunkLengthB
+		EndSnp=EndSnp+ChunkLengthB
+		if (EndSnp>LenghtSequenceDataFile) EndSnp=LenghtSequenceDataFile
+		nSnp=EndSnp-StartSnp+1
+		write(102,'(3(1x,i0))') Windows,StartSnp,EndSnp
 
 		CurrentCountFilledPhase=0
 		CurrentCountFilledGenos=0
@@ -139,7 +150,7 @@ program FamilyPhase
 		call InitialiseArrays
 		call CheckMissingData
 		call RunGeneProb
-		write (*,'(1a39)') "      Iter   ProbThr    %Phase   %Geno"
+		write (*,'(1a39)') "Window Iter   ProbThr    %Phase   %Geno"
 
 		IterationNumber=0
 		SolutionChanged=1
@@ -188,7 +199,7 @@ program FamilyPhase
 				SolutionChanged=0
 			endif
 
-			write (*,'(1i10,3f10.5)') IterationNumber,GeneProbThresh,(dble(CurrentCountFilledPhase)/(dble(nInd*nSnp*2))*100),(dble(CurrentCountFilledGenos)/(dble(nInd*nSnp))*100)
+			write (*,'(2i4,3f10.5)') Windows,IterationNumber,GeneProbThresh,(dble(CurrentCountFilledPhase)/(dble(nInd*nSnp*2))*100),(dble(CurrentCountFilledGenos)/(dble(nInd*nSnp))*100)
 		enddo
 
 		call WriteResults
@@ -213,6 +224,10 @@ program FamilyPhase
 	enddo
 	call UnintitialiseIntelRNG
 	close(101)
+	close(102)
+
+	Windows=Windows-1
+	if (Windows>1) call MergeResultsFile
 
 end program FamilyPhase
 
@@ -470,6 +485,9 @@ subroutine CheckMissingData
 			if (maxval(RawReads(:,j,:))==0) then
 				write (1,'(i0)') j
 			endif
+
+			!sum(x) / size(x)
+
 		enddo
 	!$OMP END PARALLEL DO
 
@@ -1421,6 +1439,120 @@ subroutine ReadData
 	allocate(TempImput(LenghtSequenceDataFile))
 	call AllocateArrays
 end subroutine ReadData
+
+!###########################################################################################################################################################
+
+subroutine MergeResultsFile
+ 	use ISO_Fortran_Env
+
+  	use GlobalPar
+	use omp_lib
+
+  	implicit none
+  
+	integer :: i,j,k,l,DumI,nSnpWindow
+	integer(kind=1),allocatable,dimension(:) :: TempImput,FinalOutput
+	integer,allocatable,dimension(:,:) :: WindowsInfo
+	character(len=80) :: filout1,filout2,nChar,FmtInt
+	!integer :: TmpID
+	!real(kind=8)::tstart,tend
+
+
+	allocate(WindowsInfo(Windows,2))
+	open (unit=1,file="AlphaFamSeqWindowsInfo.txt",status="old")
+
+	write(nChar,*) LenghtSequenceDataFile
+	print*,nChar
+	FmtInt='(i10,'//trim(adjustl(nChar))//'i2)'
+	
+
+	open (unit=4,file="AlphaFamSeqFinalPhase.txt",status="unknown")
+	open (unit=5,file="AlphaFamSeqFinalGenos.txt",status="unknown")
+
+	read(1,*)
+
+	do i=1,Windows
+		read(1,*) DumI,WindowsInfo(i,1) ,WindowsInfo(i,2)
+		!print*,WindowsInfo(i,1),WindowsInfo(i,2)
+	enddo
+
+	close(1)
+
+	allocate(FinalOutput(LenghtSequenceDataFile))
+	
+	! Genotypes file
+	do i=1,nInd
+
+		FinalOutput=9
+		do j=1,Windows
+			write (filout1,'("AlphaFamSeqFinalGenos",i0,".txt")') j
+			
+			open (unit=2,file=trim(filout1),status="unknown")
+			nSnpWindow=WindowsInfo(j,2)-WindowsInfo(j,1)+1
+			
+			allocate(TempImput(nSnpWindow))
+			TempImput=9
+			
+			read(2,*), DumI,TempImput(:)
+
+			l=0
+			do k=WindowsInfo(j,1),WindowsInfo(j,2)
+				l=l+1
+				if ((FinalOutput(k)==9).and.(TempImput(l)/=9)) then
+					FinalOutput(k)=TempImput(l)
+				endif
+				if ((FinalOutput(k)/=9).and.(TempImput(l)/=9)) then
+					if  (FinalOutput(k)/=TempImput(l)) then
+						FinalOutput(k)=9
+					endif
+				endif
+			enddo
+			deallocate(TempImput)
+		enddo
+		
+		write(5,FmtInt) DumI,FinalOutput(:)
+	enddo
+
+	! Phase File
+	do i=1,(nInd*2)
+	
+		FinalOutput=9
+		do j=1,Windows
+			write (filout2,'("AlphaFamSeqFinalPhase",i0,".txt")') j
+			
+			open (unit=3,file=trim(filout2),status="unknown")
+			nSnpWindow=WindowsInfo(j,2)-WindowsInfo(j,1)+1
+			
+			allocate(TempImput(nSnpWindow))
+			TempImput=9
+			
+			read(3,*), DumI,TempImput(:)
+
+			l=0
+			do k=WindowsInfo(j,1),WindowsInfo(j,2)
+				l=l+1
+				if ((FinalOutput(k)==9).and.(TempImput(l)/=9)) then
+					FinalOutput(k)=TempImput(l)
+				endif
+				if ((FinalOutput(k)/=9).and.(TempImput(l)/=9)) then
+					if  (FinalOutput(k)/=TempImput(l)) then
+						FinalOutput(k)=9
+					endif
+				endif
+			enddo
+			deallocate(TempImput)
+		enddo
+		
+		write(4,FmtInt) DumI,FinalOutput(:)
+	enddo
+
+	deallocate(FinalOutput)
+
+	close(2)
+	close(3)
+	close(4)
+	close(5)
+end subroutine MergeResultsFile
 
 !###########################################################################################################################################################
 
