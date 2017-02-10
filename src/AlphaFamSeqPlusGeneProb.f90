@@ -1180,12 +1180,6 @@ subroutine AllocateArrays
 	allocate(Pr10(nInd,nSnp))
 	allocate(Pr11(nInd,nSnp))
 
-	Pr00=0.0
-	Pr01=0.0
-	Pr10=0.0
-	Pr11=0.0
-	
-
 	! Founders
 	allocate(FounderAssignment(nInd,nSnp,2))
 	!allocate(ConsensusFounders(nInd,2))
@@ -1315,6 +1309,12 @@ subroutine InitialiseArrays
 
 	FilledPhase=9
 	FilledGenos=9
+
+	Pr00=0.0
+	Pr01=0.0
+	Pr10=0.0
+	Pr11=0.0
+
 	!ConsensusFounders=0
 end subroutine InitialiseArrays
 
