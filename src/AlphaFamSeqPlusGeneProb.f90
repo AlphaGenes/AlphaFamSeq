@@ -222,7 +222,15 @@ program FamilyPhase
 
 	! Merge all files and Calculate Statistics
 	Windows=Windows-1
-	if (Windows>1) call MergeResultsFile
+	if (Windows>1) then 
+		call MergeResultsFile
+	else 
+		CALL RENAME("AlphaFamSeqFinalGenos1.txt", "AlphaFamSeqFinalGenos.txt") 
+		!STATUS = RENAME("AlphaFamSeqFinalGenos1.txt", "AlphaFamSeqFinalGenos.txt") 
+
+		CALL RENAME("AlphaFamSeqFinalPhase1.txt", "AlphaFamSeqFinalPhase.txt") 
+		!STATUS = RENAME("AlphaFamSeqFinalPhase1.txt", "AlphaFamSeqFinalPhase.txt") 
+	endif
 
 	call GetResultsImputation(LenghtSequenceDataFile,"AlphaFamSeqFinalGenos.txt",GenoFile,1,"AlphaFamSeq")
 	call GetResultsImputation(LenghtSequenceDataFile,"AlphaFamSeqFinalPhase.txt",PhaseFile,2,"AlphaFamSeq")
