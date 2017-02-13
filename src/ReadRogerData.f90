@@ -111,18 +111,31 @@ subroutine readRogerData(filename, Ids, position, quality, SequenceData,nSnpIn,S
   nSnp = nSnpIn
   nIndiv = nIndivIn
  
-  allocate(dumE(nSnp))
+  allocate(dumE(StartSnp-1))
   allocate(SequenceData(nIndiv, SnpUsed, 2))
   allocate(Ids(nIndiv))
   
+  ! do i = 1, nIndiv
+  !   read(fileUnit, *) Ids(i),dumE
+  !   !read(dumE(StartSnp:EndSnp), *) 
+  !   SequenceData(i,:, 1)=dumE(StartSnp:EndSnp)
+  !   read(fileUnit, *) dumI,dumE
+  !   !read(dumE(StartSnp:EndSnp), *) 
+  !   SequenceData(i,:, 2)=dumE(StartSnp:EndSnp)
+  ! end do
+
   do i = 1, nIndiv
-    read(fileUnit, *) Ids(i),dumE
-    !read(dumE(StartSnp:EndSnp), *) 
-    SequenceData(i,:, 1)=dumE(StartSnp:EndSnp)
-    read(fileUnit, *) dumI,dumE
-    !read(dumE(StartSnp:EndSnp), *) 
-    SequenceData(i,:, 2)=dumE(StartSnp:EndSnp)
+    if(StartSnp.eq.1) read(fileUnit, *) Ids(i),SequenceData(i,:, 1)
+    if(StartSnp.eq.1) read(fileUnit, *) Ids(i),SequenceData(i,:, 2)
+    
+    if(StartSnp.gt.1) read(fileUnit, *) Ids(i),dumE,SequenceData(i,:, 1)
+    if(StartSnp.gt.1) read(fileUnit, *) Ids(i),dumE,SequenceData(i,:, 2)
+
+    
   end do
+
+  deallocate(dumE)
+
   
 end subroutine readAlphaSimReads
 

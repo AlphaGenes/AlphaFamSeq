@@ -33,7 +33,7 @@ module CalculateStatisticsForGenoAndPhase
   implicit none
   contains
 
-subroutine GetResultsImputation(nTotSnp,ImpFile,TrueFile,Geno1orPhase2)
+subroutine GetResultsImputation(nTotSnp,ImpFile,TrueFile,Geno1orPhase2,prefix)
 	use AlphaStatMod
   	use omp_lib
 	
@@ -41,55 +41,74 @@ subroutine GetResultsImputation(nTotSnp,ImpFile,TrueFile,Geno1orPhase2)
 	
 	character(len=*), intent(in):: ImpFile
 	character(len=*), intent(in):: TrueFile
+	character(len=*), intent(in):: prefix
 	
 	integer(int32),   intent(in):: nTotSnp
 	integer(kind=1),  intent(in):: Geno1orPhase2
 
 	
 	integer :: nIndImp,nIndTrue,nInd,nSnp,nChunk,EndSnp,StartSnp
-	integer :: i,j,k,t,p,DumI,Pos
-	integer(int32), allocatable,dimension(:) :: Id,v1,v2
-	integer(int32), allocatable,dimension(:,:) :: TrueTmp,ImpTmp
-	integer, allocatable,dimension(:) :: Yield,Correct
-	integer(kind=1), allocatable,dimension(:,:) :: ImpSnp, TrueSnp
-	integer(kind=1), allocatable,dimension(:) :: dumLeft,tmpSnp
-
-	real(real64), allocatable,dimension(:) :: MAF,FinalCor
-
+	integer :: i,j,g,k,t,p,gam
+	integer(int32), allocatable,dimension(:) :: Id
+	integer, allocatable,dimension(:,:) :: Yield,Correct
+	integer(kind=1), allocatable,dimension(:,:,:) :: ImpSnp, TrueSnp
+	
+	real(real64), allocatable,dimension(:,:) :: MAF,FinalCor
+	
+	character(len=5) :: fileKind
+	character(len=300) :: filout1,filout2
 	type(CorrelationReal32) :: CorTrueImp
+
 	REAL(8), PARAMETER :: D_QNAN = &
 	TRANSFER((/ Z'00000000', Z'7FF80000' /),1.0_8) ! NaN value
 
 	
 	! Count number of individuals Imputed file
-	open(10, file=ImpFile, action="read")
+	open(10, file=trim(ImpFile), action="read")
 	nIndImp=0
 	do 
 		read(10,*,end=910)
 		nIndImp=nIndImp+1
 	enddo
 	910 continue
-	rewind(10)
+	close(10)
 
 	! Count number of individuals True file
-	open(11, file=TrueFile, action="read")
+	open(11, file=trim(TrueFile), action="read")
 	nIndTrue=0
 	do 
 		read(11,*,end=911)
 		nIndTrue=nIndTrue+1
 	enddo
 	911 continue
-	rewind(11)
-
+	close(11)
 
 	! start to do stuff
 	if (nIndImp.le.nIndTrue) nInd=nIndImp
 	if (nIndImp.gt.nIndTrue) nInd=nIndTrue
 
-	nSnp=10000
+	nSnp=100000
+	gam=Geno1orPhase2
+
+	if (Geno1orPhase2==1) then
+		fileKind="Genos"
+	else
+		fileKind="Phase"
+		nInd=nInd/2
+		nIndTrue=nIndTrue/2
+		nIndImp=nIndImp/2
+
+	endif
 	
 	allocate(Id(nInd))
-	
+
+	filout1=trim(adjustl(prefix))//"Stat"//trim(adjustl(fileKind))//"ByMarker.txt"
+	filout2=trim(adjustl(prefix))//"Stat"//trim(adjustl(fileKind))//"ByIndividual.txt"
+
+	open(101, file=trim(filout1), status="unknown")
+	write(101,'(1a47)') "Snp MAF Yield CorrectRate ErrorRate Correlation"
+
+	! Calculate Stat By SnpUsed - Genotypes
 	i=0
 	do while (EndSnp.lt.nTotSnp)
 		i=i+1
@@ -98,132 +117,75 @@ subroutine GetResultsImputation(nTotSnp,ImpFile,TrueFile,Geno1orPhase2)
 		if (EndSnp>nTotSnp) EndSnp=nTotSnp
 		StartSnp=EndSnp-nSnp+1
 		
-		allocate(ImpSnp(nInd,EndSnp-StartSnp+1))
-		allocate(TrueSnp(nInd,EndSnp-StartSnp+1))
-		allocate(tmpSnp(EndSnp-StartSnp+1))
-		allocate(Yield(EndSnp-StartSnp+1))
-		allocate(MAF(EndSnp-StartSnp+1))
-		allocate(Correct(EndSnp-StartSnp+1))
-		allocate(FinalCor(EndSnp-StartSnp+1))
+		call AllocateArrays(nInd,nSnp,nSnp,gam,ImpSnp,TrueSnp,Yield,MAF,Correct,FinalCor)
 
-
-		!print*,i,StartSnp,EndSnp
+		if (nIndImp.le.nIndTrue) call ReadDataSnp(StartSnp,nSnp,gam,ImpFile,TrueFile,nIndImp,nIndTrue,Id,ImpSnp,TrueSnp)
+		if (nIndImp.gt.nIndTrue) call ReadDataSnp(StartSnp,nSnp,gam,TrueFile,ImpFile,nIndTrue,nIndImp,Id,TrueSnp,ImpSnp)
 		
-		! Calculate Stat By SnpUsed - Genotypes
-
-		open(101, file="AlphaFamSeqStatGenoByMarker.txt", status="unknown")
-		write(101,'(1a47)') "Snp MAF Yield CorrectRate ErrorRate Correlation"
-
-		!StartSnp+j-1,MAF(j),100*(dble(Yield(j))/dble(nInd)),100*(dble(Correct(j))/dble(Yield(j))),100*(dble(Yield(j)-Correct(j))/dble(Yield(j))),FinalCor(j)
-		allocate(dumLeft(StartSnp-1))
-			
-		if (nIndImp.le.nIndTrue) then
-			
-			do j=1,nIndImp
-				if (StartSnp.eq.1) read(10,*) Id(j), 						  		 ImpSnp(j,1:nSnp)
-				if (StartSnp.gt.1) read(10,*) Id(j), (DumLeft(t),t=1,(StartSnp-1)), ImpSnp(j,1:nSnp)
-				
-			enddo
-			rewind(10)
-
-			do j=1,nIndTrue
-				Pos=0
-				if (StartSnp.eq.1) read(11,*) DumI,tmpSnp(1:nSnp)
-	 		    if (StartSnp.gt.1) read(11,*) DumI, (DumLeft(t),t=1,(StartSnp-1)), tmpSnp(1:nSnp)
-	 		    call GetID(Id,nIndImp,DumI,Pos)
-	 		    if (Pos/=0) TrueSnp(Pos,1:nSnp) = tmpSnp(1:nSnp)
-				
-			enddo
-			rewind(11)
-		endif
-		
-		if(allocated(dumLeft)) 	deallocate(dumLeft)
-
-
 		do j=1,nSnp
+			do g=1,gam
+				Yield(j,g)=0
+				MAF(j,g)=0
+				Correct(j,g)=0
+				FinalCor(j,g)=D_QNAN
 
-			Yield(j)=0
-			MAF(j)=0
-			Correct(j)=0
-			FinalCor(j)=D_QNAN
+				do k=1,nInd
+					if ((ImpSnp(k,j,g).ge.0).and.(ImpSnp(k,j,g).le.2)) Yield(j,g)=Yield(j,g)+1
+					MAF(j,g)=MAF(j,g)+dble(TrueSnp(k,j,g))
+					if (ImpSnp(k,j,g)==TrueSnp(k,j,g)) Correct(j,g)=Correct(j,g)+1
+				enddo
 
-			do k=1,nInd
-				if ((ImpSnp(k,j).ge.0).and.(ImpSnp(k,j).le.2)) Yield(j)=Yield(j)+1
-				MAF(j)=MAF(j)+dble(TrueSnp(k,j))
-				if (ImpSnp(k,j)==TrueSnp(k,j)) Correct(j)=Correct(j)+1
+				MAF(j,g)=MAF(j,g)/dble(nInd*2)
+
+				if ((Correct(j,g).lt.Yield(j,g)).and.(Yield(j,g).gt.0)) then
+					call CalculateCorrelation(Yield(j,g),nInd,TrueSnp(:,j,g),ImpSnp(:,j,g),CorTrueImp)
+					FinalCor(j,g)=CorTrueImp%Cor
+				endif
+
+				write(101,'(1i0,1x,5f10.4)') StartSnp+j-1,MAF(j,g),100*(dble(Yield(j,g))/dble(nInd)),100*(dble(Correct(j,g))/dble(Yield(j,g))),100*(dble(Yield(j,g)-Correct(j,g))/dble(Yield(j,g))),FinalCor(j,g)
 			enddo
-
-			MAF(j)=MAF(j)/dble(nInd*2)
-
-			
-
-			if ((Correct(j).lt.Yield(j)).and.(Yield(j).gt.0)) then
-				call CalculateCorrelation(Yield(j),nInd,TrueSnp(:,j),ImpSnp(:,j),CorTrueImp)
-				FinalCor(j)=CorTrueImp%Cor
-			endif
-
-			write(101,'(1i0,1x,5f10.4)') StartSnp+j-1,MAF(j),100*(dble(Yield(j))/dble(nInd)),100*(dble(Correct(j))/dble(Yield(j))),100*(dble(Yield(j)-Correct(j))/dble(Yield(j))),FinalCor(j)
 		enddo
 		
-		deallocate(ImpSnp)
-		deallocate(TrueSnp)
-		deallocate(tmpSnp)
-		deallocate(Yield)
-		deallocate(MAF)
-		deallocate(Correct)
-		deallocate(FinalCor)
-		
+		call Fottiti(ImpSnp,TrueSnp,Yield,MAF,Correct,FinalCor)
 	enddo
 	close(101)
 
-	!deallocate(Id)
 	
 	! Calculate Stat By individual - Genotypes
-	open(102, file="AlphaFamSeqStatGenoByIndividual.txt", status="unknown")
+	open(102, file=trim(filout2), status="unknown")
 	write(102,'(1a42)') "Id Yield CorrectRate ErrorRate Correlation"
 
-
-	!allocate(Id(nInd))
-	allocate(ImpSnp(1,nTotSnp))
-	allocate(TrueSnp(1,nTotSnp))
-	allocate(tmpSnp(nTotSnp))
-	allocate(Yield(nInd))
-	allocate(MAF(nInd))
-	allocate(Correct(nInd))
-	allocate(FinalCor(nInd))
-
-	if (nIndImp.le.nIndTrue) then
-
+	call AllocateArrays(1,nTotSnp,nInd,gam,ImpSnp,TrueSnp,Yield,MAF,Correct,FinalCor)
 	
-		do i=1,nInd
-			Yield(i)=0
-			Correct(i)=0
-			FinalCor(i)=D_QNAN
-			
-			read(10,*) Id(i), ImpSnp(1,:)
-			do k=1,nIndTrue
-				Pos=0
-				read(11,*) DumI,TrueSnp(1,:)
-	 		    if (DumI==Id(i)) exit
-	 		enddo
-	 		rewind(11)
 
-			do j=1,nTotSnp
-				if ((ImpSnp(1,j).ge.0).and.(ImpSnp(1,j).le.2)) Yield(i)=Yield(i)+1
-				if (ImpSnp(1,j)==TrueSnp(1,j)) Correct(i)=Correct(i)+1
+	do i=1,nInd
+		
+		if (nIndImp.le.nIndTrue) call ReadDataInd(i,gam,ImpFile,TrueFile,nIndImp,nIndTrue,Id,ImpSnp,TrueSnp)
+		if (nIndImp.gt.nIndTrue) call ReadDataInd(i,gam,TrueFile,ImpFile,nIndTrue,nIndImp,Id,TrueSnp,ImpSnp)
+
+
+		do g=1,gam
+			Yield(i,g)=0
+			Correct(i,g)=0
+			FinalCor(i,g)=D_QNAN
+
+			do k=1,nTotSnp
+				if ((ImpSnp(1,k,g).ge.0).and.(ImpSnp(1,k,g).le.2)) Yield(i,g)=Yield(i,g)+1
+				if (ImpSnp(1,k,g)==TrueSnp(1,k,g)) Correct(i,g)=Correct(i,g)+1
 			enddo
 
-
-			call CalculateCorrelation(Yield(i),nTotSnp,TrueSnp(1,:),ImpSnp(1,:),CorTrueImp)
-			FinalCor(i)=CorTrueImp%Cor
-			write(102,'(1i0,1x,5f10.4)') Id(i),100*(dble(Yield(i))/dble(nTotSnp)),100*(dble(Correct(i))/dble(Yield(i))),100*(dble(Yield(i)-Correct(i))/dble(Yield(i))),FinalCor(i)
-
+			if ((Correct(i,g).lt.Yield(i,g)).and.(Yield(i,g).gt.0)) then
+				call CalculateCorrelation(Yield(i,g),nTotSnp,TrueSnp(1,:,g),ImpSnp(1,:,g),CorTrueImp)
+				FinalCor(i,g)=CorTrueImp%Cor
+			endif
+				
+			write(102,'(1i0,1x,5f10.4)') Id(i),100*(dble(Yield(i,g))/dble(nTotSnp)),100*(dble(Correct(i,g))/dble(Yield(i,g))),100*(dble(Yield(i,g)-Correct(i,g))/dble(Yield(i,g))),FinalCor(i,g)
 		enddo
-		close(10)
-		close(11)
-		close(102)	
+	enddo
+	close(102)	
 
-	endif
+	call Fottiti(ImpSnp,TrueSnp,Yield,MAF,Correct,FinalCor)
+
 
 
 end subroutine GetResultsImputation
@@ -269,6 +231,104 @@ end subroutine CalculateCorrelation
 
 !###########################################################################################################################################################
 
+subroutine ReadDataInd(skip,gam,ShortFile,LongFile,nIndShort,nIndLong,Id,ShortSnp,LongSnp)
+
+	implicit none
+	
+	character(len=*), intent(in):: ShortFile
+	character(len=*), intent(in):: LongFile
+	
+	integer,  intent(in):: skip,gam,nIndShort,nIndLong
+	!integer(kind=1),  intent(in):: Geno1orPhase2
+	integer(int32),intent(inout), allocatable,dimension(:) :: Id
+	
+	integer(kind=1),intent(inout),allocatable,dimension(:,:,:) :: ShortSnp, LongSnp
+	
+	integer :: i,g,j,k,DumI,Pos
+	
+					
+	open(10, file=trim(ShortFile), action="read")
+	open(11, file=trim(LongFile), action="read")
+
+	if (skip==1) then
+		! do nothing
+	else
+		do i=1,(skip-1)
+			do g=1,gam
+				read(10,*)
+			enddo
+		enddo
+	endif
+
+	do g=1,gam
+		read(10,*) Id(skip), ShortSnp(1,:,g)
+	enddo
+
+	do k=1,nIndLong
+		Pos=0
+		do g=1,gam
+			read(11,*) DumI,LongSnp(1,:,g)
+		enddo
+		if (DumI==Id(skip)) exit
+	enddo
+	
+	close(10)
+	close(11)
+end subroutine ReadDataInd
+
+!###########################################################################################################################################################
+
+subroutine ReadDataSnp(StartSnp,nSnp,gam,ShortFile,LongFile,nIndShort,nIndLong,Id,ShortSnp,LongSnp)
+
+	implicit none
+	
+	character(len=*), intent(in):: ShortFile
+	character(len=*), intent(in):: LongFile
+	
+	integer,  intent(in):: StartSnp,nSnp,nIndShort,nIndLong,gam
+	!integer(kind=1),  intent(in):: Geno1orPhase2
+	integer(int32),intent(inout), allocatable,dimension(:) :: Id
+	
+	integer(kind=1),intent(inout),allocatable,dimension(:,:,:) :: ShortSnp, LongSnp
+	integer(kind=1), allocatable,dimension(:) :: DumLeft,tmpSnp
+
+
+	
+	integer :: j,g,t,DumI,Pos
+	
+					
+	open(10, file=trim(ShortFile), action="read")
+	open(11, file=trim(LongFile), action="read")
+
+	allocate(dumLeft(StartSnp-1))
+	allocate(tmpSnp(1:nSnp))
+	
+	do j=1,nIndShort
+		do g=1,gam
+			if (StartSnp.eq.1) read(10,*) Id(j), 						  		ShortSnp(j,1:nSnp,g)
+			if (StartSnp.gt.1) read(10,*) Id(j), (DumLeft(t),t=1,(StartSnp-1)), ShortSnp(j,1:nSnp,g)
+		enddo		
+	enddo
+	close(10)
+
+	do j=1,nIndLong
+		Pos=0
+		do g=1,gam
+			if (StartSnp.eq.1) read(11,*) DumI,tmpSnp(1:nSnp)
+			if (StartSnp.gt.1) read(11,*) DumI, (DumLeft(t),t=1,(StartSnp-1)), tmpSnp(1:nSnp)
+			if (g==1) call GetID(Id,nIndShort,DumI,Pos)
+			if (Pos/=0) LongSnp(Pos,1:nSnp,g) = tmpSnp(1:nSnp)
+		enddo
+		
+	enddo
+	close(11)
+
+	if(allocated(DumLeft)) 	deallocate(dumLeft)
+	if(allocated(tmpSnp)) 	deallocate(tmpSnp)
+end subroutine ReadDataSnp
+
+!###########################################################################################################################################################
+
 subroutine GetID(Id,nInd,InputId, PosId)
 
     implicit none
@@ -297,6 +357,47 @@ end subroutine GetID
 
 !###########################################################################################################################################################
 
+subroutine Fottiti(ImpSnp,TrueSnp,Yield,MAF,Correct,FinalCor)
+	
+	implicit none
+	
+	integer,intent(inout),allocatable,dimension(:,:) :: Yield,Correct
+	integer(kind=1),intent(inout),allocatable,dimension(:,:,:) :: ImpSnp, TrueSnp
+	
+	real(real64),intent(inout),allocatable,dimension(:,:) :: MAF,FinalCor
+	
+
+	if(allocated(ImpSnp)) deallocate(ImpSnp)
+	if(allocated(TrueSnp)) deallocate(TrueSnp)
+	if(allocated(Yield)) deallocate(Yield)
+	if(allocated(MAF)) deallocate(MAF)
+	if(allocated(Correct)) deallocate(Correct)
+	if(allocated(FinalCor)) deallocate(FinalCor)
+	
+end subroutine Fottiti
+
+!###########################################################################################################################################################
+
+subroutine AllocateArrays(nRow,nCol,LengthVector,gam,ImpSnp,TrueSnp,Yield,MAF,Correct,FinalCor)
+	implicit none
+	
+	integer,intent(in) :: nRow,nCol,LengthVector,gam
+	integer,intent(inout),allocatable,dimension(:,:) :: Yield,Correct
+	integer(kind=1),intent(inout),allocatable,dimension(:,:,:) :: ImpSnp, TrueSnp
+	
+	real(real64),intent(inout),allocatable,dimension(:,:) :: MAF,FinalCor
+	
+
+	allocate(ImpSnp(nRow,nCol,gam))
+	allocate(TrueSnp(nRow,nCol,gam))
+	allocate(Yield(LengthVector,gam))
+	allocate(MAF(LengthVector,gam)) ! GoOut
+	allocate(Correct(LengthVector,gam))
+	allocate(FinalCor(LengthVector,gam))
+
+	
+end subroutine AllocateArrays
+
 
 end module CalculateStatisticsForGenoAndPhase
 
@@ -307,18 +408,27 @@ end module CalculateStatisticsForGenoAndPhase
 ! 	use CalculateStatisticsForGenoAndPhase
 ! 	implicit none
 	
-! 	character(len=25) :: A
-! 	character(len=8) :: B
+! 	character(len=100) :: A
+! 	character(len=100) :: B
+! 	character(len=11) :: prefix
 ! 	integer(int32)  :: nSnp
 ! 	integer(kind=1)  :: Geno1orPhase2
 	
 	
 ! 	A="AlphaFamSeqFinalGenos.txt"
 ! 	B="Geno.txt"
+! 	prefix="AlphaFamSeq"
 ! 	nSnp=700000
 ! 	Geno1orPhase2=1
 
-! 	call GetResultsImputation(nSnp,A,B,Geno1orPhase2)
+! 	call GetResultsImputation(nSnp,A,B,Geno1orPhase2,prefix)
+
+! 	A="AlphaFamSeqFinalPhase.txt"
+! 	B="Phase.txt"
+! 	Geno1orPhase2=2
+
+
+! 	call GetResultsImputation(nSnp,A,B,Geno1orPhase2,prefix)
 	
 ! end program test
 

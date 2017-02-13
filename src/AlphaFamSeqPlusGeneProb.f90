@@ -224,8 +224,8 @@ program FamilyPhase
 	Windows=Windows-1
 	if (Windows>1) call MergeResultsFile
 
-	call GetResultsImputation(LenghtSequenceDataFile,"AlphaFamSeqFinalGenos.txt",GenoFile,1)
-
+	call GetResultsImputation(LenghtSequenceDataFile,"AlphaFamSeqFinalGenos.txt",GenoFile,1,"AlphaFamSeq")
+	call GetResultsImputation(LenghtSequenceDataFile,"AlphaFamSeqFinalPhase.txt",PhaseFile,2,"AlphaFamSeq")
 	! if ((trim(PhaseFile)/="None").or.(trim(GenoFile)/="None")) then
 	! 	call ReadTrueDataIfTheyExist
 	! 	call Checker
@@ -1567,14 +1567,14 @@ subroutine MergeResultsFile
 		
 	deallocate(FinalOutput)
 
-	! do i=1,Windows
-	! 	write (filout1,'("AlphaFamSeqFinalGenos",i0,".txt")') i
-	! 	open (unit=2,file=trim(filout1),status="unknown")
-	! 	write (filout2,'("AlphaFamSeqFinalPhase",i0,".txt")') i
-	! 	open (unit=3,file=trim(filout2),status="unknown")
-	! 	close(2,status="delete")
-	! 	close(3,status="delete")
-	! enddo
+	do i=1,Windows
+		write (filout1,'("AlphaFamSeqFinalGenos",i0,".txt")') i
+		open (unit=2,file=trim(filout1),status="unknown")
+		write (filout2,'("AlphaFamSeqFinalPhase",i0,".txt")') i
+		open (unit=3,file=trim(filout2),status="unknown")
+		close(2,status="delete")
+		close(3,status="delete")
+	enddo
 
 
 	close(4)
