@@ -116,6 +116,7 @@ subroutine PrintMistakeIdentifier(nInd,nSnp,gam,MarkerToExclude,ImpSnp,TrueSnp,f
 	open(103, file=trim(filout3), status="unknown")
 	write(103,'(1a42)') "Id gam Snp True Imputed"
 
+
 	do i=1,nInd
 		do g=1,gam
 			do j=1,nSnp
