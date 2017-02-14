@@ -42,7 +42,7 @@ subroutine GetResultsImputation(nSnp,ImpFile,TrueFile,ExclueSnpFile,Geno1orPhase
 	character(len=*), intent(in):: ImpFile
 	character(len=*), intent(in):: TrueFile
 	character(len=*), intent(in):: ExclueSnpFile
-	character(len=3), intent(in) :: MistakeIdentifier
+	character(len=* ), intent(in) :: MistakeIdentifier
     
 	character(len=*), intent(in):: prefix
 	
