@@ -93,7 +93,7 @@ program FamilyPhase
 	integer(int32) :: Seed1,Seed2
 	real(kind=8) :: InitialGeneProbThresh
 	logical:: fileExists
-
+	
 	! Use a seed to sample the Haplotypes length of each window and iteration
 	! Print out the window/iteratin/haplotype length in a file
 	inquire(file="Seed.txt", exist=fileExists)
@@ -151,7 +151,7 @@ program FamilyPhase
 		call InitialiseArrays
 		call CheckMissingData
 		call RunGeneProb
-		write (*,'(1a39)') "Window Iter   ProbThr    %Phase   %Geno"
+		write (*,'(1a39)') " Window Iter   ProbThr    %Phase   %Geno"
 
 		IterationNumber=0
 		SolutionChanged=1
@@ -221,24 +221,21 @@ program FamilyPhase
 	close(102)
 
 	! Merge all files and Calculate Statistics
+
 	Windows=Windows-1
 	if (Windows>1) then 
+		print*," Merge Output Files"
 		call MergeResultsFile
 	else 
 		CALL RENAME("AlphaFamSeqFinalGenos1.txt", "AlphaFamSeqFinalGenos.txt") 
-		!STATUS = RENAME("AlphaFamSeqFinalGenos1.txt", "AlphaFamSeqFinalGenos.txt") 
-
 		CALL RENAME("AlphaFamSeqFinalPhase1.txt", "AlphaFamSeqFinalPhase.txt") 
-		!STATUS = RENAME("AlphaFamSeqFinalPhase1.txt", "AlphaFamSeqFinalPhase.txt") 
+		CALL RENAME("AlphaFamSeqMarkersWithZeroReads1.txt", "AlphaFamSeqMarkersWithZeroReads.txt") 
 	endif
 
-	call GetResultsImputation(LenghtSequenceDataFile,"AlphaFamSeqFinalGenos.txt",GenoFile,1,"AlphaFamSeq")
-	call GetResultsImputation(LenghtSequenceDataFile,"AlphaFamSeqFinalPhase.txt",PhaseFile,2,"AlphaFamSeq")
-	! if ((trim(PhaseFile)/="None").or.(trim(GenoFile)/="None")) then
-	! 	call ReadTrueDataIfTheyExist
-	! 	call Checker
-	! 	call WriteStatistics
-	! endif
+	! Compute statistics
+	if ((trim(GenoFile)/="None").or.(trim(PhaseFile)/="None")) print*," Calculate Results"
+	if (trim(GenoFile)/="None") 	call GetResultsImputation(LenghtSequenceDataFile,"AlphaFamSeqFinalGenos.txt",GenoFile,"AlphaFamSeqMarkersWithZeroReads.txt",1,"No","AlphaFamSeq")
+	if (trim(PhaseFile)/="None") 	call GetResultsImputation(LenghtSequenceDataFile,"AlphaFamSeqFinalPhase.txt",PhaseFile,"AlphaFamSeqMarkersWithZeroReads.txt",2,"Yes","AlphaFamSeq")
 
 
 end program FamilyPhase
@@ -483,7 +480,7 @@ end subroutine UseSnpChipInformation
 subroutine CheckMissingData
 
 	use GlobalPar
-
+	use omp_lib
 	implicit none
 
 	integer :: j
@@ -493,14 +490,11 @@ subroutine CheckMissingData
 	open (unit=1,file=trim(filout1),status="unknown")
 		
 	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (RawReads,nSnp)
-		do j=1,nSnp
-			if (maxval(RawReads(:,j,:))==0) then
-				write (1,'(i0)') j
-			endif
-
-			!sum(x) / size(x)
-
-		enddo
+	do j=1,nSnp
+		if (maxval(RawReads(:,j,:))==0) then
+			write (1,'(i0)') j
+		endif
+	enddo
 	!$OMP END PARALLEL DO
 
 	close (1)
@@ -513,7 +507,7 @@ end subroutine CheckMissingData
 subroutine SimpleCleanUpFillIn
 
 	use GlobalPar
-
+	use omp_lib
 	implicit none
 
 	integer i,j,Change !,e,k,g1,g2
@@ -521,8 +515,9 @@ subroutine SimpleCleanUpFillIn
 	Change=1
 	do while (Change==1)
 		Change=0
-		!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase,nInd,nSnp)
 		do j=1,nSnp
+			!!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase,nInd,j,Change)
+		
 			do i=1,nInd
 				if (FilledGenos(i,j)==9) then
 					if ((FilledPhase(i,j,1)/=9).and.(FilledPhase(i,j,2)/=9)) then
@@ -542,8 +537,9 @@ subroutine SimpleCleanUpFillIn
 				endif
 
 			enddo
+			!!$OMP END PARALLEL DO
 		enddo
-		!$OMP END PARALLEL DO
+		
 	enddo
 end subroutine SimpleCleanUpFillIn
 
@@ -693,6 +689,7 @@ end subroutine SimpleCleanUpFillIn
 	! 		enddo
 	! 	enddo
  !end subroutine FerdosiSerap
+!################################################################################################
 
 ! CoreOfTheProgram 5c - Find the consensus between founder-parent-kids haplotype
 !  Here we use the chunks previously define, and we try to fill the missing value of these 
@@ -816,24 +813,19 @@ subroutine ChunkDefinition
 	use IntelRNGMod
 	implicit none
 
-
 	integer :: i,j,e,k
 	integer :: f1
 	integer :: fSnp
 	integer :: lSnp
 	integer(int32) :: ChunkLength2(1)
 	real(real32),allocatable,dimension(:) :: Z
-	real(real32) ::	 Y,A,B
+	real(real32) ::	 A,B
 
 	
 	integer,allocatable,dimension(:) :: FounderAssignmentF,FounderAssignmentB
 
 	allocate(FounderAssignmentF(1:nSnp))
 	allocate(FounderAssignmentB(1:nSnp))
-
-	!CALL RANDOM_SEED()
-	!CALL RANDOM_NUMBER (HARVEST = Y)
-	!CALL RANDOM_NUMBER (Z)
 
 	
 	A = ChunkLengthA  
@@ -918,16 +910,16 @@ end subroutine ChunkDefinition
 
 subroutine CalculateFounderAssignment
 	use GlobalPar
-
+	use omp_lib
 	implicit none
 
 	integer :: i,j,e,k
 	
 	FounderAssignment(:,:,:)=0 
 	
-	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase,RecPed,FounderAssignment,nInd,nSnp)
 	do j=1,nSnp
 		do i=1,nInd
+			!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase,RecPed,FounderAssignment,i,j)
 			do e=2,3 ! Sire and Dam pos in the ped
 				k=e-1 ! Sire and Dam gamete
 
@@ -938,9 +930,9 @@ subroutine CalculateFounderAssignment
 					endif
 				endif
 			enddo
+			!$OMP END PARALLEL DO
 		enddo
 	enddo
-	!$OMP END PARALLEL DO
 end subroutine CalculateFounderAssignment
 
 !#####################################################################################################################
@@ -956,53 +948,27 @@ subroutine SimpleFillInBasedOnProgenyReads
 	! Fill missing gamete according to the one of progeny and the alternative gamete 
 
 	use GlobalPar
-
+	use omp_lib
 	implicit none
 
-	integer :: i,j,IdSire,IdDam
+	integer :: i,j,IdSir,IdDam
 
-	
+	do i=1,nInd
+		!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (FilledPhase,RecPed,i,nSnp)
 		do j=1,nSnp
-		!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase,RecPed,j,nSnp)
-			do i=1,nInd
-
-
-			if ((FilledGenos(i,j)==0).or.(FilledGenos(i,j)==2)) then
-				IdSire=RecPed(i,2)
+			if ((sum(FilledPhase(i,j,:))==0).or.(sum(FilledPhase(i,j,:))==2)) then
+				IdSir=RecPed(i,2)
 				IdDam=RecPed(i,3)
 
-
-				if ((FilledPhase(i,j,2)/=9).and.(FilledPhase(IdDam,j,1)/=9)) then
-					if ((FilledPhase(IdDam,j,2)==9).and.(FilledPhase(i,j,2)/=FilledPhase(IdDam,j,1))) then
-						FilledPhase(IdDam,j,2)=FilledPhase(i,j,2)
-					endif
-				endif
-
-				if ((FilledPhase(i,j,2)/=9).and.(FilledPhase(IdDam,j,2)/=9)) then
-					if ((FilledPhase(IdDam,j,1)==9).and.(FilledPhase(i,j,2)/=FilledPhase(IdDam,j,2))) then
-						FilledPhase(IdDam,j,1)=FilledPhase(i,j,2)
-					endif
-				endif
-
-
-				if ((FilledPhase(i,j,1)/=9).and.(FilledPhase(IdSire,j,1)/=9)) then
-					if ((FilledPhase(IdSire,j,2)==9).and.(FilledPhase(i,j,1)/=FilledPhase(IdSire,j,1))) then
-						FilledPhase(IdSire,j,2)=FilledPhase(i,j,1)
-					endif
-				endif
-
-				if ((FilledPhase(i,j,1)/=9).and.(FilledPhase(IdSire,j,2)/=9)) then
-					if ((FilledPhase(IdSire,j,1)==9).and.(FilledPhase(i,j,1)/=FilledPhase(IdSire,j,2))) then
-						FilledPhase(IdSire,j,1)=FilledPhase(i,j,1)
-					endif
-				endif
-
-				if ((FilledGenos(IdSire,j)==9).and.(sum(FilledPhase(IdSire,j,:))<3)) FilledGenos(IdSire,j)= sum(FilledPhase(IdSire,j,:))
-				if ((FilledGenos(IdDam,j)==9).and.(sum(FilledPhase(IdDam,j,:))<3)) FilledGenos(IdDam,j)= sum(FilledPhase(IdDam,j,:))
+				if ((FilledPhase(IdDam,j,1)/=9).and.(FilledPhase(IdDam,j,1)/=FilledPhase(i,j,2))) FilledPhase(IdDam,j,2)=FilledPhase(i,j,2)
+				if ((FilledPhase(IdDam,j,2)/=9).and.(FilledPhase(IdDam,j,2)/=FilledPhase(i,j,2))) FilledPhase(IdDam,j,1)=FilledPhase(i,j,2)
+				
+				if ((FilledPhase(IdSir,j,1)/=9).and.(FilledPhase(IdSir,j,1)/=FilledPhase(i,j,1))) FilledPhase(IdSir,j,2)=FilledPhase(i,j,1)
+				if ((FilledPhase(IdSir,j,2)/=9).and.(FilledPhase(IdSir,j,2)/=FilledPhase(i,j,1))) FilledPhase(IdSir,j,1)=FilledPhase(i,j,1)
+				
 			endif
 		enddo
 		!$OMP END PARALLEL DO
-		
 	enddo
 end subroutine SimpleFillInBasedOnProgenyReads
 
@@ -1015,45 +981,28 @@ end subroutine SimpleFillInBasedOnProgenyReads
 subroutine SimpleFillInBasedOnParentsReads
 
 	use GlobalPar
-
+	use omp_lib
 	implicit none
 
 	integer :: i,j,e,k
-	real :: nRef,nAlt,Pr0,Pr1,Pr2
-
-	do j=1,nSnp
-	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (RawReads,FilledGenos,FilledPhase,RecPed,ErrorRate,GeneProbThresh,j,nSnp,Pr01,Pr10)
-		do i=1,nInd
-
+	
+	do i=1,nInd
+		do j=1,nSnp
 			if (maxval(FilledPhase(i,j,:))==9) then
-				nRef=RawReads(i,j,1)
-				nAlt=RawReads(i,j,2)
-				
-				call ReadsLikelihood(nRef,nAlt,ErrorRate,Pr0,Pr1,Pr2)
-
-				do e=1,2
-					k=Abs((e-1)-1)+1
-					if (FilledGenos(RecPed(i,e+1),j)==0) then
-						FilledPhase(i,j,e)=0
-						if (Pr1.ge.GeneProbThresh) then
-						!if ((Pr01(i,j)+Pr10(i,j)).ge.GeneProbThresh) then
-							FilledPhase(i,j,k)=1
-							FilledGenos(i,j)=1
+				!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase,RecPed,i,j)
+					do e=1,2
+						k=Abs((e-1)-1)+1
+						if (FilledGenos(RecPed(i,e+1),j)==0) then
+							FilledPhase(i,j,e)=0
 						endif
-					endif
 
-					if (FilledGenos(RecPed(i,e+1),j)==2) then
-						FilledPhase(i,j,e)=1
-						if (Pr1.ge.GeneProbThresh) then
-						!if ((Pr01(i,j)+Pr10(i,j)).ge.GeneProbThresh) then
-							FilledPhase(i,j,k)=0
-							FilledGenos(i,j)=1
+						if (FilledGenos(RecPed(i,e+1),j)==2) then
+							FilledPhase(i,j,e)=1
 						endif
-					endif
-				enddo
+					enddo
+				!$OMP END PARALLEL DO
 			endif
 		enddo
-	!$OMP END PARALLEL DO
 	enddo
 end subroutine SimpleFillInBasedOnParentsReads
 
@@ -1074,11 +1023,9 @@ subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 
     integer :: i,j
 
-    !$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (Pr00,Pr11,Pr01,Pr10,FilledGenos,FilledPhase,nInd,nSnp,GeneProbThresh)
-	do j=1,nSnp
+    do j=1,nSnp
+	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (Pr00,Pr11,Pr01,Pr10,FilledGenos,FilledPhase,nInd,GeneProbThresh,j)
 		do i=1,nInd
-			!if (sum(RawReads(i,j,:)).ge.10) write(*,'(3i10,6f10.4)'),i,j,Ped(i,1),RawReads(i,j,:),Pr00(i,j),Pr01(i,j),Pr10(i,j),Pr11(i,j)
-			!if (i==7) write(*,'(3i10,6f10.4)'),i,j,Ped(i,1),RawReads(i,j,:),Pr00(i,j),Pr01(i,j),Pr10(i,j),Pr11(i,j)
 			if ((Pr00(i,j)>=GeneProbThresh).and.(sum(FilledPhase(i,j,:))>3)) then
 				FilledGenos(i,j)=0
 				FilledPhase(i,j,:)=0
@@ -1102,8 +1049,8 @@ subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 			endif
 
 		enddo
-	enddo
 	!$OMP END PARALLEL DO
+	enddo
 end subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 
 !################################################################################################
@@ -1116,7 +1063,7 @@ subroutine RunGeneProb
 	
 	use GlobalPar
 	use AlphaVarCallFuture
-	use omp_lib
+	!use omp_lib
 	
 	implicit none
 
@@ -1236,75 +1183,8 @@ subroutine CurrentCountFilled
 
 	implicit none
 
-	!integer :: i,j,e,p
-	character(len=30) :: FmtCha,nChar
-	
-	write(nChar,*) nSnp
-	FmtCha='(i10,a2,'//trim(adjustl(nChar))//'a2)'
-
 	CurrentCountFilledPhase=count(FilledPhase(:,:,:)/=9)
 	CurrentCountFilledGenos=count(FilledGenos(:,:)/=9)
-
-
-	!write (*,'(a20,5i10)') "Current Counts ", IterationNumber,CurrentCountFilledPhase,CurrentCountFilledGenos
-
-	! ! Paste here checker
-	! open (unit=99,file="AlphaFamSeqSummary.log",status="unknown")
-	! !open (unit=98,file="AlphaFamSeqPhaseCorrectnessIters.txt",status="unknown")
-
-	! CheckPhase='_'
-	! CheckGenos='_'
-
-	! do i=1,nInd
-	! 	do j=1,nSnp
-	! 		do e=1,2
-	! 			if (FilledPhase(i,j,e)/=9) then
-	! 				! write (98,'(10i6)') i,j,e,FilledPhase(i,j,e),TruePhase(i,j,e),RawReads(i,j,:),FilledGenos(i,j),TrueGenos(i,j)
-	! 				if (trim(PhaseFile)/="None") then
-	! 					if (FilledPhase(i,j,e)==TruePhase(i,j,e)) CheckPhase(i,j,e)='*'
-	! 					if (FilledPhase(i,j,e)/=TruePhase(i,j,e)) then
-	! 						CheckPhase(i,j,e)='/'
-	! 					endif
-	! 				endif
-
-	! 				if (trim(PhaseFile)=="None") then	
-	! 					CheckPhase(i,j,e)='*'
-	! 				endif
-					
-	! 			endif
-	! 		enddo
-				
-	! 		if (FilledGenos(i,j)/=9) then
-	! 			if (trim(GenoFile)/="None") then
-	! 				if (FilledGenos(i,j)==TrueGenos(i,j)) CheckGenos(i,j)='*'
-	! 				if (FilledGenos(i,j)/=TrueGenos(i,j)) then
-	! 					CheckGenos(i,j)='/'
-	! 				endif
-	! 			endif
-
-	! 			if (trim(GenoFile)=="None") then
-	! 				CheckGenos(i,j)='*'
-	! 			endif
-	! 		endif
-				
-	! 	enddo
-	! enddo
-
-
-	! do i=1,nInd
-	! 	if ((trim(PhaseFile)/="None").and.(trim(GenoFile)/="None")) then
-	! 		write (99,'(i20,4i10)') Ped(i,1),count(CheckPhase(i,:,1)=='*'),count(CheckPhase(i,:,1)=='/'),count(CheckPhase(i,:,1)=='_') 
-	! 		write (99,'(i20,4i10)') Ped(i,1),count(CheckPhase(i,:,2)=='*'),count(CheckPhase(i,:,2)=='/'),count(CheckPhase(i,:,2)=='_')
-	! 		write (99,'(i20,4i10)') Ped(i,1),count(CheckGenos(i,:)=='*'),count(CheckGenos(i,:)=='/'),count(CheckGenos(i,:)=='_')
-	! 	endif
-	
-	! 	!write (98,FmtCha) Ped(i,1),CheckPhase(i,:,1)
-	! 	!write (98,FmtCha) Ped(i,1),CheckPhase(i,:,2)
-
-	! enddo
-
-	! close(99)
-	! close(98)
 end subroutine CurrentCountFilled
 
 !################################################################################################
@@ -1330,7 +1210,7 @@ end subroutine InitialiseArrays
 
 subroutine InternalEdititing
 	use GlobalPar
-
+	use omp_lib
 	implicit none
 
 	integer :: i,j
@@ -1365,6 +1245,7 @@ subroutine InternalEdititing
 
 	deallocate(RefAllele)
 end subroutine InternalEdititing
+
 !################################################################################################
 
 subroutine ReadPedigree
@@ -1419,7 +1300,7 @@ subroutine ReadData
 
   	implicit none
   
-	integer :: i,PosReads,PosGeno,PosPhase
+	integer :: i,PosReads
 	integer,allocatable,dimension(:) :: TempImput
 	integer :: TmpID
 	real(kind=8)::tstart,tend
@@ -1456,15 +1337,17 @@ end subroutine ReadData
 
 subroutine MergeResultsFile
  	use ISO_Fortran_Env
-
   	use GlobalPar
-	use omp_lib
+	
+	use AlphaSortMod
 
   	implicit none
   
-	integer :: i,j,k,l,m,DumI,nSnpWindow
+	integer :: i,j,k,l,m,DumI,nSnpWindow,MaxNrMissingSnp
 	integer(kind=1),allocatable,dimension(:) :: TempImput,FinalOutput
+	integer(int32),allocatable,dimension(:) :: MissingSnpTmp,MissingSnp
 	integer,allocatable,dimension(:,:) :: WindowsInfo
+
 	character(len=80) :: filout1,filout2,nChar,FmtInt
 	!integer :: TmpID
 	!real(kind=8)::tstart,tend
@@ -1474,12 +1357,13 @@ subroutine MergeResultsFile
 	open (unit=1,file="AlphaFamSeqWindowsInfo.txt",status="old")
 
 	write(nChar,*) LenghtSequenceDataFile
-	print*,nChar
 	FmtInt='(i10,'//trim(adjustl(nChar))//'i2)'
 	
 
-	open (unit=4,file="AlphaFamSeqFinalPhase.txt",status="unknown")
-	open (unit=5,file="AlphaFamSeqFinalGenos.txt",status="unknown")
+	open (unit=5,file="AlphaFamSeqFinalPhase.txt",status="unknown")
+	open (unit=6,file="AlphaFamSeqFinalGenos.txt",status="unknown")
+	open (unit=7,file="AlphaFamSeqMarkersWithZeroReads.txt",status="unknown")
+
 
 	read(1,*)
 
@@ -1530,9 +1414,10 @@ subroutine MergeResultsFile
 			close(2)
 		enddo
 		
-		write(5,FmtInt) DumI,FinalOutput(:)
+		write(6,FmtInt) DumI,FinalOutput(:)
 	enddo
-	
+	close(6)
+
 	! Phase File
 	do i=1,(nInd*2)
 	
@@ -1569,24 +1454,55 @@ subroutine MergeResultsFile
 			deallocate(TempImput)
 			close(3)	
 		enddo
-		write(4,FmtInt) DumI,FinalOutput(:)
+		write(5,FmtInt) DumI,FinalOutput(:)
 	enddo
-	
-		
-	deallocate(FinalOutput)
+	close(5)
 
+	! Markers with zero reads
+	MaxNrMissingSnp=LenghtSequenceDataFile+(Windows*ChunkLengthB*2)
+	allocate(MissingSnpTmp(MaxNrMissingSnp))
+	MissingSnp=0
+	i=1
+	do j=1,Windows
+		write (filout1,'("AlphaFamSeqMarkersWithZeroReads",i0,".txt")') j
+		open (unit=4,file=trim(filout1),status="unknown")
+		
+		do 
+			read(4,*,END=904) MissingSnpTmp(i)
+			i=i+1
+		enddo
+		904 continue
+		close(4)
+	enddo
+
+	i=i-1
+	allocate(MissingSnp(1:i))
+	MissingSnp=MissingSnpTmp(1:i)
+	deallocate(MissingSnpTmp)
+	call HpSortI(i,MissingSnp)
+	write(7,'(1i0)') MissingSnp(1)	! Problems with array bound if I use a single loop.
+	do j=2,i
+		if ((j.gt.1).and.(MissingSnp(j)/=MissingSnp(j-1))) then
+			write(7,'(1i0)') MissingSnp(j)
+		endif
+	enddo
+	close(7)
+	
+	deallocate(MissingSnp)
+	
 	do i=1,Windows
 		write (filout1,'("AlphaFamSeqFinalGenos",i0,".txt")') i
 		open (unit=2,file=trim(filout1),status="unknown")
+		close(2,status="delete")
+		
 		write (filout2,'("AlphaFamSeqFinalPhase",i0,".txt")') i
 		open (unit=3,file=trim(filout2),status="unknown")
-		close(2,status="delete")
 		close(3,status="delete")
+		
+		write (filout2,'("AlphaFamSeqMarkersWithZeroReads",i0,".txt")') i
+		open (unit=4,file=trim(filout2),status="unknown")
+		close(4,status="delete")
 	enddo
-
-
-	close(4)
-	close(5)
 end subroutine MergeResultsFile
 
 !###########################################################################################################################################################
