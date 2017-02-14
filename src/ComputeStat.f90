@@ -504,6 +504,8 @@ subroutine AllocateResultsArrays(nRow,gam,Yield,Correct,FinalCor,MAF)
 	allocate(MAF(nRow,gam)) ! GoOut
 	allocate(Correct(nRow,gam))
 	allocate(FinalCor(nRow,gam))
+
+	FinalCor = 0
 end subroutine AllocateResultsArrays
 
 !###########################################################################################################################################################
