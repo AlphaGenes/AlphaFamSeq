@@ -58,7 +58,8 @@ subroutine GetResultsImputation(nSnp,ImpFile,TrueFile,ExclueSnpFile,Geno1orPhase
 	integer, allocatable,dimension(:,:) :: Yield,Correct
 	integer(kind=1), allocatable,dimension(:,:,:) :: ImpSnp, TrueSnp
 	
-	real(real64), allocatable,dimension(:,:) :: MAF,FinalCor
+	real(real64), allocatable,dimension(:,:) :: MAF
+	real(real32), allocatable,dimension(:,:) :: FinalCor
 	
 	character(len=5) :: fileKind
 	character(len=300) :: filout1,filout2,filout3
@@ -139,7 +140,7 @@ subroutine WriteResultsByIndividual(nInd,gam,nSnpUsed,Id,Yield,Correct,FinalCor,
 	integer,			intent(in) :: nInd,gam,nSnpUsed
 	integer(int32),		intent(in), allocatable,dimension(:) :: Id
 	integer,			intent(in),allocatable,dimension(:,:) :: Yield,Correct
-	real(real64),		intent(in),allocatable,dimension(:,:) :: FinalCor
+	real(real32),		intent(in),allocatable,dimension(:,:) :: FinalCor
 
 	character(len=300),	intent(in) :: filout2
 
@@ -172,7 +173,7 @@ subroutine CalculareResultsByIndividual(nSnp,gam,nInd,ImpSnp,TrueSnp,MarkerToExc
 	integer(int32),intent(in), allocatable,dimension(:) :: MarkerToExclude
 	
 	integer,intent(inout),allocatable,dimension(:,:) :: Yield,Correct
-	real(real64),intent(inout),allocatable,dimension(:,:) :: FinalCor
+	real(real32),intent(inout),allocatable,dimension(:,:) :: FinalCor
 
 
 	integer :: i,g,j
@@ -213,7 +214,8 @@ subroutine WriteResultsBySnp(nSnp,nInd,gam,MarkerToExclude,MAF,Yield,Correct,Fin
 	integer(int32),		intent(in), allocatable,dimension(:) :: MarkerToExclude
 	
 	integer,			intent(in),allocatable,dimension(:,:) :: Yield,Correct
-	real(real64),		intent(in),allocatable,dimension(:,:) :: MAF,FinalCor
+	real(real64),		intent(in),allocatable,dimension(:,:) :: MAF
+	real(real32), allocatable,dimension(:,:) :: FinalCor
 	
 	character(len=300),	intent(in) :: filout1
 
@@ -245,7 +247,8 @@ subroutine CalculareResultsBySnp(nSnp,gam,nInd,ImpSnp,TrueSnp,MAF,Yield,Correct,
 	integer(kind=1),intent(in),allocatable,dimension(:,:,:) :: ImpSnp, TrueSnp
 	
 	integer,intent(inout),allocatable,dimension(:,:) :: Yield,Correct
-	real(real64),intent(inout),allocatable,dimension(:,:) :: MAF,FinalCor
+	real(real64),intent(inout),allocatable,dimension(:,:) :: MAF
+	real(real32),intent(inout),allocatable,dimension(:,:) :: FinalCor
 
 
 	integer :: j,g,i
@@ -426,21 +429,25 @@ subroutine CalculateCorrelation(Yield,n,TrueSnp,ImpSnp,CorTrueImp)
 	integer,intent(in) :: n,Yield
 	
 	integer(kind=1),intent(in),dimension(n) :: ImpSnp, TrueSnp
+	integer(kind=int32) ,dimension(n) :: ImpSnpTmp, TrueSnpTmp
 	type(CorrelationReal32),intent(inout) :: CorTrueImp
 	
 	integer(int32), allocatable,dimension(:) :: TrueTmp,ImpTmp
 	integer :: i,p
 	
+	ImpSnpTmp = ImpSnp
+	TrueSnpTmp = TrueSnp
+
 	if (Yield==n) then
-		CorTrueImp = Cor(TrueSnp,ImpSnp)
+		CorTrueImp = Cor(TrueSnpTmp,ImpSnpTmp)
 	else if (Yield<n) then
 		allocate(TrueTmp(Yield))
 		allocate(ImpTmp(Yield))
 		p=1
 		do i=1,Yield
 			if (ImpSnp(i)/=9) then
-				TrueTmp(p)=TrueSnp(i)
-				ImpTmp(p)=ImpSnp(i)
+				TrueTmp(p)=TrueSnpTmp(i)
+				ImpTmp(p)=ImpSnpTmp(i)
 				p=p+1
 			endif
 		enddo
@@ -480,7 +487,8 @@ subroutine DeallocateResultsArrays(Yield,MAF,Correct,FinalCor)
 	implicit none
 	
 	integer,		intent(inout),allocatable,dimension(:,:) :: Yield,Correct
-	real(real64),	intent(inout),allocatable,dimension(:,:) :: MAF,FinalCor
+	real(real64),	intent(inout),allocatable,dimension(:,:) :: MAF
+	real(real32), allocatable,dimension(:,:) :: FinalCor
 	
 
 	if(allocated(Yield)) deallocate(Yield)
@@ -497,7 +505,7 @@ subroutine AllocateResultsArrays(nRow,gam,Yield,Correct,FinalCor,MAF)
 	integer,intent(in) :: nRow,gam
 	integer,intent(inout),allocatable,dimension(:,:) :: Yield,Correct
 	
-	real(real64),intent(inout),allocatable,dimension(:,:) :: FinalCor
+	real(real32),intent(inout),allocatable,dimension(:,:) :: FinalCor
 	real(real64),intent(inout),optional,allocatable,dimension(:,:) :: MAF
 
 	allocate(Yield(nRow,gam))
