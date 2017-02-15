@@ -444,7 +444,7 @@ subroutine CalculateCorrelation(Yield,n,TrueSnp,ImpSnp,CorTrueImp)
 		allocate(TrueTmp(Yield))
 		allocate(ImpTmp(Yield))
 		p=1
-		do i=1,Yield
+		do i=1,n
 			if (ImpSnp(i)/=9) then
 				TrueTmp(p)=TrueSnpTmp(i)
 				ImpTmp(p)=ImpSnpTmp(i)
