@@ -42,7 +42,7 @@ subroutine GetResultsImputation(nSnp,ImpFile,TrueFile,ExclueSnpFile,Geno1orPhase
 	character(len=*), intent(in):: ImpFile
 	character(len=*), intent(in):: TrueFile
 	character(len=*), intent(in):: ExclueSnpFile
-	character(len=*), intent(in) :: MistakeIdentifier
+	character(len=3), intent(in) :: MistakeIdentifier
     
 	character(len=*), intent(in):: prefix
 	
@@ -56,9 +56,9 @@ subroutine GetResultsImputation(nSnp,ImpFile,TrueFile,ExclueSnpFile,Geno1orPhase
 	
 	integer(int32), allocatable,dimension(:) :: Id,MarkerToExclude
 	integer, allocatable,dimension(:,:) :: Yield,Correct
-	integer(kind=1), allocatable,dimension(:,:,:) :: ImpSnp, TrueSnp
+	integer(int32), allocatable,dimension(:,:,:) :: ImpSnp, TrueSnp
 	
-	real(real64), allocatable,dimension(:,:) :: MAF,FinalCor
+	real(real32), allocatable,dimension(:,:) :: MAF,FinalCor
 	
 	character(len=5) :: fileKind
 	character(len=300) :: filout1,filout2,filout3
@@ -66,7 +66,6 @@ subroutine GetResultsImputation(nSnp,ImpFile,TrueFile,ExclueSnpFile,Geno1orPhase
 	call GetLengthOfInputFiles(ImpFile,nIndImp,TrueFile,nIndTrue,nInd)
 	call SetSomeParametes(gam,Geno1orPhase2,fileKind,prefix,nInd,nIndTrue,nIndImp,filout1,filout2,filout3)
 	call AllocateInputDataArrays(nInd,nSnp,gam,Id,ImpSnp,TrueSnp)
-	
 	if (nIndImp.le.nIndTrue) call ReadDataIn(gam,nSnp,ImpFile,TrueFile,nIndImp,nIndTrue,Id,ImpSnp,TrueSnp)
 	if (nIndImp.gt.nIndTrue) call ReadDataIn(gam,nSnp,TrueFile,ImpFile,nIndTrue,nIndImp,Id,TrueSnp,ImpSnp)
 
@@ -106,7 +105,7 @@ subroutine PrintMistakeIdentifier(nInd,nSnp,gam,MarkerToExclude,ImpSnp,TrueSnp,f
 	integer, 		intent(in) :: nInd,gam
 	integer(int32), intent(in) :: nSnp
 
-	integer(kind=1),intent(in),allocatable,dimension(:,:,:) :: ImpSnp, TrueSnp
+	integer(int32),intent(in),allocatable,dimension(:,:,:) :: ImpSnp, TrueSnp
 	integer(int32),	intent(in), allocatable,dimension(:) :: MarkerToExclude
 
 	character(len=300),	intent(in) :: filout3
@@ -115,6 +114,7 @@ subroutine PrintMistakeIdentifier(nInd,nSnp,gam,MarkerToExclude,ImpSnp,TrueSnp,f
 
 	open(103, file=trim(filout3), status="unknown")
 	write(103,'(1a42)') "Id gam Snp True Imputed"
+
 
 	do i=1,nInd
 		do g=1,gam
@@ -138,7 +138,7 @@ subroutine WriteResultsByIndividual(nInd,gam,nSnpUsed,Id,Yield,Correct,FinalCor,
 	integer,			intent(in) :: nInd,gam,nSnpUsed
 	integer(int32),		intent(in), allocatable,dimension(:) :: Id
 	integer,			intent(in),allocatable,dimension(:,:) :: Yield,Correct
-	real(real64),		intent(in),allocatable,dimension(:,:) :: FinalCor
+	real(real32),		intent(in),allocatable,dimension(:,:) :: FinalCor
 
 	character(len=300),	intent(in) :: filout2
 
@@ -167,11 +167,11 @@ subroutine CalculareResultsByIndividual(nSnp,gam,nInd,ImpSnp,TrueSnp,MarkerToExc
 
 	integer(int32),intent(in) :: nSnp
 	integer,intent(in) :: gam,nInd
-	integer(kind=1),intent(in),allocatable,dimension(:,:,:) :: ImpSnp, TrueSnp
+	integer(int32),intent(in),allocatable,dimension(:,:,:) :: ImpSnp, TrueSnp
 	integer(int32),intent(in), allocatable,dimension(:) :: MarkerToExclude
 	
 	integer,intent(inout),allocatable,dimension(:,:) :: Yield,Correct
-	real(real64),intent(inout),allocatable,dimension(:,:) :: FinalCor
+	real(real32),intent(inout),allocatable,dimension(:,:) :: FinalCor
 
 
 	integer :: i,g,j
@@ -212,7 +212,7 @@ subroutine WriteResultsBySnp(nSnp,nInd,gam,MarkerToExclude,MAF,Yield,Correct,Fin
 	integer(int32),		intent(in), allocatable,dimension(:) :: MarkerToExclude
 	
 	integer,			intent(in),allocatable,dimension(:,:) :: Yield,Correct
-	real(real64),		intent(in),allocatable,dimension(:,:) :: MAF,FinalCor
+	real(real32),		intent(in),allocatable,dimension(:,:) :: MAF,FinalCor
 	
 	character(len=300),	intent(in) :: filout1
 
@@ -241,10 +241,10 @@ subroutine CalculareResultsBySnp(nSnp,gam,nInd,ImpSnp,TrueSnp,MAF,Yield,Correct,
 	implicit none
 
 	integer,intent(in) :: nSnp,gam,nInd
-	integer(kind=1),intent(in),allocatable,dimension(:,:,:) :: ImpSnp, TrueSnp
+	integer(int32),intent(in),allocatable,dimension(:,:,:) :: ImpSnp, TrueSnp
 	
 	integer,intent(inout),allocatable,dimension(:,:) :: Yield,Correct
-	real(real64),intent(inout),allocatable,dimension(:,:) :: MAF,FinalCor
+	real(real32),intent(inout),allocatable,dimension(:,:) :: MAF,FinalCor
 
 
 	integer :: j,g,i
@@ -316,7 +316,7 @@ subroutine ReadDataIn(gam,nSnp,ShortFile,LongFile,nIndShort,nIndLong,Id,ShortSnp
 	integer,  			intent(in):: gam,nIndShort,nIndLong
 	
 	integer(int32),		intent(inout), allocatable,dimension(:) :: Id
-	integer(kind=1),	intent(inout),allocatable,dimension(:,:,:) :: ShortSnp, LongSnp
+	integer(int32),	intent(inout),allocatable,dimension(:,:,:) :: ShortSnp, LongSnp
 	
 	integer :: i,g,DumI,PosId
 	integer,allocatable,dimension (:) :: TmpInput
@@ -376,7 +376,6 @@ subroutine SetSomeParametes(gam,Geno1orPhase2,fileKind,prefix,nInd,nIndTrue,nInd
 	filout1=trim(adjustl(prefix))//"Stat"//trim(adjustl(fileKind))//"ByMarker.txt"
 	filout2=trim(adjustl(prefix))//"Stat"//trim(adjustl(fileKind))//"ByIndividual.txt"
 	filout3=trim(adjustl(prefix))//"MistakeIdentifiers"//trim(adjustl(fileKind))//".txt"
-
 end subroutine SetSomeParametes
 
 !###########################################################################################################################################################
@@ -424,7 +423,7 @@ subroutine CalculateCorrelation(Yield,n,TrueSnp,ImpSnp,CorTrueImp)
 	
 	integer,intent(in) :: n,Yield
 	
-	integer(kind=1),intent(in),dimension(n) :: ImpSnp, TrueSnp
+	integer(int32),intent(in),dimension(n) :: ImpSnp, TrueSnp
 	type(CorrelationReal32),intent(inout) :: CorTrueImp
 	
 	integer(int32), allocatable,dimension(:) :: TrueTmp,ImpTmp
@@ -432,18 +431,20 @@ subroutine CalculateCorrelation(Yield,n,TrueSnp,ImpSnp,CorTrueImp)
 	
 	if (Yield==n) then
 		CorTrueImp = Cor(TrueSnp,ImpSnp)
-	else if (Yield<n) then
+	endif
+	
+	if (Yield.lt.n) then
 		allocate(TrueTmp(Yield))
 		allocate(ImpTmp(Yield))
 		p=1
-		do i=1,Yield
+		do i=1,n
 			if (ImpSnp(i)/=9) then
 				TrueTmp(p)=TrueSnp(i)
 				ImpTmp(p)=ImpSnp(i)
 				p=p+1
 			endif
 		enddo
-
+		
 		CorTrueImp=Cor(TrueTmp,ImpTmp)
 		if (allocated(TrueTmp)) deallocate(TrueTmp)
 		if (allocated(ImpTmp)) deallocate(ImpTmp)
@@ -479,7 +480,7 @@ subroutine DeallocateResultsArrays(Yield,MAF,Correct,FinalCor)
 	implicit none
 	
 	integer,		intent(inout),allocatable,dimension(:,:) :: Yield,Correct
-	real(real64),	intent(inout),allocatable,dimension(:,:) :: MAF,FinalCor
+	real(real32),	intent(inout),allocatable,dimension(:,:) :: MAF,FinalCor
 	
 
 	if(allocated(Yield)) deallocate(Yield)
@@ -496,8 +497,8 @@ subroutine AllocateResultsArrays(nRow,gam,Yield,Correct,FinalCor,MAF)
 	integer,intent(in) :: nRow,gam
 	integer,intent(inout),allocatable,dimension(:,:) :: Yield,Correct
 	
-	real(real64),intent(inout),allocatable,dimension(:,:) :: FinalCor
-	real(real64),intent(inout),optional,allocatable,dimension(:,:) :: MAF
+	real(real32),intent(inout),allocatable,dimension(:,:) :: FinalCor
+	real(real32),intent(inout),optional,allocatable,dimension(:,:) :: MAF
 
 	allocate(Yield(nRow,gam))
 	allocate(MAF(nRow,gam)) ! GoOut
@@ -511,7 +512,7 @@ subroutine DeallocateInputDataArrays(Id,ImpSnp,TrueSnp)
 	implicit none
 	
 	integer(int32),intent(inout), allocatable,dimension(:) :: Id
-	integer(kind=1),intent(inout),allocatable,dimension(:,:,:) :: ImpSnp, TrueSnp
+	integer(int32),intent(inout),allocatable,dimension(:,:,:) :: ImpSnp, TrueSnp
 
 	deallocate(Id)
 	deallocate(ImpSnp)
@@ -525,7 +526,7 @@ subroutine AllocateInputDataArrays(nRow,nCol,gam,Id,ImpSnp,TrueSnp)
 	
 	integer,intent(in) :: nRow,nCol,gam
 	integer(int32),intent(inout), allocatable,dimension(:) :: Id
-	integer(kind=1),intent(inout),allocatable,dimension(:,:,:) :: ImpSnp, TrueSnp
+	integer(int32),intent(inout),allocatable,dimension(:,:,:) :: ImpSnp, TrueSnp
 
 	allocate(Id(nRow))
 	allocate(ImpSnp(nRow,nCol,gam))
