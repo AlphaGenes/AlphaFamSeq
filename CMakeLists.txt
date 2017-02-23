@@ -3,7 +3,6 @@ PROJECT(AlphaFamSeq)
 enable_language (Fortran)
 
 MESSAGE("You need to set the AlphaHouse Source (ALPHAHOUSESRC) and the path to the CMAKE Modules (CMAKEPATH) in your enviroment before using CMAKE")
-MESSAGE("CMAKEPATH=$ENV{CMAKEPATH} and ALPHAHOUSESRC=$ENV{ALPHAHOUSESRC}")
 #find_package(Doxygen)
 OPTION(RUN_TESTS "Run and compile tests"
   OFF)
@@ -12,8 +11,20 @@ OPTION(USE_HDF5 "Use hdf"
 
 set(CLUSTER 0 CACHE STRING "cluster size")
 # Add our local modlues to the module path
-SET(CMAKE_MODULE_PATH $ENV{CMAKEPATH})
+
+if (DEFINED $ENV{CMAKEPATH})
+  SET(CMAKE_MODULE_PATH $ENV{CMAKEPATH})
+else()
+  SET(CMAKE_MODULE_PATH ../alphacmakefiles/cmake/modules)
+
+endif()
 set(CMAKE_MACOSX_RPATH 0)
+
+if (DEFINED $ENV{AlphaHouseSrc})
+  SET(SRCAH $ENV{AlphaHouseSrc})
+else()
+  SET(SRCAH ../alphahouse/src)
+endif()
 
 #INCLUDE(${CMAKE_MODULE_PATH}/setVersion.cmake)
 find_package(Doxygen)
@@ -74,7 +85,6 @@ endif(${USE_HDF5})
 # RELEASE, and TESTING.  You should  review this file and make sure the flags
 # are to your liking.
 INCLUDE(${CMAKE_MODULE_PATH}/SetFortranFlags.cmake)
-SET(SRCAH $ENV{ALPHAHOUSESRC})
 
 # Have the .mod files placed in the OBJ folder
 SET(CMAKE_Fortran_MODULE_DIRECTORY ${OBJ})
