@@ -187,7 +187,6 @@ subroutine CalculateResultsByIndividual(nSnp,gam,nInd,ImpSnp,TrueSnp,MarkerToExc
 			enddo
 
 			if (Yield(i,g).gt.1) then
-				write(*,'(3(1x,i0))'),i,g,Yield(i,g)
 				call CalculateCorrelation(Yield(i,g),nSnp,TrueSnp(i,:,g),ImpSnp(i,:,g),CorTrueImp)
 				FinalCor(i,g)=CorTrueImp%Cor
 			endif
