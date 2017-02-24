@@ -34,7 +34,7 @@ contains
       
       integer(kind=1),allocatable,dimension(:,:) :: InputGenos                                          
 
-      !real(kind=8),dimension(:) :: OutputMaf(EndSnp-StartSnp+1)
+      !real(kind=8),dimension(pgg:) :: OutputMaf(EndSnp-StartSnp+1)
 
       real(kind=8),allocatable,dimension(:,:) :: GMatSnp 
       real(kind=8),allocatable,dimension(:,:,:) :: GMatRds

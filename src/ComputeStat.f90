@@ -58,7 +58,7 @@ subroutine GetResultsImputation(nSnp,ImpFile,TrueFile,ExclueSnpFile,Geno1orPhase
 	integer, allocatable,dimension(:,:) :: Yield,Correct
 	integer(int32), allocatable,dimension(:,:,:) :: ImpSnp, TrueSnp
 	
-	real(real64), allocatable,dimension(:,:) :: MAF
+	real(real32), allocatable,dimension(:,:) :: MAF
 	real(real32), allocatable,dimension(:,:) :: FinalCor
 	
 	character(len=5) :: fileKind
@@ -213,7 +213,7 @@ subroutine WriteResultsBySnp(nSnp,nInd,gam,MarkerToExclude,MAF,Yield,Correct,Fin
 	integer(int32),		intent(in), allocatable,dimension(:) :: MarkerToExclude
 	
 	integer,			intent(in),allocatable,dimension(:,:) :: Yield,Correct
-	real(real64),		intent(in),allocatable,dimension(:,:) :: MAF
+	real(real32),		intent(in),allocatable,dimension(:,:) :: MAF
 	real(real32), allocatable,dimension(:,:) :: FinalCor
 	
 	character(len=300),	intent(in) :: filout1
@@ -246,7 +246,7 @@ subroutine CalculareResultsBySnp(nSnp,gam,nInd,ImpSnp,TrueSnp,MAF,Yield,Correct,
 	integer(int32),intent(in),allocatable,dimension(:,:,:) :: ImpSnp, TrueSnp
 	
 	integer,intent(inout),allocatable,dimension(:,:) :: Yield,Correct
-	real(real64),intent(inout),allocatable,dimension(:,:) :: MAF
+	real(real32),intent(inout),allocatable,dimension(:,:) :: MAF
 	real(real32),intent(inout),allocatable,dimension(:,:) :: FinalCor
 
 
