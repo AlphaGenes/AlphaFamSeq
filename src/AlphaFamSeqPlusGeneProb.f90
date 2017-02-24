@@ -1027,8 +1027,8 @@ subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 
     integer :: i,j
 
-        !$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (Pr00,Pr11,Pr01,Pr10,FilledGenos,FilledPhase,nInd,GeneProbThresh)
     do j=1,nSnp
+		!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (Pr00,Pr11,Pr01,Pr10,FilledGenos,FilledPhase,nInd,GeneProbThresh,j)
 		do i=1,nInd
 			if ((Pr00(i,j)>=GeneProbThresh).and.(sum(FilledPhase(i,j,:))>3)) then
 				FilledGenos(i,j)=0
@@ -1053,9 +1053,9 @@ subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 			endif
 
 		enddo
-	
+	    !$OMP END PARALLEL DO
+
 	enddo
-    !$OMP END PARALLEL DO
 end subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 
 !################################################################################################
