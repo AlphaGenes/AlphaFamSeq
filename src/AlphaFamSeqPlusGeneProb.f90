@@ -917,9 +917,10 @@ subroutine CalculateFounderAssignment
 	
 	FounderAssignment(:,:,:)=0 
 	
-    !$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase,RecPed,FounderAssignment)
+   			
 	do j=1,nSnp
 		do i=1,nInd
+        !$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase,RecPed,FounderAssignment,i,j)
 			do e=2,3 ! Sire and Dam pos in the ped
 				k=e-1 ! Sire and Dam gamete
 
@@ -930,9 +931,10 @@ subroutine CalculateFounderAssignment
 					endif
 				endif
 			enddo
+             !$OMP END PARALLEL DO
 		enddo
 	enddo
-    !$OMP END PARALLEL DO
+   
 
 end subroutine CalculateFounderAssignment
 
@@ -986,11 +988,11 @@ subroutine SimpleFillInBasedOnParentsReads
 	implicit none
 
 	integer :: i,j,e,k
-	
+    
+    !$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase)
 	do i=1,nInd
 		do j=1,nSnp
 			if (maxval(FilledPhase(i,j,:))==9) then
-				!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase,RecPed,i,j)
 					do e=1,2
 						k=Abs((e-1)-1)+1
 						if (FilledGenos(RecPed(i,e+1),j)==0) then
@@ -1001,10 +1003,11 @@ subroutine SimpleFillInBasedOnParentsReads
 							FilledPhase(i,j,e)=1
 						endif
 					enddo
-				!$OMP END PARALLEL DO
 			endif
 		enddo
 	enddo
+    !$OMP END PARALLEL DO
+
 end subroutine SimpleFillInBasedOnParentsReads
 
 !################################################################################################
@@ -1024,7 +1027,7 @@ subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 
     integer :: i,j
 
-    !$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (Pr00,Pr11,Pr01,Pr10,FilledGenos,FilledPhase,nInd,GeneProbThresh)
+        !$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (Pr00,Pr11,Pr01,Pr10,FilledGenos,FilledPhase,nInd,GeneProbThresh)
     do j=1,nSnp
 		do i=1,nInd
 			if ((Pr00(i,j)>=GeneProbThresh).and.(sum(FilledPhase(i,j,:))>3)) then
