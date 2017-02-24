@@ -42,7 +42,7 @@ subroutine GetResultsImputation(nSnp,ImpFile,TrueFile,ExclueSnpFile,Geno1orPhase
 	character(len=*), intent(in):: ImpFile
 	character(len=*), intent(in):: TrueFile
 	character(len=*), intent(in):: ExclueSnpFile
-	character(len=* ), intent(in) :: MistakeIdentifier
+	character(len=3), intent(in) :: MistakeIdentifier
     
 	character(len=*), intent(in):: prefix
 	
@@ -60,7 +60,7 @@ subroutine GetResultsImputation(nSnp,ImpFile,TrueFile,ExclueSnpFile,Geno1orPhase
 	
 	real(real32), allocatable,dimension(:,:) :: MAF
 	real(real32), allocatable,dimension(:,:) :: FinalCor
-	
+
 	character(len=5) :: fileKind
 	character(len=300) :: filout1,filout2,filout3
 
@@ -71,23 +71,16 @@ subroutine GetResultsImputation(nSnp,ImpFile,TrueFile,ExclueSnpFile,Geno1orPhase
 	if (nIndImp.gt.nIndTrue) call ReadDataIn(gam,nSnp,TrueFile,ImpFile,nIndTrue,nIndImp,Id,TrueSnp,ImpSnp)
 
 	call ReadMarkersToExclude(MarkerToExclude,ExclueSnpFile,nSnpUsed,nSnp)
-
 	! CalculareResultsBySnp
 	call AllocateResultsArrays(nSnp,gam,Yield,Correct,FinalCor,MAF)
-	
-	call CalculareResultsBySnp	(nSnp,gam,nInd,ImpSnp,TrueSnp,MAF,Yield,Correct,FinalCor)
+	call CalculateResultsBySnp	(nSnp,gam,nInd,ImpSnp,TrueSnp,MAF,Yield,Correct,FinalCor)
 	call WriteResultsBySnp(nSnp,nInd,gam,MarkerToExclude,MAF,Yield,Correct,FinalCor,filout1)
-	
 	call DeallocateResultsArrays(Yield,MAF,Correct,FinalCor)
-
-	! CalculareResultsByIndividual
+	! CalculateResultsByIndividual
 	call AllocateResultsArrays(nInd,gam,Yield,Correct,FinalCor,MAF)
-	
-	call CalculareResultsByIndividual(nSnp,gam,nInd,ImpSnp,TrueSnp,MarkerToExclude,Yield,Correct,FinalCor)
+	call CalculateResultsByIndividual(nSnp,gam,nInd,ImpSnp,TrueSnp,MarkerToExclude,Yield,Correct,FinalCor)
 	call WriteResultsByIndividual(nInd,gam,nSnpUsed,Id,Yield,Correct,FinalCor,filout2)	
-	
 	call DeallocateResultsArrays(Yield,MAF,Correct,FinalCor)
-	
 	! Print Mistakes
 	if (trim(MistakeIdentifier)=="Yes") then
 		call PrintMistakeIdentifier(nInd,nSnp,gam,MarkerToExclude,ImpSnp,TrueSnp,filout3)
@@ -160,7 +153,7 @@ end subroutine WriteResultsByIndividual
 
 !###########################################################################################################################################################
 
-subroutine CalculareResultsByIndividual(nSnp,gam,nInd,ImpSnp,TrueSnp,MarkerToExclude,Yield,Correct,FinalCor)
+subroutine CalculateResultsByIndividual(nSnp,gam,nInd,ImpSnp,TrueSnp,MarkerToExclude,Yield,Correct,FinalCor)
 
 	use AlphaStatMod
 	implicit none
@@ -201,7 +194,7 @@ subroutine CalculareResultsByIndividual(nSnp,gam,nInd,ImpSnp,TrueSnp,MarkerToExc
 			
 		enddo
 	enddo
-end subroutine CalculareResultsByIndividual
+end subroutine CalculateResultsByIndividual
 
 !###########################################################################################################################################################
 
@@ -215,6 +208,7 @@ subroutine WriteResultsBySnp(nSnp,nInd,gam,MarkerToExclude,MAF,Yield,Correct,Fin
 	integer,			intent(in),allocatable,dimension(:,:) :: Yield,Correct
 	real(real32),		intent(in),allocatable,dimension(:,:) :: MAF
 	real(real32), allocatable,dimension(:,:) :: FinalCor
+
 	
 	character(len=300),	intent(in) :: filout1
 
@@ -237,7 +231,7 @@ end subroutine WriteResultsBySnp
 
 !###########################################################################################################################################################
 
-subroutine CalculareResultsBySnp(nSnp,gam,nInd,ImpSnp,TrueSnp,MAF,Yield,Correct,FinalCor)
+subroutine CalculateResultsBySnp(nSnp,gam,nInd,ImpSnp,TrueSnp,MAF,Yield,Correct,FinalCor)
 
 	use AlphaStatMod
 	implicit none
@@ -277,7 +271,7 @@ subroutine CalculareResultsBySnp(nSnp,gam,nInd,ImpSnp,TrueSnp,MAF,Yield,Correct,
 
 		enddo
 	enddo
-end subroutine CalculareResultsBySnp
+end subroutine CalculateResultsBySnp
 
 !###########################################################################################################################################################
 
@@ -448,7 +442,7 @@ subroutine CalculateCorrelation(Yield,n,TrueSnp,ImpSnp,CorTrueImp)
 			endif
 		enddo
 		
-		CorTrueImp=Cor(TrueTmp,ImpTmp)
+		CorTrueImp = Cor(TrueTmp,ImpTmp)
 		if (allocated(TrueTmp)) deallocate(TrueTmp)
 		if (allocated(ImpTmp)) deallocate(ImpTmp)
 	endif
