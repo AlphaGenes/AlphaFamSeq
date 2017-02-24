@@ -2,7 +2,7 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.8.5)
 PROJECT(AlphaFamSeq)
 enable_language (Fortran)
 
-MESSAGE("You need to set the AlphaHouse Source (ALPHAHOUSESRC) and the path to the CMAKE Modules (CMAKEPATH) in your enviroment before using CMAKE")
+# MESSAGE("You need to set the AlphaHouse Source (ALPHAHOUSESRC) and the path to the CMAKE Modules (CMAKEPATH) in your enviroment before using CMAKE")
 #find_package(Doxygen)
 OPTION(RUN_TESTS "Run and compile tests"
   OFF)
@@ -11,11 +11,13 @@ OPTION(USE_HDF5 "Use hdf"
 
 set(CLUSTER 0 CACHE STRING "cluster size")
 # Add our local modlues to the module path
+SET(SRCAHTMP "../alphahouse/src/")
+SET(SRCACMAKE "${CMAKE_SOURCE_DIR}/../alphacmakefiles/cmake/modules")
 
 if (DEFINED $ENV{CMAKEPATH})
   SET(CMAKE_MODULE_PATH $ENV{CMAKEPATH})
 else()
-  SET(CMAKE_MODULE_PATH $ENV{CMAKEPATH})
+  SET(CMAKE_MODULE_PATH ${SRCACMAKE})
 
 endif()
 set(CMAKE_MACOSX_RPATH 0)
@@ -23,7 +25,7 @@ set(CMAKE_MACOSX_RPATH 0)
 if (DEFINED $ENV{AlphaHouseSrc})
   SET(SRCAH $ENV{AlphaHouseSrc})
 else()
-  SET(SRCAH $ENV{ALPHAHOUSESRC})
+  SET(SRCAH ${SRCAHTMP})
 endif()
 
 #INCLUDE(${CMAKE_MODULE_PATH}/setVersion.cmake)
