@@ -956,8 +956,8 @@ subroutine SimpleFillInBasedOnProgenyReads
 
 	integer :: i,j,IdSir,IdDam
 
+	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (FilledPhase,RecPed,nSnp, nInd)
 	do i=1,nInd
-		!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (FilledPhase,RecPed,i,nSnp)
 		do j=1,nSnp
 			if ((sum(FilledPhase(i,j,:))==0).or.(sum(FilledPhase(i,j,:))==2)) then
 				IdSir=RecPed(i,2)
@@ -971,8 +971,9 @@ subroutine SimpleFillInBasedOnProgenyReads
 				
 			endif
 		enddo
-		!$OMP END PARALLEL DO
 	enddo
+	!$OMP END PARALLEL DO
+
 end subroutine SimpleFillInBasedOnProgenyReads
 
 !################################################################################################
@@ -1026,10 +1027,10 @@ subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 	implicit none
 
     integer :: i,j
-
+	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (Pr00,Pr11,Pr01,Pr10,FilledGenos,FilledPhase,GeneProbThresh,nSnp,nInd) collapse(2)
     do j=1,nSnp
-		!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (Pr00,Pr11,Pr01,Pr10,FilledGenos,FilledPhase,nInd,GeneProbThresh,j)
 		do i=1,nInd
+
 			if ((Pr00(i,j)>=GeneProbThresh).and.(sum(FilledPhase(i,j,:))>3)) then
 				FilledGenos(i,j)=0
 				FilledPhase(i,j,:)=0
@@ -1053,9 +1054,10 @@ subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 			endif
 
 		enddo
-	    !$OMP END PARALLEL DO
 
 	enddo
+	!$OMP END PARALLEL DO
+
 end subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 
 !################################################################################################
