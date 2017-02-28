@@ -917,10 +917,9 @@ subroutine CalculateFounderAssignment
 	
 	FounderAssignment(:,:,:)=0 
 	
-   			
+   	        !$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase,RecPed,FounderAssignment,nSnp,nInd)		
 	do j=1,nSnp
 		do i=1,nInd
-        !$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase,RecPed,FounderAssignment,i,j)
 			do e=2,3 ! Sire and Dam pos in the ped
 				k=e-1 ! Sire and Dam gamete
 
@@ -931,9 +930,10 @@ subroutine CalculateFounderAssignment
 					endif
 				endif
 			enddo
-             !$OMP END PARALLEL DO
+            
 		enddo
 	enddo
+     !$OMP END PARALLEL DO
    
 
 end subroutine CalculateFounderAssignment
