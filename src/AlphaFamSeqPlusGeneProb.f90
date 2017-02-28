@@ -516,7 +516,7 @@ subroutine SimpleCleanUpFillIn
 	do while (Change==1)
 		Change=0
 		do j=1,nSnp
-			!!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase,nInd,j,Change)
+			!!$OMP PARALLEL DO DEFAULT(THREADPRIVATE) SHARED (FilledGenos,FilledPhase,nInd,j,Change)
 		
 			do i=1,nInd
 				if (FilledGenos(i,j)==9) then
