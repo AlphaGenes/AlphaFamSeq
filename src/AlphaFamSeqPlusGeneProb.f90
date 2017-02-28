@@ -515,8 +515,8 @@ subroutine SimpleCleanUpFillIn
 	Change=1
 	do while (Change==1)
 		Change=0
+		!$OMP PARALLEL DO DEFAULT(FIRSTPRIVATE) SHARED (FilledGenos,FilledPhase,nInd,Change, nSnp)
 		do j=1,nSnp
-			!!$OMP PARALLEL DO DEFAULT(THREADPRIVATE) SHARED (FilledGenos,FilledPhase,nInd,j,Change)
 		
 			do i=1,nInd
 				if (FilledGenos(i,j)==9) then
@@ -537,9 +537,9 @@ subroutine SimpleCleanUpFillIn
 				endif
 
 			enddo
-			!!$OMP END PARALLEL DO
+			
 		enddo
-		
+		!$OMP END PARALLEL DO
 	enddo
 end subroutine SimpleCleanUpFillIn
 
