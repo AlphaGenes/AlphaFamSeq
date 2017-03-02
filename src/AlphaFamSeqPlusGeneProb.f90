@@ -43,9 +43,9 @@ module GlobalPar
 	integer :: SolutionChanged                  							! Control Parameter - used to finish the program 
 	integer :: StartSnp,EndSnp
 	
-	integer,allocatable,dimension(:,:) 				:: Ped          		! Input File - Pedigree
-	integer,allocatable,dimension(:,:) 				:: RecPed				! Temporary File - Pedigree Recoded
-	integer,allocatable,dimension(:) 				:: Id           		! Read Data - used to read unsorted data
+	integer(int64),allocatable,dimension(:,:) 				:: Ped          		! Input File - Pedigree
+	integer(int64),allocatable,dimension(:,:) 				:: RecPed				! Temporary File - Pedigree Recoded
+	integer(int64),allocatable,dimension(:) 				:: Id           		! Read Data - used to read unsorted data
 
 	integer(int32),allocatable,dimension(:,:,:) 	:: SequenceData			! Input File - Snp array to add more information to the Reads
 	real(kind=4),allocatable,dimension(:,:,:) 		:: RawReads				! Input File - Snp array to add more information to the Reads
@@ -703,7 +703,7 @@ subroutine BuildConsensus
 	integer :: i,k,e,j,m,Count1,Count0
 
 	integer,allocatable,dimension(:) :: ConsensusHaplotype
-	integer,allocatable,dimension(:,:,:) :: ConsensusIds
+	integer(int64),allocatable,dimension(:,:,:) :: ConsensusIds
 
 	allocate(ConsensusIds(nInd,4,2))
 	allocate(ConsensusHaplotype(nSnp))
@@ -954,7 +954,8 @@ subroutine SimpleFillInBasedOnProgenyReads
 	use omp_lib
 	implicit none
 
-	integer :: i,j,IdSir,IdDam
+	integer :: i,j,
+	integer(int64) :: IdSir,IdDam
 
 	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (FilledPhase,RecPed,nSnp, nInd)
 	do i=1,nInd
@@ -1074,7 +1075,7 @@ subroutine RunGeneProb
 	
 	implicit none
 
-	integer,allocatable,dimension(:) :: SeqSire,SeqDam !SeqId
+	integer(int64),allocatable,dimension(:) :: SeqSire,SeqDam !SeqId
 	
 	!integer :: i,j
 	!real(kind=8),allocatable,dimension(:,:,:) :: ReadCounts
@@ -1262,7 +1263,7 @@ subroutine ReadPedigree
 
 	implicit none
 
-	integer :: i,DumI,j,stat
+	integer(int64) :: i,DumI,j,stat
 	!integer,allocatable,dimension(:) :: TempImput
 	!integer :: TmpID
 
@@ -1271,7 +1272,6 @@ subroutine ReadPedigree
 	nInd = 0
 	do
 	    read(2, *, iostat=stat) DumI
-	    print *,"dumI:", dumI
 	    if (stat/=0) exit
 	    nInd = nInd + 1
 	enddo
