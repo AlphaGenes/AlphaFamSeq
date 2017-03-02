@@ -17,7 +17,7 @@ contains
       integer, intent(in) :: nAnis,nSnp,StartSnp,EndSnp,Seq0Snp1Mode
       real(kind=8),intent(in) :: ErrorRate
       
-      integer, intent(in), dimension (:) :: SeqSire(nAnis),SeqDam(nAnis)
+      integer(int64), intent(in), dimension (:) :: SeqSire(nAnis),SeqDam(nAnis)
       
       real(kind=4),intent(in),dimension(:,:,:) :: ReadCountsTmp(1:nAnis,nSnp,2) 
       integer(kind=1),intent(inout),dimension(:,:) :: InputGenosTmp(1:nAnis,nSnp) 
