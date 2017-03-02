@@ -954,7 +954,7 @@ subroutine SimpleFillInBasedOnProgenyReads
 	use omp_lib
 	implicit none
 
-	integer :: i,j,
+	integer :: i,j
 	integer(int64) :: IdSir,IdDam
 
 	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (FilledPhase,RecPed,nSnp, nInd)
