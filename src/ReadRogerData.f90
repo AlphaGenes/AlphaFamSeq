@@ -69,6 +69,7 @@ subroutine readRogerData(filename, Ids, position, quality, SequenceData,nSnpIn,S
   write(*,"(5A)") "STUFF", trim(dumC(1)), trim(dumC(2)), trim(dumC(3)), "ENDSTUFF"
   do i =1, nIndiv
     write(Ids(i), *) dumC(i+5)
+    print*,dumC(i+5)
   end do
 
   pos=1
