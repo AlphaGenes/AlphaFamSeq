@@ -1,5 +1,5 @@
 module AlphaVarCallFuture
-
+use ISO_Fortran_Env
 implicit none
 
 public :: AlphaVarCall
@@ -10,6 +10,7 @@ contains
 
     subroutine AlphaVarCall(nAnis,nSnp,StartSnp,EndSnp,ErrorRate,Seq0Snp1Mode,SeqSire,SeqDam,ReadCountsTmp,InputGenosTmp,Pr00,Pr01,Pr10,Pr11)
 
+      use ISO_Fortran_Env
       use omp_lib
 
       implicit none
@@ -87,7 +88,7 @@ contains
       ! CONTAIN THE POST(i,j) term, (the jth mate of the ith animal)
  
     subroutine CreateLinkListArrays(nAnis,SeqSire,SeqDam,mxeq,mate,ifirst,next,prog)
- 
+      use ISO_Fortran_Env
       implicit none
 
       integer,intent(in) :: nAnis
@@ -127,7 +128,7 @@ contains
     !######################################################################################################################################################
 
     subroutine SetUpEquationsForSnp(Seq0Snp1Mode,GMatSnp,GMatRds,ErrorRate,MaxReadCounts)
-
+        use ISO_Fortran_Env
         implicit none
 
 
@@ -183,7 +184,7 @@ contains
     !######################################################################################################################################################
 
     subroutine SetUpData(Seq0Snp1Mode,ReadCounts,InputGenos,nAnis,nSnp,EndSnp,StartSnp,ReadCountsTmp,InputGenosTmp,MaxReadCounts)
-
+        use ISO_Fortran_Env
         implicit none
 
         integer, intent(in) :: nAnis,nSnp,StartSnp,EndSnp,Seq0Snp1Mode
@@ -239,7 +240,7 @@ contains
     !######################################################################################################################################################
 
     subroutine GetMaxFamilySize(nAnis,SeqSire,SeqDam,MaxFs,MaxMates) !!(maxfs, maxmates, nfamilies)
-
+        use ISO_Fortran_Env
         implicit none
 
      
@@ -461,7 +462,7 @@ contains
     !######################################################################################################################################################
 
 subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,MaxMates,MaxReadCounts,GMatSnp,GMatRds,SeqSire,SeqDam,Pr00,Pr01,Pr10,Pr11,mxeq,mate,ifirst,next,prog)
-
+        use ISO_Fortran_Env
 	      implicit none
 
 	      integer, intent(in) :: currentSnp,Seq0Snp1Mode,maxfs,MaxMates,MaxReadCounts
@@ -1166,7 +1167,7 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
     !######################################################################################################################################################
 
     SUBROUTINE LNKLST(I,J,NP,IFLAG,MXEQ,nAnis,mm,nn,mate,next,ifirst,prog)
-
+      use ISO_Fortran_Env
       implicit none 
 
       integer,intent(in) :: i,j,np,iFlag,nAnis
@@ -1224,7 +1225,7 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
     !********************************************************************
 
     SUBROUTINE FLIPPT(mxeq,nAnis,MATE,IFIRST,NEXT,POST)
-
+        use ISO_Fortran_Env
         implicit none
 
         integer,intent(in) :: mxeq,nAnis
