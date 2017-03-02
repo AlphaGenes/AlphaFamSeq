@@ -1310,7 +1310,7 @@ subroutine ReadData
   
 	integer :: i,PosReads
 	integer,allocatable,dimension(:) :: TempImput
-	integer :: TmpID
+	integer(int64) :: TmpID
 	real(kind=8)::tstart,tend
 
 	!For CurrentCount
@@ -1520,8 +1520,8 @@ subroutine GetID(InputId, PosId)
     use GlobalPar
     implicit none
 
-    integer, intent(in) :: InputId
-    integer, intent(out) :: PosId
+    integer(int64), intent(in) :: InputId
+    integer(int64), intent(out) :: PosId
 
     integer :: i,check
 

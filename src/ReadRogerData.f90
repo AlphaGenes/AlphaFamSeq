@@ -74,7 +74,6 @@ subroutine readRogerData(filename, Ids, position, quality, SequenceData,nSnpIn,S
   pos=1
   do j = 1, nSnp
     read(fileUnit, *) dumE
-    print*,dumE
     if ((j.ge.StartSnp).and.(j.le.EndSnp)) then
       read(dumE(2), *) position(pos)
       read(dumE(5), *) quality(pos)
