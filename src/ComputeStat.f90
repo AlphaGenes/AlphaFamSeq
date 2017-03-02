@@ -316,7 +316,8 @@ subroutine ReadDataIn(gam,nSnp,ShortFile,LongFile,nIndShort,nIndLong,Id,ShortSnp
 	integer(int64),		intent(inout), allocatable,dimension(:) :: Id
 	integer(int32),	intent(inout),allocatable,dimension(:,:,:) :: ShortSnp, LongSnp
 	
-	integer :: i,g,DumI,PosId
+	integer :: i,g
+	integer(int64) :: DumI,PosId
 	integer,allocatable,dimension (:) :: TmpInput
 					
 	open(10, file=trim(ShortFile), action="read")
