@@ -1267,12 +1267,13 @@ subroutine ReadPedigree
 	!integer :: TmpID
 
 	open (unit=2,file=trim(PedigreeFile),status="old")
-	print*,PedigreeFile
+	
 	nInd = 0
 	do
 	    read(2, *, iostat=stat) DumI
 	    if (stat/=0) exit
 	    nInd = nInd + 1
+	    print*,nInd
 	enddo
 	print*,"PedigreeLenght",nInd	 
 	rewind(2)
