@@ -1557,10 +1557,10 @@ subroutine WriteResults
 
 	
 	write(nChar,*) nSnp
-	FmtInt='(i10,'//trim(adjustl(nChar))//'i2)'
+	FmtInt='(i0,'//trim(adjustl(nChar))//'i2)'
 	FmtInt2='(i0,'//trim(adjustl(nChar))//'(1x,i0))'
-	FmtCha='(i10,a2,'//trim(adjustl(nChar))//'a2)'
-	FmtReal='(i10,'//trim(adjustl(nChar))//'f7.4)'
+	FmtCha='(i0,a2,'//trim(adjustl(nChar))//'a2)'
+	FmtReal='(i0,'//trim(adjustl(nChar))//'f7.4)'
 	
 	write (filout1,'("AlphaFamSeqFinalPhase",i0,".txt")') Windows
 	write (filout2,'("AlphaFamSeqFinalGenos",i0,".txt")') Windows
