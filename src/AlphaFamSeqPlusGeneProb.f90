@@ -1267,7 +1267,7 @@ subroutine ReadPedigree
 	!integer :: TmpID
 
 	open (unit=2,file=trim(PedigreeFile),status="old")
-	
+	print*,PedigreeFile
 	nInd = 0
 	do
 	    read(2, *, iostat=stat) DumI
