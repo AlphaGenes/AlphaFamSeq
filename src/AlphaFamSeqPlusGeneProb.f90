@@ -1271,9 +1271,9 @@ subroutine ReadPedigree
 	nInd = 0
 	do
 	    read(2, *, iostat=stat) DumI
+	    print *,"dumI:", dumI
 	    if (stat/=0) exit
 	    nInd = nInd + 1
-	    print*,nInd
 	enddo
 	print*,"PedigreeLenght",nInd	 
 	rewind(2)
