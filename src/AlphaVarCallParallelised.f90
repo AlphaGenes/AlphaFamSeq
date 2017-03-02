@@ -91,7 +91,7 @@ contains
       implicit none
 
       integer,intent(in) :: nAnis
-      integer, intent(in), dimension (:) :: SeqSire(nAnis),SeqDam(nAnis)
+      integer(int64), intent(in), dimension (:) :: SeqSire(nAnis),SeqDam(nAnis)
 
       integer,intent(inout) :: mxeq
 
@@ -245,7 +245,7 @@ contains
      
         integer,intent(in) :: nAnis
         integer,intent(inout) :: MaxFs,MaxMates
-        integer, intent(in), dimension (:) :: SeqSire(nAnis),SeqDam(nAnis)
+        integer(int64), intent(in), dimension (:) :: SeqSire(nAnis),SeqDam(nAnis)
 
         INTEGER (KIND= 8), allocatable :: family(:)       ! max value is 9,223,372,036,854,775,807 allowing for plenty of space
         INTEGER (KIND= 8)              :: holdfamily, multiplier
@@ -466,7 +466,7 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 
 	      integer, intent(in) :: currentSnp,Seq0Snp1Mode,maxfs,MaxMates,MaxReadCounts
 	      integer, intent(in) :: nAnis
-	      integer, intent(in), dimension (:) :: SeqSire(nAnis),SeqDam(nAnis)
+	      integer(int64), intent(in), dimension (:) :: SeqSire(nAnis),SeqDam(nAnis)
 
 	      real(kind=8),intent(in),dimension(:,:) :: GMatSnp(1:3,1:3)
 	      real(kind=8),intent(in),dimension(:,:,:) :: GMatRds(0:MaxReadCounts,3,MaxReadCounts)
