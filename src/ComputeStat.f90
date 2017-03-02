@@ -54,7 +54,8 @@ subroutine GetResultsImputation(nSnp,ImpFile,TrueFile,ExclueSnpFile,Geno1orPhase
 	integer :: nSnpUsed
 	integer :: gam
 	
-	integer(int32), allocatable,dimension(:) :: Id,MarkerToExclude
+	integer(int64), allocatable,dimension(:) :: Id
+	integer(int32), allocatable,dimension(:) :: MarkerToExclude
 	integer, allocatable,dimension(:,:) :: Yield,Correct
 	integer(int32), allocatable,dimension(:,:,:) :: ImpSnp, TrueSnp
 	
@@ -130,7 +131,7 @@ subroutine WriteResultsByIndividual(nInd,gam,nSnpUsed,Id,Yield,Correct,FinalCor,
 	implicit none
 
 	integer,			intent(in) :: nInd,gam,nSnpUsed
-	integer(int32),		intent(in), allocatable,dimension(:) :: Id
+	integer(int64),		intent(in), allocatable,dimension(:) :: Id
 	integer,			intent(in),allocatable,dimension(:,:) :: Yield,Correct
 	real(real32),		intent(in),allocatable,dimension(:,:) :: FinalCor
 
@@ -312,7 +313,7 @@ subroutine ReadDataIn(gam,nSnp,ShortFile,LongFile,nIndShort,nIndLong,Id,ShortSnp
 	integer(int32),		intent(in) :: nSnp
 	integer,  			intent(in):: gam,nIndShort,nIndLong
 	
-	integer(int32),		intent(inout), allocatable,dimension(:) :: Id
+	integer(int64),		intent(inout), allocatable,dimension(:) :: Id
 	integer(int32),	intent(inout),allocatable,dimension(:,:,:) :: ShortSnp, LongSnp
 	
 	integer :: i,g,DumI,PosId
@@ -454,9 +455,9 @@ subroutine GetID(Id,InputId,PosId)
 
     implicit none
 
-    integer(int32), intent(in),dimension(:) :: Id
-    integer, intent(in) :: InputId
-    integer, intent(out) :: PosId
+    integer(int64), intent(in),dimension(:) :: Id
+    integer(int64), intent(in) :: InputId
+    integer(int64), intent(out) :: PosId
 
     integer :: nInd,i
 
@@ -508,7 +509,7 @@ end subroutine AllocateResultsArrays
 subroutine DeallocateInputDataArrays(Id,ImpSnp,TrueSnp)
 	implicit none
 	
-	integer(int32),intent(inout), allocatable,dimension(:) :: Id
+	integer(int64),intent(inout), allocatable,dimension(:) :: Id
 	integer(int32),intent(inout),allocatable,dimension(:,:,:) :: ImpSnp, TrueSnp
 
 	deallocate(Id)
@@ -522,7 +523,7 @@ subroutine AllocateInputDataArrays(nRow,nCol,gam,Id,ImpSnp,TrueSnp)
 	implicit none
 	
 	integer,intent(in) :: nRow,nCol,gam
-	integer(int32),intent(inout), allocatable,dimension(:) :: Id
+	integer(int64),intent(inout), allocatable,dimension(:) :: Id
 	integer(int32),intent(inout),allocatable,dimension(:,:,:) :: ImpSnp, TrueSnp
 
 	allocate(Id(nRow))
