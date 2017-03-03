@@ -141,12 +141,12 @@ subroutine WriteResultsByIndividual(nInd,gam,nSnpUsed,Id,Yield,Correct,FinalCor,
 	integer :: i,g
 
 	open(102, file=trim(filout2), status="unknown")
-	write(102,'(1a42)') "Id Yield CorrectRate ErrorRate Correlation"
+	write(102,'(1a72)') "Id nSnpUsed Yield Correct/TotalSnpUsed CorrectRate ErrorRate Correlation"
 
 
 	do i=1,nInd
 		do g=1,gam
-			write(102,'(1i0,1x,5f10.4)') Id(i), 100*(dble(Yield(i,g))/dble(nSnpUsed)), 100*(dble(Correct(i,g))/dble(Yield(i,g))), 100*(dble(Yield(i,g)-Correct(i,g))/dble(Yield(i,g))), FinalCor(i,g)		
+			write(102,'(1i0,1x,1i0,1x,6f10.4)') Id(i), nSnpUsed, 100*(dble(Yield(i,g))/dble(nSnpUsed)),100*(dble(Correct(i,g))/dble(nSnpUsed)), 100*(dble(Correct(i,g))/dble(Yield(i,g))), 100*(dble(Yield(i,g)-Correct(i,g))/dble(Yield(i,g))), FinalCor(i,g)		
 		enddo
 	enddo
 	
