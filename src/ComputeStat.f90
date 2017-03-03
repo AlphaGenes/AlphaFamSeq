@@ -71,7 +71,7 @@ subroutine GetResultsImputation(nSnp,ImpFile,TrueFile,ExclueSnpFile,Geno1orPhase
 	if (nIndImp.le.nIndTrue) call ReadDataIn(gam,nSnp,ImpFile,TrueFile,nIndImp,nIndTrue,Id,ImpSnp,TrueSnp)
 	if (nIndImp.gt.nIndTrue) call ReadDataIn(gam,nSnp,TrueFile,ImpFile,nIndTrue,nIndImp,Id,TrueSnp,ImpSnp)
 
-	call ReadMarkersToExclude(MarkerToExclude,ExclueSnpFile,nSnpUsed,nSnp)
+	call ReadMarkersToExclude(MarkerToExclude,ExclueSnpFile,nSnpUsed,nSnp,TrueSnp)
 	! CalculareResultsBySnp
 	call AllocateResultsArrays(nSnp,gam,Yield,Correct,FinalCor,MAF)
 	call CalculateResultsBySnp	(nSnp,gam,nInd,ImpSnp,TrueSnp,MAF,Yield,Correct,FinalCor)
@@ -83,6 +83,7 @@ subroutine GetResultsImputation(nSnp,ImpFile,TrueFile,ExclueSnpFile,Geno1orPhase
 	call WriteResultsByIndividual(nInd,gam,nSnpUsed,Id,Yield,Correct,FinalCor,filout2)	
 	call DeallocateResultsArrays(Yield,MAF,Correct,FinalCor)
 	! Print Mistakes
+	print*,trim(MistakeIdentifier)
 	if (trim(MistakeIdentifier)=="Yes") then
 		call PrintMistakeIdentifier(nInd,nSnp,gam,MarkerToExclude,ImpSnp,TrueSnp,filout3)
 	endif
@@ -183,8 +184,10 @@ subroutine CalculateResultsByIndividual(nSnp,gam,nInd,ImpSnp,TrueSnp,MarkerToExc
 
 			do j=1,nSnp
 				if (MarkerToExclude(j)==0) then
-					if ((ImpSnp(i,j,g).ge.0).and.(ImpSnp(i,j,g).le.2)) Yield(i,g)=Yield(i,g)+1
-					if (ImpSnp(i,j,g)==TrueSnp(i,j,g)) Correct(i,g)=Correct(i,g)+1
+					if ((ImpSnp(i,j,g)/=9).and.(TrueSnp(i,j,g)/=9)) then
+						Yield(i,g)=Yield(i,g)+1
+						if (ImpSnp(i,j,g)==TrueSnp(i,j,g)) Correct(i,g)=Correct(i,g)+1
+					endif
 				endif
 			enddo
 
@@ -258,9 +261,11 @@ subroutine CalculateResultsBySnp(nSnp,gam,nInd,ImpSnp,TrueSnp,MAF,Yield,Correct,
 			FinalCor(j,g)=D_QNAN
 
 			do i=1,nInd
-				if ((ImpSnp(i,j,g).ge.0).and.(ImpSnp(i,j,g).le.2)) Yield(j,g)=Yield(j,g)+1
-				MAF(j,g)=MAF(j,g)+dble(TrueSnp(i,j,g))
-				if (ImpSnp(i,j,g)==TrueSnp(i,j,g)) Correct(j,g)=Correct(j,g)+1
+				if ((ImpSnp(i,j,g)/=9).and.(TrueSnp(i,j,g)/=9)) then
+					Yield(j,g)=Yield(j,g)+1
+					MAF(j,g)=MAF(j,g)+dble(TrueSnp(i,j,g))
+					if (ImpSnp(i,j,g)==TrueSnp(i,j,g)) Correct(j,g)=Correct(j,g)+1
+				endif
 			enddo
 
 			MAF(j,g)=MAF(j,g)/dble(nInd*2)
@@ -276,16 +281,17 @@ end subroutine CalculateResultsBySnp
 
 !###########################################################################################################################################################
 
-subroutine ReadMarkersToExclude(MarkerToExclude,ExclueSnpFile,nSnpUsed,nSnp)
+subroutine ReadMarkersToExclude(MarkerToExclude,ExclueSnpFile,nSnpUsed,nSnp,TrueSnp)
 
 	implicit none
 
-	integer(int32),intent(inout), allocatable,dimension(:) :: MarkerToExclude
-	integer,intent(inout) :: nSnpUsed
-	integer(int32),   intent(in):: nSnp
-	character(len=*), intent(in):: ExclueSnpFile
+	integer(int32),		intent(inout), allocatable,dimension(:) :: MarkerToExclude
+	integer,			intent(inout) :: nSnpUsed
+	integer(int32),   	intent(in):: nSnp
+	character(len=*), 	intent(in):: ExclueSnpFile
+	integer(int32),		intent(in),allocatable,dimension(:,:,:) :: TrueSnp
 
-	integer :: DumI
+	integer :: DumI,i,a
 
 	allocate(MarkerToExclude(nSnp))
 	MarkerToExclude=0
@@ -299,7 +305,17 @@ subroutine ReadMarkersToExclude(MarkerToExclude,ExclueSnpFile,nSnpUsed,nSnp)
 	912 continue
 	close(12)
 
+	a=0
+	do i=1,nSnp
+		if (minval(TrueSnp(:,i,:))==9) then
+			MarkerToExclude(i)=1
+			a=a+1
+		endif
+	enddo
+	print*,a
+
 	nSnpUsed=count(MarkerToExclude(:)==0)
+	print*,nSnpUsed
 end subroutine ReadMarkersToExclude
 
 !###########################################################################################################################################################
@@ -336,7 +352,7 @@ subroutine ReadDataIn(gam,nSnp,ShortFile,LongFile,nIndShort,nIndLong,Id,ShortSnp
 		do g=1,gam
 			read(11,*) DumI,TmpInput
 			call GetID(Id,DumI,PosId)
-			LongSnp(PosId,:,g)=TmpInput(:)
+			if (PosId/=0) LongSnp(PosId,:,g)=TmpInput(:)
 		enddo
 	enddo
 	
@@ -437,7 +453,7 @@ subroutine CalculateCorrelation(Yield,n,TrueSnp,ImpSnp,CorTrueImp)
 		allocate(ImpTmp(Yield))
 		p=1
 		do i=1,n
-			if (ImpSnp(i)/=9) then
+			if ((ImpSnp(i)/=9).and.(TrueSnp(i)/=9)) then
 				TrueTmp(p)=TrueSnp(i)
 				ImpTmp(p)=ImpSnp(i)
 				p=p+1
