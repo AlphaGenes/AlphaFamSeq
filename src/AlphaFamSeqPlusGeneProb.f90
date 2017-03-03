@@ -132,7 +132,6 @@ program FamilyPhase
 	EndSnp=(Windows*nSnp)
 	StartSnp=EndSnp-nSnp+1
 	if (EndSnp>LenghtSequenceDataFile) EndSnp=LenghtSequenceDataFile
-	
 	InitialGeneProbThresh=GeneProbThresh
 
 	do while(StartSnp.le.LenghtSequenceDataFile)
@@ -140,6 +139,7 @@ program FamilyPhase
 		EndSnp=EndSnp+ChunkLengthB
 		if (EndSnp>LenghtSequenceDataFile) EndSnp=LenghtSequenceDataFile
 		nSnp=EndSnp-StartSnp+1
+
 		write(102,'(3(1x,i0))') Windows,StartSnp,EndSnp
 
 		CurrentCountFilledPhase=0
@@ -412,7 +412,8 @@ subroutine UseSnpChipInformation
 
 	implicit none
 
-	integer:: FileLength,stat,DumI,i,PosGeno,j
+	integer:: FileLength,stat,DumI,i,j
+	integer(int64) :: PosGeno
 	integer,allocatable,dimension(:) :: TempImput
 	integer,allocatable,dimension(:,:) :: IdsSnpChip
 	
@@ -489,7 +490,7 @@ subroutine CheckMissingData
 	write (filout1,'("AlphaFamSeqMarkersWithZeroReads",i0,".txt")') Windows
 	open (unit=1,file=trim(filout1),status="unknown")
 		
-	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (RawReads,nSnp)
+	!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (RawReads,nSnp)
 	do j=1,nSnp
 		if (maxval(RawReads(:,j,:))==0) then
 			write (1,'(i0)') j
@@ -515,7 +516,7 @@ subroutine SimpleCleanUpFillIn
 	Change=1
 	do while (Change==1)
 		Change=0
-		!$OMP PARALLEL DO DEFAULT(FIRSTPRIVATE) SHARED (FilledGenos,FilledPhase,nInd,Change, nSnp)
+		!$OMP PARALLEL DO ORDERED DEFAULT(FIRSTPRIVATE) SHARED (FilledGenos,FilledPhase,nInd,Change, nSnp) collapse(2)
 		do j=1,nSnp
 		
 			do i=1,nInd
@@ -917,7 +918,7 @@ subroutine CalculateFounderAssignment
 	
 	FounderAssignment(:,:,:)=0 
 	
-   	        !$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase,RecPed,FounderAssignment,nSnp,nInd)		
+   	!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase,RecPed,FounderAssignment,nSnp,nInd) collapse(2)	
 	do j=1,nSnp
 		do i=1,nInd
 			do e=2,3 ! Sire and Dam pos in the ped
@@ -957,7 +958,7 @@ subroutine SimpleFillInBasedOnProgenyReads
 	integer :: i,j
 	integer(int64) :: IdSir,IdDam
 
-	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (FilledPhase,RecPed,nSnp, nInd)
+	!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (FilledPhase,RecPed,nSnp, nInd) collapse(2)
 	do i=1,nInd
 		do j=1,nSnp
 			if ((sum(FilledPhase(i,j,:))==0).or.(sum(FilledPhase(i,j,:))==2)) then
@@ -990,8 +991,8 @@ subroutine SimpleFillInBasedOnParentsReads
 	implicit none
 
 	integer :: i,j,e,k
-    
-    !$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase)
+	    
+    !$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase,RecPed,nInd,nSnp) collapse(2)
 	do i=1,nInd
 		do j=1,nSnp
 			if (maxval(FilledPhase(i,j,:))==9) then
@@ -1009,7 +1010,7 @@ subroutine SimpleFillInBasedOnParentsReads
 		enddo
 	enddo
     !$OMP END PARALLEL DO
-
+	
 end subroutine SimpleFillInBasedOnParentsReads
 
 !################################################################################################
@@ -1308,7 +1309,8 @@ subroutine ReadData
 
   	implicit none
   
-	integer :: i,PosReads
+	integer :: i
+	integer(int64) :: PosReads
 	integer,allocatable,dimension(:) :: TempImput
 	integer(int64) :: TmpID
 	real(kind=8)::tstart,tend
