@@ -219,13 +219,13 @@ subroutine WriteResultsBySnp(nSnp,nInd,gam,MarkerToExclude,MAF,Yield,Correct,Fin
 	integer :: j,g
 
 	open(101, file=trim(filout1), status="unknown")
-	write(101,'(1a47)') "Snp MAF Yield CorrectRate ErrorRate Correlation"
+	write(101,'(1a56)') "Snp nIndUsed MAF Yield CorrectRate ErrorRate Correlation"
 
 
 	do j=1,nSnp
 		do g=1,gam
 			if (MarkerToExclude(j)==0) then
-				write(101,'(1i0,1x,5f10.4)') j, MAF(j,g), 100*(dble(Yield(j,g))/dble(nInd)), 100*(dble(Correct(j,g))/dble(Yield(j,g))), 100*(dble(Yield(j,g)-Correct(j,g))/dble(Yield(j,g))), FinalCor(j,g)
+				write(101,'(1i0,1x,1i0,1x,5f10.4)') j,Yield(j,g), MAF(j,g), 100*(dble(Yield(j,g))/dble(nInd)), 100*(dble(Correct(j,g))/dble(Yield(j,g))), 100*(dble(Yield(j,g)-Correct(j,g))/dble(Yield(j,g))), FinalCor(j,g)
 			endif
 		enddo
 	enddo
@@ -263,12 +263,13 @@ subroutine CalculateResultsBySnp(nSnp,gam,nInd,ImpSnp,TrueSnp,MAF,Yield,Correct,
 			do i=1,nInd
 				if ((ImpSnp(i,j,g)/=9).and.(TrueSnp(i,j,g)/=9)) then
 					Yield(j,g)=Yield(j,g)+1
-					MAF(j,g)=MAF(j,g)+dble(TrueSnp(i,j,g))
 					if (ImpSnp(i,j,g)==TrueSnp(i,j,g)) Correct(j,g)=Correct(j,g)+1
 				endif
+				if (TrueSnp(i,j,g)/=9) MAF(j,g)=MAF(j,g)+dble(TrueSnp(i,j,g))
+					
 			enddo
 
-			MAF(j,g)=MAF(j,g)/dble(nInd*2)
+			MAF(j,g)=MAF(j,g)/dble(count(TrueSnp(:,j,g)/=9)*2)
 
 			if (Yield(j,g).gt.1) then
 				call CalculateCorrelation(Yield(j,g),nInd,TrueSnp(:,j,g),ImpSnp(:,j,g),CorTrueImp)
