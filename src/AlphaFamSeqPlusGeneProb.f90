@@ -484,12 +484,17 @@ subroutine CheckMissingData
 	use omp_lib
 	implicit none
 
-	integer :: j
-	character(len=50) :: filout1
+	integer :: i,j
+	real :: cov
+	character(len=50) :: filout1,filout2
 
 	write (filout1,'("AlphaFamSeqMarkersWithZeroReads",i0,".txt")') Windows
 	open (unit=1,file=trim(filout1),status="unknown")
 		
+	write (filout2,'("AlphaFamSeqCoverage",i0,".txt")') Windows
+	open (unit=2,file=trim(filout2),status="unknown")
+	
+
 	!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (RawReads,nSnp)
 	do j=1,nSnp
 		if (maxval(RawReads(:,j,:))==0) then
@@ -498,7 +503,19 @@ subroutine CheckMissingData
 	enddo
 	!$OMP END PARALLEL DO
 
+	!!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (RawReads,nInd,nSnp) collapse(2)
+	do i=1,nInd
+		cov=0
+		do j=1,nSnp
+			cov=cov+sum(RawReads(i,j,:))
+		enddo
+		cov=cov/dble(nSnp)
+		write (2,'(1i0,1f7.3)') Ped(i,1),cov
+	enddo
+	!!$OMP END PARALLEL DO
+
 	close (1)
+	close (2)
 end subroutine CheckMissingData
 
 !###########################################################################################
@@ -1010,7 +1027,6 @@ subroutine SimpleFillInBasedOnParentsReads
 		enddo
 	enddo
     !$OMP END PARALLEL DO
-	
 end subroutine SimpleFillInBasedOnParentsReads
 
 !################################################################################################
