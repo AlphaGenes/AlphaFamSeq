@@ -45,7 +45,7 @@ subroutine readRogerData(filename, Ids, position, quality, SequenceData,nSnpIn,S
   character(len=100), dimension(:), allocatable::dumE, dumC
   real(real64), allocatable, dimension(:), intent(out):: quality
   integer(int32), dimension(:), allocatable, intent(out):: position
-  integer(int32), dimension(:,:,:), allocatable, intent(out):: SequenceData
+  integer(kind=2), dimension(:,:,:), allocatable, intent(out):: SequenceData
 
   integer(int32), intent(in):: SnpUsed,nSnpIn,StartSnp,EndSnp,nIndivIn
   integer(int32)::nSnp,pos,fileUnit, nIndiv
@@ -98,7 +98,7 @@ subroutine readRogerData(filename, Ids, position, quality, SequenceData,nSnpIn,S
   character(len=100), allocatable, dimension(:), intent(out):: Ids
   
   integer, dimension(:), allocatable::dumE
-  integer(int32), dimension(:,:,:), allocatable::SequenceData
+  integer(kind=2), dimension(:,:,:), allocatable::SequenceData
 
   integer(int32), intent(in)::SnpUsed,nSnpIn,StartSnp,EndSnp,nIndivIn
   integer(int32)::nSnp,pos,fileUnit, nIndiv

@@ -20,7 +20,7 @@ contains
       
       integer(int64), intent(in), dimension (:) :: SeqSire(nAnis),SeqDam(nAnis)
       
-      real(kind=4),intent(in),dimension(:,:,:) :: ReadCountsTmp(1:nAnis,nSnp,2) 
+      integer(kind=2),intent(in),dimension(:,:,:) :: ReadCountsTmp(1:nAnis,nSnp,2) 
       integer(kind=1),intent(inout),dimension(:,:) :: InputGenosTmp(1:nAnis,nSnp) 
       
 
@@ -31,7 +31,7 @@ contains
       
       integer :: MaxFs,MaxMates,MaxReadCounts
 
-      real(kind=4),allocatable,dimension(:,:,:) :: ReadCounts                                         
+      integer(kind=2),allocatable,dimension(:,:,:) :: ReadCounts                                         
       
       integer(kind=1),allocatable,dimension(:,:) :: InputGenos                                          
 
@@ -190,10 +190,10 @@ contains
         integer, intent(in) :: nAnis,nSnp,StartSnp,EndSnp,Seq0Snp1Mode
         integer, intent(inout) :: MaxReadCounts
         
-        real(kind=4),intent(in),dimension(:,:,:) :: ReadCountsTmp(:,:,:) !(nAnis,nSnp,2)
+        integer(kind=2),intent(in),dimension(:,:,:) :: ReadCountsTmp(:,:,:) !(nAnis,nSnp,2)
         integer(kind=1),intent(inout),dimension(:,:) :: InputGenosTmp(:,:)
 
-        real(kind=4),intent(inout),allocatable,dimension(:,:,:) :: ReadCounts
+        integer(kind=2),intent(inout),allocatable,dimension(:,:,:) :: ReadCounts
         integer(kind=1),intent(inout),allocatable,dimension(:,:) :: InputGenos
 
         integer :: i,j,k
@@ -473,7 +473,7 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	      real(kind=8),intent(in),dimension(:,:,:) :: GMatRds(0:MaxReadCounts,3,MaxReadCounts)
 
 	      integer(kind=1),intent(in),dimension(:,:) :: InputGenos 
-	      real(kind=4),intent(in),dimension(:,:,:) :: ReadCounts 
+	      integer(kind=2),intent(in),dimension(:,:,:) :: ReadCounts 
 
 	      real(kind=4),intent(inout),dimension(:,:) :: Pr00,Pr01,Pr10,Pr11 
 	      

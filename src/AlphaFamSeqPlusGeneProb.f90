@@ -47,8 +47,8 @@ module GlobalPar
 	integer(int64),allocatable,dimension(:,:) 				:: RecPed				! Temporary File - Pedigree Recoded
 	integer(int64),allocatable,dimension(:) 				:: Id           		! Read Data - used to read unsorted data
 
-	integer(int32),allocatable,dimension(:,:,:) 	:: SequenceData			! Input File - Snp array to add more information to the Reads
-	real(kind=4),allocatable,dimension(:,:,:) 		:: RawReads				! Input File - Snp array to add more information to the Reads
+	integer(kind=2),allocatable,dimension(:,:,:) 	:: SequenceData			! Input File - Snp array to add more information to the Reads
+	integer(kind=2),allocatable,dimension(:,:,:) 		:: RawReads				! Input File - Snp array to add more information to the Reads
 	character(len=100), allocatable, dimension(:) 	:: Ids
 	integer(int32), dimension(:), allocatable 		:: position
 	real(real64), allocatable, dimension(:) 		:: quality
@@ -1239,8 +1239,8 @@ subroutine InternalEdititing
 	implicit none
 
 	integer :: i,j
-	real(kind=8),allocatable,dimension(:) :: RefAllele
-	real(kind=8) :: maf
+	real(kind=4),allocatable,dimension(:) :: RefAllele
+	real(kind=4) :: maf
 
 	allocate(RefAllele(nSnp))
 	allocate(GeneProbYesOrNo(nSnp))
@@ -1253,7 +1253,7 @@ subroutine InternalEdititing
 	
 	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED(nSnp,RawReads,RefAllele,EditingParameter,GeneProbYesOrNo,i)
 	do j=1,nSnp
-		RefAllele(j)=sum(RawReads(:,j,1))
+		RefAllele(j)=real(sum(RawReads(:,j,1)))
 		maf=RefAllele(j)/sum(RawReads(:,j,:))
 		if ((maf.le.EditingParameter).or.(maf.ge.(1-EditingParameter))) then
 			GeneProbYesOrNo(j)=0
@@ -1339,7 +1339,7 @@ subroutine ReadData
 	if (trim(ReadsType)=="AlphaSim") call readAlphaSimReads(ReadsFile, Ids, SequenceData,LenghtSequenceDataFile,nSnp,StartSnp,EndSnp,nIndSeq)
 	
 	allocate(RawReads(nInd,nSnp,2))
-	RawReads(:,:,:)=0.0
+	RawReads(:,:,:)=0
 
     tstart = omp_get_wtime()
 	!$OMP PARALLEL DO DEFAULT(FIRSTPRIVATE) PRIVATE(i) SHARED(nIndSeq,Ids,RawReads,SequenceData)
@@ -1348,7 +1348,7 @@ subroutine ReadData
 		read(Ids(i),*) TmpID
 	    call GetID(TmpID, PosReads)
 	    !print*,i,TmpID,PosReads
-	    if (PosReads/=0) RawReads(PosReads,:,:)= real(SequenceData(i,:,:))
+	    if (PosReads/=0) RawReads(PosReads,:,:)= SequenceData(i,:,:)
 	enddo
 	!$OMP END PARALLEL DO
 	tend = omp_get_wtime()
