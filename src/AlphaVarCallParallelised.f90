@@ -24,10 +24,10 @@ contains
       integer(kind=1),intent(inout),dimension(:,:) :: InputGenosTmp(1:nAnis,nSnp) 
       
 
-      real(kind=4),intent(inout),dimension(:,:) :: Pr00(nAnis,EndSnp-StartSnp+1)
-      real(kind=4),intent(inout),dimension(:,:) :: Pr01(nAnis,EndSnp-StartSnp+1)
-      real(kind=4),intent(inout),dimension(:,:) :: Pr10(nAnis,EndSnp-StartSnp+1)
-      real(kind=4),intent(inout),dimension(:,:) :: Pr11(nAnis,EndSnp-StartSnp+1)
+      integer(kind=2),intent(inout),dimension(:,:) :: Pr00(nAnis,EndSnp-StartSnp+1)
+      integer(kind=2),intent(inout),dimension(:,:) :: Pr01(nAnis,EndSnp-StartSnp+1)
+      integer(kind=2),intent(inout),dimension(:,:) :: Pr10(nAnis,EndSnp-StartSnp+1)
+      integer(kind=2),intent(inout),dimension(:,:) :: Pr11(nAnis,EndSnp-StartSnp+1)
       
       integer :: MaxFs,MaxMates,MaxReadCounts
 
@@ -475,7 +475,7 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	      integer(kind=1),intent(in),dimension(:,:) :: InputGenos 
 	      integer(kind=2),intent(in),dimension(:,:,:) :: ReadCounts 
 
-	      real(kind=4),intent(inout),dimension(:,:) :: Pr00,Pr01,Pr10,Pr11 
+	      integer(kind=2),intent(inout),dimension(:,:) :: Pr00,Pr01,Pr10,Pr11 
 	      
 	      integer,intent(in) :: mxeq
 
@@ -1112,10 +1112,10 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	         
 	          if(Imprinting>0) then
 	            if(phet(i)<0.0000001) then
-	              Pr00(i,currentSnp) = pnor(i)
-	              Pr01(i,currentSnp) = phet(i)
-	              Pr10(i,currentSnp) = phet(i)
-	              Pr11(i,currentSnp) = phom(i)
+	              Pr00(i,currentSnp) = probscore(pnor(i))
+	              Pr01(i,currentSnp) = probscore(phet(i))
+	              Pr10(i,currentSnp) = probscore(phet(i))
+	              Pr11(i,currentSnp) = probscore(phom(i))
 	            else
 	              p12= (pnor(seqsire(i))+0.5*phet(seqsire(i))) * (phom( seqdam(i))+0.5*phet( seqdam(i)))  ! extra safe due to the above
 	              p21= (pnor( seqdam(i))+0.5*phet( seqdam(i))) * (phom(seqsire(i))+0.5*phet(seqsire(i)))
@@ -1126,22 +1126,22 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	                endif
 
 	                if(Imprinting==2)then
-	                  Pr00(i,currentSnp) = pnor(i)
-	                  Pr01(i,currentSnp) = phet(i)
-	                  Pr10(i,currentSnp) = (1.-2.*IMPratio)*phet(i)
-	                  Pr11(i,currentSnp) = phom(i)
+	                  Pr00(i,currentSnp) = probscore(pnor(i))
+	                  Pr01(i,currentSnp) = probscore(phet(i))
+	                  Pr10(i,currentSnp) = probscore((1.-2.*IMPratio)*phet(i))
+	                  Pr11(i,currentSnp) = probscore(phom(i))
 	                else
-	                  Pr00(i,currentSnp) = pnor(i)
-	                  Pr01(i,currentSnp) = IMPratio*phet(i)
-	                  Pr10(i,currentSnp) = (1.-IMPratio)*phet(i)
-	                  Pr11(i,currentSnp) = phom(i)
+	                  Pr00(i,currentSnp) = probscore(pnor(i))
+	                  Pr01(i,currentSnp) = probscore(IMPratio*phet(i))
+	                  Pr10(i,currentSnp) = probscore((1.-IMPratio)*phet(i))
+	                  Pr11(i,currentSnp) = probscore(phom(i))
 	                endif
 	            endif
 	          else
-	            Pr00(i,currentSnp) = pnor(i)
-	            Pr01(i,currentSnp) = phet(i)
-	            Pr10(i,currentSnp) = phet(i)
-	            Pr11(i,currentSnp) = phom(i)
+	            Pr00(i,currentSnp) = probscore(pnor(i))
+	            Pr01(i,currentSnp) = probscore(phet(i))
+	            Pr10(i,currentSnp) = probscore(phet(i))
+	            Pr11(i,currentSnp) = probscore(phom(i))
 	          endif
 	        enddo
 
@@ -1305,6 +1305,23 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
     end function add
 
     !######################################################################################################################################################
+
+    function probscore(x1)
+      implicit none
+      integer(kind=2)         :: probscore
+      real(kind=8),intent(in) :: x1
+      real(kind=8) :: x2
+      
+    x2=x1
+  if (x2.le.0.0001) x2=0.0001
+  if (x2.ge.0.9999) x2=0.9999
+  probscore=nint(-10*log10(x2)*100)
+
+  return
+     
+
+      return
+    end function probscore
 
 end module AlphaVarCallFuture
 

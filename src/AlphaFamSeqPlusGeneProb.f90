@@ -63,12 +63,11 @@ module GlobalPar
 	integer,allocatable,dimension(:) 				:: GeneProbYesOrNo		! Temporary Array - use gene prob or not
 	integer,allocatable,dimension(:,:,:) 			:: FounderAssignment   	! Temporary File - Save the IDs of the grandparents
 
-	real(kind=4),allocatable,dimension(:,:) 		:: Pr00   				! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Homozygote for Reference Allele 
-    real(kind=4),allocatable,dimension(:,:) 		:: Pr01	  				! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Heterozygote (0 from dad, 1 from mum)
-    real(kind=4),allocatable,dimension(:,:) 		:: Pr10					! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Heterozygote (1 from dad, 0 from mum)
-    real(kind=4),allocatable,dimension(:,:) 		:: Pr11					! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Homozygote for Alternative Allele 
-
-
+	integer(kind=2),allocatable,dimension(:,:) 		:: Pr00   				! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Homozygote for Reference Allele 
+    integer(kind=2),allocatable,dimension(:,:) 		:: Pr01	  				! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Heterozygote (0 from dad, 1 from mum)
+    integer(kind=2),allocatable,dimension(:,:) 		:: Pr10					! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Heterozygote (1 from dad, 0 from mum)
+    integer(kind=2),allocatable,dimension(:,:) 		:: Pr11					! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Homozygote for Alternative Allele 
+    
 	integer(kind=1),allocatable,dimension(:,:) 		:: FilledGenos 			! Output - Imputed Genotypes
 	integer(kind=1),allocatable,dimension(:,:,:) 	:: FilledPhase  		! Output - Imputed Phase
 
@@ -257,6 +256,35 @@ function TLC(str)
     enddo
     return
 end function TLC
+
+!###########################################################################################################################################################
+
+function probscore(x1)
+	implicit none
+	integer(kind=2)         :: probscore
+	real(kind=8),intent(in) :: x1
+	real(kind=8) :: x2
+
+	x2=x1
+	if (x2.le.0.0001) x2=0.0001
+	if (x2.ge.0.9999) x2=0.9999
+	probscore=nint(-10*log10(x2)*100)
+
+	return
+
+end function probscore
+
+!###########################################################################################################################################################
+
+function score2prob(x1)
+	implicit none
+	real(kind=8)         		:: score2prob
+	integer(kind=2),intent(in)  :: x1
+
+	score2prob=10**(-x1/10*100) 
+	return
+
+end function score2prob
 
 !###########################################################################################################################################################
 
@@ -775,8 +803,8 @@ subroutine BuildConsensus
 							if (FilledPhase(ConsensusIds(i,m,1),j,ConsensusIds(i,m,2))==0) Count0=Count0+1
 						enddo
 
-						if (Count1>0 .and. Count0==0) ConsensusHaplotype(j)=1
-						if (Count0>0 .and. Count1==0) ConsensusHaplotype(j)=0
+						if (Count1>0 .and. Count1.gt.Count0) ConsensusHaplotype(j)=1 !Count0==0
+						if (Count0>0 .and. Count0.gt.Count1) ConsensusHaplotype(j)=0 !Count1==0
 
 
 						if (ConsensusHaplotype(j)/=9) then
@@ -1045,28 +1073,30 @@ subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 	implicit none
 
     integer :: i,j
+    integer(kind=2) :: probscore
+
 	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (Pr00,Pr11,Pr01,Pr10,FilledGenos,FilledPhase,GeneProbThresh,nSnp,nInd) collapse(2)
     do j=1,nSnp
 		do i=1,nInd
 
-			if ((Pr00(i,j)>=GeneProbThresh).and.(sum(FilledPhase(i,j,:))>3)) then
+			if ((Pr00(i,j).le.probscore(GeneProbThresh)).and.(sum(FilledPhase(i,j,:))>3)) then
 				FilledGenos(i,j)=0
 				FilledPhase(i,j,:)=0
 			endif
 
-			if (((Pr01(i,j)+Pr10(i,j))>=GeneProbThresh).and.(sum(FilledPhase(i,j,:))>3)) then
+			if (((Pr01(i,j)+Pr10(i,j)).le.probscore(GeneProbThresh)).and.(sum(FilledPhase(i,j,:))>3)) then
 				FilledGenos(i,j)=1
-				if (Pr01(i,j)>=GeneProbThresh) then
+				if (Pr01(i,j).le.probscore(GeneProbThresh)) then
 					FilledPhase(i,j,1)=0
 					FilledPhase(i,j,2)=1
 				endif
-				if (Pr10(i,j)>=GeneProbThresh) then
+				if (Pr10(i,j).le.probscore(GeneProbThresh)) then
 					FilledPhase(i,j,1)=1
 					FilledPhase(i,j,2)=0
 				endif
 			endif
 
-			if ((Pr11(i,j)>=GeneProbThresh).and.(sum(FilledPhase(i,j,:))>3)) then
+			if ((Pr11(i,j).le.probscore(GeneProbThresh)).and.(sum(FilledPhase(i,j,:))>3)) then
 				FilledGenos(i,j)=2
 				FilledPhase(i,j,:)=1
 			endif
@@ -1220,13 +1250,16 @@ subroutine InitialiseArrays
 
 	implicit none
 
+	integer(kind=2) :: probscore
+
+
 	FilledPhase=9
 	FilledGenos=9
 
-	Pr00=0.0
-	Pr01=0.0
-	Pr10=0.0
-	Pr11=0.0
+	Pr00=probscore(ErrorRate)
+	Pr01=probscore(ErrorRate)
+	Pr10=probscore(ErrorRate)
+	Pr11=probscore(ErrorRate)
 
 	!ConsensusFounders=0
 end subroutine InitialiseArrays
@@ -1572,6 +1605,7 @@ subroutine WriteResults
 	real(kind=4),allocatable,dimension(:) :: AlleleDosage
 	character(len=30) :: nChar
 	character(len=80) :: FmtInt,FmtInt2,FmtCha,FmtReal,filout1,filout2,filout3,filout4,filout5
+	real(kind=8)		:: score2prob
 
 	
 	write(nChar,*) nSnp
@@ -1600,14 +1634,14 @@ subroutine WriteResults
 		write (2,FmtInt) Ped(i,1),FilledGenos(i,:)
 
 		do j=1,nSnp
-			AlleleDosage(j)=(0.0*Pr00(i,j)+(Pr01(i,j)+Pr10(i,j))+2.0*Pr11(i,j))
+			AlleleDosage(j)=(0.0*score2prob(Pr00(i,j))+(score2prob(Pr01(i,j))+score2prob(Pr10(i,j)))+2.0*score2prob(Pr11(i,j)))
 		enddo
 
 		write (3,FmtReal) Ped(i,1),AlleleDosage(:)
-		write (5,FmtReal) Ped(i,1),Pr00(i,:)
-		write (5,FmtReal) Ped(i,1),Pr01(i,:)
-		write (5,FmtReal) Ped(i,1),Pr10(i,:)
-		write (5,FmtReal) Ped(i,1),Pr11(i,:)
+		write (5,FmtReal) Ped(i,1),score2prob(Pr00(i,:))
+		write (5,FmtReal) Ped(i,1),score2prob(Pr01(i,:))
+		write (5,FmtReal) Ped(i,1),score2prob(Pr10(i,:))
+		write (5,FmtReal) Ped(i,1),score2prob(Pr11(i,:))
 
 		if (maxval(FounderAssignment(i,:,:))/=0) then 
 			write (4,FmtInt2) Ped(i,1),FounderAssignment(i,:,1)
@@ -1625,6 +1659,7 @@ subroutine WriteResults
 	close (3)
 	close (4)
 end subroutine WriteResults
+
 
 !################################################################################################
 
