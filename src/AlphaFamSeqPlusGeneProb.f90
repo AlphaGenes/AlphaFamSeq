@@ -63,10 +63,10 @@ module GlobalPar
 	integer,allocatable,dimension(:) 				:: GeneProbYesOrNo		! Temporary Array - use gene prob or not
 	integer,allocatable,dimension(:,:,:) 			:: FounderAssignment   	! Temporary File - Save the IDs of the grandparents
 
-	integer(kind=2),allocatable,dimension(:,:) 		:: Pr00   				! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Homozygote for Reference Allele 
-    integer(kind=2),allocatable,dimension(:,:) 		:: Pr01	  				! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Heterozygote (0 from dad, 1 from mum)
-    integer(kind=2),allocatable,dimension(:,:) 		:: Pr10					! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Heterozygote (1 from dad, 0 from mum)
-    integer(kind=2),allocatable,dimension(:,:) 		:: Pr11					! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Homozygote for Alternative Allele 
+	real(kind=4),allocatable,dimension(:,:) 		:: Pr00   				! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Homozygote for Reference Allele 
+    real(kind=4),allocatable,dimension(:,:) 		:: Pr01	  				! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Heterozygote (0 from dad, 1 from mum)
+    real(kind=4),allocatable,dimension(:,:) 		:: Pr10					! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Heterozygote (1 from dad, 0 from mum)
+    real(kind=4),allocatable,dimension(:,:) 		:: Pr11					! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Homozygote for Alternative Allele 
     
 	integer(kind=1),allocatable,dimension(:,:) 		:: FilledGenos 			! Output - Imputed Genotypes
 	integer(kind=1),allocatable,dimension(:,:,:) 	:: FilledPhase  		! Output - Imputed Phase
@@ -1073,33 +1073,40 @@ subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 	implicit none
 
     integer :: i,j
-    integer(kind=2) :: probscore
+    !integer(kind=2) :: probscore
 
 	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (Pr00,Pr11,Pr01,Pr10,FilledGenos,FilledPhase,GeneProbThresh,nSnp,nInd) collapse(2)
     do j=1,nSnp
 		do i=1,nInd
 
-			if ((Pr00(i,j).le.probscore(GeneProbThresh)).and.(sum(FilledPhase(i,j,:))>3)) then
+			if ((Pr00(i,j).ge.GeneProbThresh).and.(sum(FilledPhase(i,j,:))>3)) then
 				FilledGenos(i,j)=0
 				FilledPhase(i,j,:)=0
 			endif
 
-			if (((Pr01(i,j)+Pr10(i,j)).le.probscore(GeneProbThresh)).and.(sum(FilledPhase(i,j,:))>3)) then
+			if (((Pr01(i,j)+Pr10(i,j)).ge.GeneProbThresh).and.(sum(FilledPhase(i,j,:))>3)) then
 				FilledGenos(i,j)=1
-				if (Pr01(i,j).le.probscore(GeneProbThresh)) then
+				if (Pr01(i,j).ge.GeneProbThresh) then
 					FilledPhase(i,j,1)=0
 					FilledPhase(i,j,2)=1
 				endif
-				if (Pr10(i,j).le.probscore(GeneProbThresh)) then
+				if (Pr10(i,j).ge.GeneProbThresh) then
 					FilledPhase(i,j,1)=1
 					FilledPhase(i,j,2)=0
 				endif
 			endif
 
-			if ((Pr11(i,j).le.probscore(GeneProbThresh)).and.(sum(FilledPhase(i,j,:))>3)) then
+			if ((Pr11(i,j).ge.GeneProbThresh).and.(sum(FilledPhase(i,j,:))>3)) then
 				FilledGenos(i,j)=2
 				FilledPhase(i,j,:)=1
 			endif
+
+			if (((Pr00(i,j)+Pr01(i,j)).ge.GeneProbThresh).and.(Pr10(i,j).lt.Pr01(i,j)).and.(FilledPhase(i,j,1)==9)) FilledPhase(i,j,1)=0
+			if (((Pr11(i,j)+Pr10(i,j)).ge.GeneProbThresh).and.(Pr01(i,j).lt.Pr10(i,j)).and.(FilledPhase(i,j,1)==9)) FilledPhase(i,j,1)=1
+
+			if (((Pr00(i,j)+Pr10(i,j)).ge.GeneProbThresh).and.(Pr01(i,j).lt.Pr10(i,j)).and.(FilledPhase(i,j,2)==9)) FilledPhase(i,j,2)=0
+			if (((Pr11(i,j)+Pr01(i,j)).ge.GeneProbThresh).and.(Pr10(i,j).lt.Pr01(i,j)).and.(FilledPhase(i,j,2)==9)) FilledPhase(i,j,2)=1
+
 
 		enddo
 
@@ -1250,16 +1257,16 @@ subroutine InitialiseArrays
 
 	implicit none
 
-	integer(kind=2) :: probscore
+	!integer(kind=2) :: probscore
 
 
 	FilledPhase=9
 	FilledGenos=9
 
-	Pr00=probscore(ErrorRate)
-	Pr01=probscore(ErrorRate)
-	Pr10=probscore(ErrorRate)
-	Pr11=probscore(ErrorRate)
+	Pr00=0.0
+	Pr01=0.0
+	Pr10=0.0
+	Pr11=0.0
 
 	!ConsensusFounders=0
 end subroutine InitialiseArrays
@@ -1605,7 +1612,7 @@ subroutine WriteResults
 	real(kind=4),allocatable,dimension(:) :: AlleleDosage
 	character(len=30) :: nChar
 	character(len=80) :: FmtInt,FmtInt2,FmtCha,FmtReal,filout1,filout2,filout3,filout4,filout5
-	real(kind=8)		:: score2prob
+	!real(kind=8)		:: score2prob
 
 	
 	write(nChar,*) nSnp
@@ -1634,14 +1641,14 @@ subroutine WriteResults
 		write (2,FmtInt) Ped(i,1),FilledGenos(i,:)
 
 		do j=1,nSnp
-			AlleleDosage(j)=(0.0*score2prob(Pr00(i,j))+(score2prob(Pr01(i,j))+score2prob(Pr10(i,j)))+2.0*score2prob(Pr11(i,j)))
+			AlleleDosage(j)=(0.0*Pr00(i,j)+(Pr01(i,j)+Pr10(i,j))+2.0*Pr11(i,j))
 		enddo
 
 		write (3,FmtReal) Ped(i,1),AlleleDosage(:)
-		write (5,FmtReal) Ped(i,1),score2prob(Pr00(i,:))
-		write (5,FmtReal) Ped(i,1),score2prob(Pr01(i,:))
-		write (5,FmtReal) Ped(i,1),score2prob(Pr10(i,:))
-		write (5,FmtReal) Ped(i,1),score2prob(Pr11(i,:))
+		write (5,FmtReal) Ped(i,1),Pr00(i,:)
+		write (5,FmtReal) Ped(i,1),Pr01(i,:)
+		write (5,FmtReal) Ped(i,1),Pr10(i,:)
+		write (5,FmtReal) Ped(i,1),Pr11(i,:)
 
 		if (maxval(FounderAssignment(i,:,:))/=0) then 
 			write (4,FmtInt2) Ped(i,1),FounderAssignment(i,:,1)
