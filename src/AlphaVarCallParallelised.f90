@@ -24,10 +24,10 @@ contains
       integer(kind=1),intent(inout),dimension(:,:) :: InputGenosTmp(1:nAnis,nSnp) 
       
 
-      integer(kind=2),intent(inout),dimension(:,:) :: Pr00(nAnis,EndSnp-StartSnp+1)
-      integer(kind=2),intent(inout),dimension(:,:) :: Pr01(nAnis,EndSnp-StartSnp+1)
-      integer(kind=2),intent(inout),dimension(:,:) :: Pr10(nAnis,EndSnp-StartSnp+1)
-      integer(kind=2),intent(inout),dimension(:,:) :: Pr11(nAnis,EndSnp-StartSnp+1)
+      real(kind=4),intent(inout),dimension(:,:) :: Pr00(nAnis,EndSnp-StartSnp+1)
+      real(kind=4),intent(inout),dimension(:,:) :: Pr01(nAnis,EndSnp-StartSnp+1)
+      real(kind=4),intent(inout),dimension(:,:) :: Pr10(nAnis,EndSnp-StartSnp+1)
+      real(kind=4),intent(inout),dimension(:,:) :: Pr11(nAnis,EndSnp-StartSnp+1)
       
       integer :: MaxFs,MaxMates,MaxReadCounts
 
@@ -475,7 +475,7 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	      integer(kind=1),intent(in),dimension(:,:) :: InputGenos 
 	      integer(kind=2),intent(in),dimension(:,:,:) :: ReadCounts 
 
-	      integer(kind=2),intent(inout),dimension(:,:) :: Pr00,Pr01,Pr10,Pr11 
+	      real(kind=4),intent(inout),dimension(:,:) :: Pr00,Pr01,Pr10,Pr11 
 	      
 	      integer,intent(in) :: mxeq
 
@@ -689,9 +689,9 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	        phet=0.
 
 	        do i=1,nAnis ! M Battagin - removed use of the prior (i.e., AlleleFrequencies)
-	          ant(1,i)=log(.000000001)! log(qprior*qprior) !
-	          ant(2,i)=log(.000000001)! log(2.0*pprior*qprior) !
-	          ant(3,i)=log(.000000001)!log(pprior*pprior) !
+	          ant(1,i)=log(0.5*0.5)   !log(qprior*qprior)     ! log(.000000001)! 
+	          ant(2,i)=log(2*0.5*0.5) !log(2.0*pprior*qprior) ! log(.000000001)! 
+	          ant(3,i)=log(0.5*0.5)   !log(pprior*pprior)     ! log(.000000001)!
 	        enddo
 
 	        ! ----------------------------------------------
@@ -1112,10 +1112,10 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	         
 	          if(Imprinting>0) then
 	            if(phet(i)<0.0000001) then
-	              Pr00(i,currentSnp) = probscore(pnor(i))
-	              Pr01(i,currentSnp) = probscore(phet(i))
-	              Pr10(i,currentSnp) = probscore(phet(i))
-	              Pr11(i,currentSnp) = probscore(phom(i))
+	              Pr00(i,currentSnp) = pnor(i)
+	              Pr01(i,currentSnp) = phet(i)
+	              Pr10(i,currentSnp) = phet(i)
+	              Pr11(i,currentSnp) = phom(i)
 	            else
 	              p12= (pnor(seqsire(i))+0.5*phet(seqsire(i))) * (phom( seqdam(i))+0.5*phet( seqdam(i)))  ! extra safe due to the above
 	              p21= (pnor( seqdam(i))+0.5*phet( seqdam(i))) * (phom(seqsire(i))+0.5*phet(seqsire(i)))
@@ -1126,22 +1126,22 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	                endif
 
 	                if(Imprinting==2)then
-	                  Pr00(i,currentSnp) = probscore(pnor(i))
-	                  Pr01(i,currentSnp) = probscore(phet(i))
-	                  Pr10(i,currentSnp) = probscore((1.-2.*IMPratio)*phet(i))
-	                  Pr11(i,currentSnp) = probscore(phom(i))
+	                  Pr00(i,currentSnp) = pnor(i)
+	                  Pr01(i,currentSnp) = phet(i)
+	                  Pr10(i,currentSnp) = (1.-2.*IMPratio)*phet(i)
+	                  Pr11(i,currentSnp) = phom(i)
 	                else
-	                  Pr00(i,currentSnp) = probscore(pnor(i))
-	                  Pr01(i,currentSnp) = probscore(IMPratio*phet(i))
-	                  Pr10(i,currentSnp) = probscore((1.-IMPratio)*phet(i))
-	                  Pr11(i,currentSnp) = probscore(phom(i))
+	                  Pr00(i,currentSnp) = pnor(i)
+	                  Pr01(i,currentSnp) = IMPratio*phet(i)
+	                  Pr10(i,currentSnp) = (1.-IMPratio)*phet(i)
+	                  Pr11(i,currentSnp) = phom(i)
 	                endif
 	            endif
 	          else
-	            Pr00(i,currentSnp) = probscore(pnor(i))
-	            Pr01(i,currentSnp) = probscore(phet(i))
-	            Pr10(i,currentSnp) = probscore(phet(i))
-	            Pr11(i,currentSnp) = probscore(phom(i))
+	            Pr00(i,currentSnp) = pnor(i)
+	            Pr01(i,currentSnp) = phet(i)
+	            Pr10(i,currentSnp) = phet(i)
+	            Pr11(i,currentSnp) = phom(i)
 	          endif
 	        enddo
 
