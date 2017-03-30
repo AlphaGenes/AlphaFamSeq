@@ -46,12 +46,14 @@ subroutine readRogerData(filename, Ids, position, quality, SequenceData,nSnpIn,S
   real(real64), allocatable, dimension(:), intent(out):: quality
   integer(int32), dimension(:), allocatable, intent(out):: position
   integer(kind=2), dimension(:,:,:), allocatable, intent(out):: SequenceData
+  integer(kind=2), dimension(:,:,:), allocatable:: SequenceData2
 
   integer(int32), intent(in):: SnpUsed,nSnpIn,StartSnp,EndSnp,nIndivIn
   integer(int32)::nSnp,pos,fileUnit, nIndiv
   integer(int32)::i,j,k
 
   real(kind=8)::tstart,tend
+  character(100):: temp
 
   ! Open the file
   open(newunit=fileUnit, file=filename, action="read")
@@ -73,26 +75,14 @@ subroutine readRogerData(filename, Ids, position, quality, SequenceData,nSnpIn,S
     write(Ids(i), *) dumC(i+5)
   end do
 
-  pos=1
   do j = 1, nSnp
-    read(fileUnit, *) dumE
-    if ((j.ge.StartSnp).and.(j.le.EndSnp)) then
-      read(dumE(2), *) position(pos)
-      read(dumE(5), *) quality(pos)
-      !$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (nIndiv,pos,dumE,SequenceData)
-      do i = 1, nIndiv
-        k = i*2+4
-        read(dumE(k), *) SequenceData(i,pos, 1)
-        read(dumE(k+1), *) SequenceData(i, pos, 2)
-      end do
-      !$OMP END PARALLEL DO
-      pos=pos+1
-    endif
+    read(fileUnit, *) temp, position(j), temp, temp, quality(j), (SequenceData(i, j, 1), SequenceData(i, j,2), i =1, nIndiv)
   end do
   tend = omp_get_wtime()
   write(*,*) "Total wall time for Importing Reads", tend - tstart
+  !write(*,*) SequenceData
 
-  end subroutine readRogerData
+end subroutine readRogerData
 
   subroutine readAlphaSimReads(filename, Ids,SequenceData,nSnpIn,SnpUsed,StartSnp,EndSnp,nIndivIn)
   use ISO_Fortran_Env
