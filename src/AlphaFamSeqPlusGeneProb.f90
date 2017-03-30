@@ -561,10 +561,9 @@ subroutine SimpleCleanUpFillIn
 	Change=1
 	do while (Change==1)
 		Change=0
-		!$OMP PARALLEL DO ORDERED DEFAULT(FIRSTPRIVATE) SHARED (FilledGenos,FilledPhase,nInd,Change, nSnp) collapse(2)
-		do j=1,nSnp
-		
-			do i=1,nInd
+		!$OMP PARALLEL DO ORDERED DEFAULT(FIRSTPRIVATE) SHARED (FilledGenos,FilledPhase,nInd,Change, nSnp) !collapse(2)
+		do i=1,nInd
+			do j=1,nSnp
 				if (FilledGenos(i,j)==9) then
 					if ((FilledPhase(i,j,1)/=9).and.(FilledPhase(i,j,2)/=9)) then
 						FilledGenos(i,j)=sum(FilledPhase(i,j,:))
@@ -964,23 +963,22 @@ subroutine CalculateFounderAssignment
 	FounderAssignment(:,:,:)=0 
 	
    	!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase,RecPed,FounderAssignment,nSnp,nInd) collapse(2)	
-	do j=1,nSnp
+	do e=2,3 ! Sire and Dam pos in the ped
 		do i=1,nInd
-			do e=2,3 ! Sire and Dam pos in the ped
-				k=e-1 ! Sire and Dam gamete
+			do j=1,nSnp
+				!k=e-1 ! Sire and Dam gamete
 
 				if (FilledGenos(RecPed(i,e),j)==1) then
 					if (sum(FilledPhase(RecPed(i,e),j,:))<3) then
-						if (FilledPhase(RecPed(i,e),j,1)==FilledPhase(i,j,k)) FounderAssignment(i,j,k)=RecPed(RecPed(i,e),2) !Sire of Parent !FounderId(k,1)
-						if (FilledPhase(RecPed(i,e),j,2)==FilledPhase(i,j,k)) FounderAssignment(i,j,k)=RecPed(RecPed(i,e),3) !Dam  of Parent !FounderId(k,2)
+						if (FilledPhase(RecPed(i,e),j,1)==FilledPhase(i,j,e-1)) FounderAssignment(i,j,e-1)=RecPed(RecPed(i,e),2) !Sire of Parent !FounderId(k,1)
+						if (FilledPhase(RecPed(i,e),j,2)==FilledPhase(i,j,e-1)) FounderAssignment(i,j,e-1)=RecPed(RecPed(i,e),3) !Dam  of Parent !FounderId(k,2)
 					endif
 				endif
 			enddo
             
 		enddo
 	enddo
-     !$OMP END PARALLEL DO
-   
+    !$OMP END PARALLEL DO
 
 end subroutine CalculateFounderAssignment
 
@@ -1003,7 +1001,7 @@ subroutine SimpleFillInBasedOnProgenyReads
 	integer :: i,j
 	integer(int64) :: IdSir,IdDam
 
-	!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (FilledPhase,RecPed,nSnp, nInd) collapse(2)
+	!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (FilledPhase,RecPed,nSnp, nInd) !collapse(2)
 	do i=1,nInd
 		do j=1,nSnp
 			if ((sum(FilledPhase(i,j,:))==0).or.(sum(FilledPhase(i,j,:))==2)) then
@@ -1036,25 +1034,26 @@ subroutine SimpleFillInBasedOnParentsReads
 	implicit none
 
 	integer :: i,j,e,k
-	    
-    !$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase,RecPed,nInd,nSnp) collapse(2)
-	do i=1,nInd
-		do j=1,nSnp
-			if (maxval(FilledPhase(i,j,:))==9) then
-					do e=1,2
-						k=Abs((e-1)-1)+1
-						if (FilledGenos(RecPed(i,e+1),j)==0) then
-							FilledPhase(i,j,e)=0
-						endif
 
-						if (FilledGenos(RecPed(i,e+1),j)==2) then
-							FilledPhase(i,j,e)=1
-						endif
-					enddo
-			endif
+    !$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase,RecPed,nInd,nSnp) collapse(2)
+	do e=1,2
+		do i=1,nInd
+			do j=1,nSnp
+				if (maxval(FilledPhase(i,j,:))==9) then
+					k=Abs((e-1)-1)+1
+					if (FilledGenos(RecPed(i,e+1),j)==0) then
+						FilledPhase(i,j,e)=0
+					endif
+
+					if (FilledGenos(RecPed(i,e+1),j)==2) then
+						FilledPhase(i,j,e)=1
+					endif
+				endif
+			enddo
 		enddo
 	enddo
     !$OMP END PARALLEL DO
+
 end subroutine SimpleFillInBasedOnParentsReads
 
 !################################################################################################
@@ -1075,9 +1074,9 @@ subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
     integer :: i,j
     !integer(kind=2) :: probscore
 
-	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (Pr00,Pr11,Pr01,Pr10,FilledGenos,FilledPhase,GeneProbThresh,nSnp,nInd) collapse(2)
-    do j=1,nSnp
-		do i=1,nInd
+	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (Pr00,Pr11,Pr01,Pr10,FilledGenos,FilledPhase,GeneProbThresh,nSnp,nInd) !collapse(2)
+	do i=1,nInd
+		do j=1,nSnp
 
 			if ((Pr00(i,j).ge.GeneProbThresh).and.(sum(FilledPhase(i,j,:))>3)) then
 				FilledGenos(i,j)=0
