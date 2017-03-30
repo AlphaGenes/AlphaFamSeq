@@ -79,13 +79,13 @@ subroutine readRogerData(filename, Ids, position, quality, SequenceData,nSnpIn,S
     if ((j.ge.StartSnp).and.(j.le.EndSnp)) then
       read(dumE(2), *) position(pos)
       read(dumE(5), *) quality(pos)
-      !$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (nIndiv,pos,dumE,SequenceData)
+  !    !$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (nIndiv,pos,dumE,SequenceData)
       do i = 1, nIndiv
         k = i*2+4
         read(dumE(k), *) SequenceData(i,pos, 1)
         read(dumE(k+1), *) SequenceData(i, pos, 2)
       end do
-      !$OMP END PARALLEL DO
+  !    !$OMP END PARALLEL DO
       pos=pos+1
     endif
   end do
