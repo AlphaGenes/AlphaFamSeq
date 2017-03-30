@@ -51,6 +51,7 @@ subroutine readRogerData(filename, Ids, position, quality, SequenceData,nSnpIn,S
   integer(int32)::nSnp,pos,fileUnit, nIndiv
   integer(int32)::i,j,k
 
+  real(kind=8)::tstart,tend
 
   ! Open the file
   open(newunit=fileUnit, file=filename, action="read")
@@ -65,6 +66,7 @@ subroutine readRogerData(filename, Ids, position, quality, SequenceData,nSnpIn,S
   allocate(dumE(5+2*nIndiv))
   allocate(dumC(5+nIndiv))
 
+  tstart = omp_get_wtime()
   read(fileUnit, *) dumC 
   write(*,"(5A)") "STUFF", trim(dumC(1)), trim(dumC(2)), trim(dumC(3)), "ENDSTUFF"
   do i =1, nIndiv
@@ -87,11 +89,14 @@ subroutine readRogerData(filename, Ids, position, quality, SequenceData,nSnpIn,S
       pos=pos+1
     endif
   end do
+  tend = omp_get_wtime()
+  write(*,*) "Total wall time for Importing Reads", tend - tstart
 
   end subroutine readRogerData
 
   subroutine readAlphaSimReads(filename, Ids,SequenceData,nSnpIn,SnpUsed,StartSnp,EndSnp,nIndivIn)
   use ISO_Fortran_Env
+  use omp_lib
   implicit none
   
   character(len=*), intent(in)::filename
@@ -104,6 +109,7 @@ subroutine readRogerData(filename, Ids, position, quality, SequenceData,nSnpIn,S
   integer(int32)::nSnp,pos,fileUnit, nIndiv
   integer(int32)::i,j, k,dumI
 
+  real(kind=8)::tstart,tend
   
   ! Open the file
   open(newunit=fileUnit, file=filename, action="read")
@@ -124,15 +130,17 @@ subroutine readRogerData(filename, Ids, position, quality, SequenceData,nSnpIn,S
   !   SequenceData(i,:, 2)=dumE(StartSnp:EndSnp)
   ! end do
 
+  tstart = omp_get_wtime()
   do i = 1, nIndiv
     if(StartSnp.eq.1) read(fileUnit, *) Ids(i),SequenceData(i,:, 1)
     if(StartSnp.eq.1) read(fileUnit, *) Ids(i),SequenceData(i,:, 2)
     
     if(StartSnp.gt.1) read(fileUnit, *) Ids(i),dumE,SequenceData(i,:, 1)
     if(StartSnp.gt.1) read(fileUnit, *) Ids(i),dumE,SequenceData(i,:, 2)
-
     
   end do
+  tend = omp_get_wtime()
+  write(*,*) "Total wall time for Importing Reads", tend - tstart
 
   deallocate(dumE)
 
