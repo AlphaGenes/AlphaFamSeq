@@ -134,8 +134,8 @@ program FamilyPhase
 	InitialGeneProbThresh=GeneProbThresh
 
 	do while(StartSnp.le.LenghtSequenceDataFile)
-		if (StartSnp>ChunkLengthB) StartSnp=StartSnp-ChunkLengthB
-		EndSnp=EndSnp+ChunkLengthB
+		!if (StartSnp>ChunkLengthB) StartSnp=StartSnp-ChunkLengthB
+		!EndSnp=EndSnp+ChunkLengthB
 		if (EndSnp>LenghtSequenceDataFile) EndSnp=LenghtSequenceDataFile
 		nSnp=EndSnp-StartSnp+1
 
