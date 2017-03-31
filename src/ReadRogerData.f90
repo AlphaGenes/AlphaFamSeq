@@ -75,10 +75,12 @@ subroutine readRogerData(filename, Ids, position, quality, SequenceData,nSnpIn,S
     write(Ids(i), *) dumC(i+5)
   end do
 
-  print*,nSnp,StartSnp,EndSnp,SnpUsed
+  !print*,nSnp,StartSnp,EndSnp,SnpUsed
+  pos=1
   do j = 1, nSnp
      if ((j.ge.StartSnp).and.(j.le.EndSnp)) then
-      read(fileUnit, *) temp, position(j), temp, temp, quality(j), (SequenceData(i, j, 1), SequenceData(i, j,2), i =1, nIndiv)
+      read(fileUnit, *) temp, position(pos), temp, temp, quality(pos), (SequenceData(i, pos, 1), SequenceData(i, pos,2), i =1, nIndiv)
+      pos=pos+1
     end if
   end do
   tend = omp_get_wtime()
