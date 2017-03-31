@@ -75,6 +75,7 @@ subroutine readRogerData(filename, Ids, position, quality, SequenceData,nSnpIn,S
     write(Ids(i), *) dumC(i+5)
   end do
 
+  print*,nSnp,StartSnp,EndSnp,SnpUsed
   do j = 1, nSnp
      if ((j.ge.StartSnp).and.(j.le.EndSnp)) then
       read(fileUnit, *) temp, position(j), temp, temp, quality(j), (SequenceData(i, j, 1), SequenceData(i, j,2), i =1, nIndiv)
