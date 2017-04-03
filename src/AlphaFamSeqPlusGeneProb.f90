@@ -519,7 +519,13 @@ subroutine CheckMissingData
 
 	integer :: i,j
 	real :: cov
-	character(len=50) :: filout1,filout2
+	character(len=50) :: filout1,filout2,filout3
+	character(len=30) :: nChar
+	character(len=80) :: FmtInt
+
+	write(nChar,*) nSnp
+	FmtInt='(i0,'//trim(adjustl(nChar))//'i2)'
+	
 
 	write (filout1,'("AlphaFamSeqMarkersWithZeroReads",i0,".txt")') Windows
 	open (unit=1,file=trim(filout1),status="unknown")
@@ -527,6 +533,8 @@ subroutine CheckMissingData
 	write (filout2,'("AlphaFamSeqCoverage",i0,".txt")') Windows
 	open (unit=2,file=trim(filout2),status="unknown")
 	
+	write (filout3,'("AlphaFamSeqReads",i0,".txt")') Windows
+	open (unit=3,file=trim(filout3),status="unknown")
 
 	!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (RawReads,nSnp)
 	do j=1,nSnp
@@ -536,7 +544,6 @@ subroutine CheckMissingData
 	enddo
 	!$OMP END PARALLEL DO
 
-	!!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (RawReads,nInd,nSnp) collapse(2)
 	do i=1,nInd
 		cov=0
 		do j=1,nSnp
@@ -544,11 +551,18 @@ subroutine CheckMissingData
 		enddo
 		cov=cov/dble(nSnp)
 		write (2,'(1i0,1f7.3)') Ped(i,1),cov
+
+		write (3,FmtInt) RawReads(i,:,1)
+		write (3,FmtInt) RawReads(i,:,2)
+
 	enddo
-	!!$OMP END PARALLEL DO
+
+
+	
 
 	close (1)
 	close (2)
+	close (3)
 end subroutine CheckMissingData
 
 !###########################################################################################
