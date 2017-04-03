@@ -18,7 +18,7 @@ module GlobalPar
 	real(kind=8) :: GeneProbThresh  										! SpecFile - Threshold to call a genotype from the probabilities First Value
 	real(kind=8) :: GeneProbThreshMin										! SpecFile - Threshold to call a genotype from the probabilities Last Value
 	real(kind=8) :: ReduceThr 												! SpecFile - Reduce Geno Treshold factor
-	!integer :: nIter                        								! SpecFile - Every nIter the ReadContMaxThresh decrease of 1 value until GeneProbThresh
+	integer :: UsePrevGeneProb                      						! SpecFile - Read old results of GeneProb 1==YES, 0==NO
 	
 	real(kind=8) :: ErrorRate												! SpecFile - Error rates to define the genotypes probabilities
 	
@@ -149,7 +149,12 @@ program FamilyPhase
 		call ReadData
 		call InitialiseArrays
 		call CheckMissingData
-		call RunGeneProb
+		if (UsePrevGeneProb==0) then
+			call RunGeneProb
+			call SaveGeneProbResults
+		else if (UsePrevGeneProb==1) then
+			call ReadPrevGeneProb
+		endif
 		write (*,'(1a39)') " Window Iter   ProbThr    %Phase   %Geno"
 
 		IterationNumber=0
@@ -350,7 +355,7 @@ subroutine ReadSpecfile
 
                 
             case('genotypeprobability')
-                read(1, *, iostat=stat) GeneProbThresh,GeneProbThreshMin,ReduceThr !nIter 
+                read(1, *, iostat=stat) GeneProbThresh,GeneProbThreshMin,ReduceThr,UsePrevGeneProb !nIter 
                 if (stat /= 0) then
                     print *, "GenotypeProbability not set properly in spec file"
                     stop 8
@@ -1599,7 +1604,77 @@ subroutine GetID(InputId, PosId)
 end subroutine GetID
 
 !###########################################################################################################################################################
+subroutine ReadPrevGeneProb
+	use GlobalPar
 
+	implicit none
+
+	integer :: i,j,DumI
+	character(len=30) :: nChar
+	character(len=80) :: FmtReal,filout5
+	
+	filout5="AlphaFamSeqFinalGeneProb1.txt"
+	open (unit=5,file=trim(filout5),status="old")
+	
+	do i=1,nInd
+	
+		read(5,*)DumI,Pr00(i,:)
+		read(5,*)DumI,Pr01(i,:)
+		read(5,*)DumI,Pr10(i,:)
+		read(5,*)DumI,Pr11(i,:)
+	
+	enddo
+
+	close (3)
+	close (5)
+end subroutine ReadPrevGeneProb
+
+!###########################################################################################################################################################
+
+subroutine SaveGeneProbResults
+	use GlobalPar
+
+	implicit none
+
+	integer :: i,j
+	real(kind=4),allocatable,dimension(:) :: AlleleDosage
+	character(len=30) :: nChar
+	character(len=80) :: FmtReal,filout3,filout5
+	
+	write(nChar,*) nSnp
+	FmtReal='(i0,'//trim(adjustl(nChar))//'f7.4)'
+	
+	write (filout3,'("AlphaFamSeqFinalAlleleDosage",i0,".txt")') Windows
+	write (filout5,'("AlphaFamSeqFinalGeneProb",i0,".txt")') Windows
+	
+	open (unit=3,file=trim(filout3),status="unknown")
+	open (unit=5,file=trim(filout5),status="unknown")
+	
+	allocate(AlleleDosage(nSnp))
+
+	do i=1,nInd
+	
+		do j=1,nSnp
+			AlleleDosage(j)=(0.0*Pr00(i,j)+(Pr01(i,j)+Pr10(i,j))+2.0*Pr11(i,j))
+		enddo
+
+		write (3,FmtReal) Ped(i,1),AlleleDosage(:)
+		write (5,FmtReal) Ped(i,1),Pr00(i,:)
+		write (5,FmtReal) Ped(i,1),Pr01(i,:)
+		write (5,FmtReal) Ped(i,1),Pr10(i,:)
+		write (5,FmtReal) Ped(i,1),Pr11(i,:)
+
+	
+	enddo
+
+	deallocate(AlleleDosage)
+
+
+	close (3)
+	close (5)
+end subroutine SaveGeneProbResults
+
+!###########################################################################################################################################################
 
 subroutine WriteResults
 
@@ -1622,32 +1697,32 @@ subroutine WriteResults
 	
 	write (filout1,'("AlphaFamSeqFinalPhase",i0,".txt")') Windows
 	write (filout2,'("AlphaFamSeqFinalGenos",i0,".txt")') Windows
-	write (filout3,'("AlphaFamSeqFinalAlleleDosage",i0,".txt")') Windows
-	write (filout5,'("AlphaFamSeqFinalGeneProb",i0,".txt")') Windows
+	!write (filout3,'("AlphaFamSeqFinalAlleleDosage",i0,".txt")') Windows
+	!write (filout5,'("AlphaFamSeqFinalGeneProb",i0,".txt")') Windows
 	write (filout4,'("AlphaFamSeqFounderAssignment",i0,".txt")') Windows
 	
 	open (unit=1,file=trim(filout1),status="unknown")
 	open (unit=2,file=trim(filout2),status="unknown")
-	open (unit=3,file=trim(filout3),status="unknown")
-	open (unit=5,file=trim(filout5),status="unknown")
+	!open (unit=3,file=trim(filout3),status="unknown")
+	!open (unit=5,file=trim(filout5),status="unknown")
 	open (unit=4,file=trim(filout4),status="unknown")
 	
-	allocate(AlleleDosage(nSnp))
+	!allocate(AlleleDosage(nSnp))
 
 	do i=1,nInd
 		write (1,FmtInt) Ped(i,1),FilledPhase(i,:,1)
 		write (1,FmtInt) Ped(i,1),FilledPhase(i,:,2)
 		write (2,FmtInt) Ped(i,1),FilledGenos(i,:)
 
-		do j=1,nSnp
-			AlleleDosage(j)=(0.0*Pr00(i,j)+(Pr01(i,j)+Pr10(i,j))+2.0*Pr11(i,j))
-		enddo
+		! do j=1,nSnp
+		! 	AlleleDosage(j)=(0.0*Pr00(i,j)+(Pr01(i,j)+Pr10(i,j))+2.0*Pr11(i,j))
+		! enddo
 
-		write (3,FmtReal) Ped(i,1),AlleleDosage(:)
-		write (5,FmtReal) Ped(i,1),Pr00(i,:)
-		write (5,FmtReal) Ped(i,1),Pr01(i,:)
-		write (5,FmtReal) Ped(i,1),Pr10(i,:)
-		write (5,FmtReal) Ped(i,1),Pr11(i,:)
+		! write (3,FmtReal) Ped(i,1),AlleleDosage(:)
+		! write (5,FmtReal) Ped(i,1),Pr00(i,:)
+		! write (5,FmtReal) Ped(i,1),Pr01(i,:)
+		! write (5,FmtReal) Ped(i,1),Pr10(i,:)
+		! write (5,FmtReal) Ped(i,1),Pr11(i,:)
 
 		if (maxval(FounderAssignment(i,:,:))/=0) then 
 			write (4,FmtInt2) Ped(i,1),FounderAssignment(i,:,1)
@@ -1657,12 +1732,12 @@ subroutine WriteResults
 
 	enddo
 
-	deallocate(AlleleDosage)
+	!deallocate(AlleleDosage)
 
 
 	close (1)
 	close (2)
-	close (3)
+	!close (3)
 	close (4)
 end subroutine WriteResults
 
