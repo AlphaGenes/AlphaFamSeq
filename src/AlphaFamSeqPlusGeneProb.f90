@@ -524,7 +524,7 @@ subroutine CheckMissingData
 	character(len=80) :: FmtInt
 
 	write(nChar,*) nSnp
-	FmtInt='(i0,'//trim(adjustl(nChar))//'i2)'
+	FmtInt='(i0,'//trim(adjustl(nChar))//'i4)'
 	
 
 	write (filout1,'("AlphaFamSeqMarkersWithZeroReads",i0,".txt")') Windows
