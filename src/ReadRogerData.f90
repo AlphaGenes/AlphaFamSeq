@@ -77,10 +77,10 @@ subroutine readRogerData(filename, Ids, position, quality, SequenceData,nSnpIn,S
 
   !pos=1
   do j = 1, nSnp
-     if ((j.ge.StartSnp).and.(j.le.EndSnp)) then
+     !if ((j.ge.StartSnp).and.(j.le.EndSnp)) then
       read(fileUnit, *) temp, position(j), temp, temp, quality(j), (SequenceData(i, j, 1), SequenceData(i, j,2), i =1, nIndiv)
       !pos=pos+1
-    end if
+    !end if
   end do
   tend = omp_get_wtime()
   write(*,*) "Total wall time for Importing Reads", tend - tstart
