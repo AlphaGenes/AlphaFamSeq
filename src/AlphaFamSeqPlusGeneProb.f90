@@ -552,8 +552,8 @@ subroutine CheckMissingData
 		cov=cov/dble(nSnp)
 		write (2,'(1i0,1f7.3)') Ped(i,1),cov
 
-		write (3,FmtInt) RawReads(i,:,1)
-		write (3,FmtInt) RawReads(i,:,2)
+		write (3,FmtInt) Ped(i,1) RawReads(i,:,1)
+		write (3,FmtInt) Ped(i,1) RawReads(i,:,2)
 
 	enddo
 
