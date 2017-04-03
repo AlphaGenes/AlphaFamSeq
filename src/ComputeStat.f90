@@ -10,7 +10,8 @@
 !> @brief       Module to calculate accuracy of imputation for imputed Genotypes/Phase 
 !>
 !> @details     This module contains subtoutines to calculate:
-!               Yield(%) = Markers imputed on the total markers 
+!               Yield(%) = Markers imputed on the total markers
+!				Correct/TotalSnpUsed(%) = Markers correctly imputed on the total markers used
 !				CorrectRate(%) = Markers well imputed on the total markers imputed
 !				ErrorRate(%) = Markers wrongly imputed on the total markers imputed
 !				Correlation by individual = correlation between true and imputed markers per each individual
