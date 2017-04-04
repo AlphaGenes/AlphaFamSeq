@@ -1045,13 +1045,15 @@ subroutine SimpleFillInBasedOnProgenyReads
 			if ((sum(FilledPhase(i,j,:))==0).or.(sum(FilledPhase(i,j,:))==2)) then
 				IdSir=RecPed(i,2)
 				IdDam=RecPed(i,3)
+				if (IdDam/=0) then
+					if ((FilledPhase(IdDam,j,1)/=9).and.(FilledPhase(IdDam,j,1)/=FilledPhase(i,j,2))) FilledPhase(IdDam,j,2)=FilledPhase(i,j,2)
+					if ((FilledPhase(IdDam,j,2)/=9).and.(FilledPhase(IdDam,j,2)/=FilledPhase(i,j,2))) FilledPhase(IdDam,j,1)=FilledPhase(i,j,2)
+				endif
 
-				if ((FilledPhase(IdDam,j,1)/=9).and.(FilledPhase(IdDam,j,1)/=FilledPhase(i,j,2))) FilledPhase(IdDam,j,2)=FilledPhase(i,j,2)
-				if ((FilledPhase(IdDam,j,2)/=9).and.(FilledPhase(IdDam,j,2)/=FilledPhase(i,j,2))) FilledPhase(IdDam,j,1)=FilledPhase(i,j,2)
-				
-				if ((FilledPhase(IdSir,j,1)/=9).and.(FilledPhase(IdSir,j,1)/=FilledPhase(i,j,1))) FilledPhase(IdSir,j,2)=FilledPhase(i,j,1)
-				if ((FilledPhase(IdSir,j,2)/=9).and.(FilledPhase(IdSir,j,2)/=FilledPhase(i,j,1))) FilledPhase(IdSir,j,1)=FilledPhase(i,j,1)
-				
+				if (IdSir/=0) then				
+					if ((FilledPhase(IdSir,j,1)/=9).and.(FilledPhase(IdSir,j,1)/=FilledPhase(i,j,1))) FilledPhase(IdSir,j,2)=FilledPhase(i,j,1)
+					if ((FilledPhase(IdSir,j,2)/=9).and.(FilledPhase(IdSir,j,2)/=FilledPhase(i,j,1))) FilledPhase(IdSir,j,1)=FilledPhase(i,j,1)
+				endif
 			endif
 		enddo
 	enddo
@@ -1077,14 +1079,16 @@ subroutine SimpleFillInBasedOnParentsReads
 	do e=1,2
 		do i=1,nInd
 			do j=1,nSnp
-				if (maxval(FilledPhase(i,j,:))==9) then
-					k=Abs((e-1)-1)+1
-					if (FilledGenos(RecPed(i,e+1),j)==0) then
-						FilledPhase(i,j,e)=0
-					endif
+				if (RecPed(i,e+1)/=0) then
+					if (maxval(FilledPhase(i,j,:))==9) then
+						k=Abs((e-1)-1)+1
+						if (FilledGenos(RecPed(i,e+1),j)==0) then
+							FilledPhase(i,j,e)=0
+						endif
 
-					if (FilledGenos(RecPed(i,e+1),j)==2) then
-						FilledPhase(i,j,e)=1
+						if (FilledGenos(RecPed(i,e+1),j)==2) then
+							FilledPhase(i,j,e)=1
+						endif
 					endif
 				endif
 			enddo
