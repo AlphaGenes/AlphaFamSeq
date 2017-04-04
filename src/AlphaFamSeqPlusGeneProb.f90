@@ -1005,11 +1005,12 @@ subroutine CalculateFounderAssignment
 		do i=1,nInd
 			do j=1,nSnp
 				!k=e-1 ! Sire and Dam gamete
-
-				if (FilledGenos(RecPed(i,e),j)==1) then
-					if (sum(FilledPhase(RecPed(i,e),j,:))<3) then
-						if (FilledPhase(RecPed(i,e),j,1)==FilledPhase(i,j,e-1)) FounderAssignment(i,j,e-1)=RecPed(RecPed(i,e),2) !Sire of Parent !FounderId(k,1)
-						if (FilledPhase(RecPed(i,e),j,2)==FilledPhase(i,j,e-1)) FounderAssignment(i,j,e-1)=RecPed(RecPed(i,e),3) !Dam  of Parent !FounderId(k,2)
+				if (RecPed(i,e-1)/=0) then
+					if (FilledGenos(RecPed(i,e),j)==1) then
+						if (sum(FilledPhase(RecPed(i,e),j,:))<3) then
+							if (FilledPhase(RecPed(i,e),j,1)==FilledPhase(i,j,e-1)) FounderAssignment(i,j,e-1)=RecPed(RecPed(i,e),2) !Sire of Parent !FounderId(k,1)
+							if (FilledPhase(RecPed(i,e),j,2)==FilledPhase(i,j,e-1)) FounderAssignment(i,j,e-1)=RecPed(RecPed(i,e),3) !Dam  of Parent !FounderId(k,2)
+						endif
 					endif
 				endif
 			enddo
