@@ -74,7 +74,12 @@ module GlobalPar
 	!												:: StatBySnp            ! Save coverage, nr 
 	!												:: StatByInd            ! 
 
+	type CountPhase
+		integer,allocatable :: old(:)
+		integer,allocatable :: diff(:)    
+	end type CountPhase
 
+	type(CountPhase) :: CurrentCountID
 
 	integer :: Windows
 end module GlobalPar
@@ -82,6 +87,8 @@ end module GlobalPar
 !################################################################################################
 
 program FamilyPhase
+    use ISO_Fortran_Env
+    use omp_lib
 
 	use GlobalPar
 	use IntelRNGMod
@@ -92,6 +99,8 @@ program FamilyPhase
 	integer(int32) :: Seed1,Seed2
 	real(kind=8) :: InitialGeneProbThresh
 	logical:: fileExists
+	real(kind=8)::tstart,tend
+	
 	
 	! Use a seed to sample the Haplotypes length of each window and iteration
 	! Print out the window/iteratin/haplotype length in a file
@@ -145,7 +154,6 @@ program FamilyPhase
 		CurrentCountFilledGenos=0
 		GeneProbThresh=InitialGeneProbThresh
 
-		!call AllocateArrays
 		call ReadData
 		call InitialiseArrays
 		call CheckMissingData
@@ -153,8 +161,12 @@ program FamilyPhase
 			call RunGeneProb
 			call SaveGeneProbResults
 		else if (UsePrevGeneProb==1) then
+			tstart = omp_get_wtime()
 			call ReadPrevGeneProb
+			tend = omp_get_wtime()
+  			write(*,*) "Total wall time for Importing Probabilities", tend - tstart
 		endif
+		print*," "
 		write (*,'(1a39)') " Window Iter   ProbThr    %Phase   %Geno"
 
 		IterationNumber=0
@@ -199,6 +211,13 @@ program FamilyPhase
 			NewCount=CurrentCountFilledPhase+CurrentCountFilledGenos
 			
 			if (OldCount/=NewCount) then
+				SolutionChanged=1
+			else
+				SolutionChanged=0
+			endif
+
+			if (maxval(CurrentCountID%diff).gt.(dble(nSnp)*.0001)*2) then
+!				print*,maxval(CurrentCountID%diff),(dble(nSnp)*.0001)*2
 				SolutionChanged=1
 			else
 				SolutionChanged=0
@@ -523,8 +542,8 @@ subroutine CheckMissingData
 	character(len=30) :: nChar
 	character(len=80) :: FmtInt
 
-	write(nChar,*) nSnp
-	FmtInt='(i0,'//trim(adjustl(nChar))//'i4)'
+	!write(nChar,*) nSnp
+	!FmtInt='(i0,'//trim(adjustl(nChar))//'i4)'
 	
 
 	write (filout1,'("AlphaFamSeqMarkersWithZeroReads",i0,".txt")') Windows
@@ -533,8 +552,8 @@ subroutine CheckMissingData
 	write (filout2,'("AlphaFamSeqCoverage",i0,".txt")') Windows
 	open (unit=2,file=trim(filout2),status="unknown")
 	
-	write (filout3,'("AlphaFamSeqReads",i0,".txt")') Windows
-	open (unit=3,file=trim(filout3),status="unknown")
+	!write (filout3,'("AlphaFamSeqReads",i0,".txt")') Windows
+	!open (unit=3,file=trim(filout3),status="unknown")
 
 	!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (RawReads,nSnp)
 	do j=1,nSnp
@@ -552,8 +571,8 @@ subroutine CheckMissingData
 		cov=cov/dble(nSnp)
 		write (2,'(1i0,1f7.3)') Ped(i,1),cov
 
-		write (3,FmtInt) Ped(i,1), RawReads(i,:,1)
-		write (3,FmtInt) Ped(i,1), RawReads(i,:,2)
+		!write (3,FmtInt) Ped(i,1), RawReads(i,:,1)
+		!write (3,FmtInt) Ped(i,1), RawReads(i,:,2)
 
 	enddo
 
@@ -562,7 +581,7 @@ subroutine CheckMissingData
 
 	close (1)
 	close (2)
-	close (3)
+	!close (3)
 end subroutine CheckMissingData
 
 !###########################################################################################
@@ -1218,6 +1237,11 @@ subroutine AllocateArrays
 	! Founders
 	allocate(FounderAssignment(nInd,nSnp,2))
 	!allocate(ConsensusFounders(nInd,2))
+
+	! CountPhase
+	allocate(CurrentCountID%old(nInd))
+	allocate(CurrentCountID%diff(nInd))
+
 end subroutine AllocateArrays
 
 !################################################################################################
@@ -1263,8 +1287,18 @@ subroutine CurrentCountFilled
 
 	implicit none
 
+	integer :: i,new
+
 	CurrentCountFilledPhase=count(FilledPhase(:,:,:)/=9)
 	CurrentCountFilledGenos=count(FilledGenos(:,:)/=9)
+
+	do i=1,nInd
+		new=0
+		new=count(FilledPhase(i,:,:)/=9)
+		CurrentCountID%diff(i)=new-CurrentCountID%old(i)
+		CurrentCountID%old(i)=new
+	enddo
+
 end subroutine CurrentCountFilled
 
 !################################################################################################
