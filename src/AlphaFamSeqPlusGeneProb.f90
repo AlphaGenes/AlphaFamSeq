@@ -1005,14 +1005,14 @@ subroutine CalculateFounderAssignment
 		do i=1,nInd
 			do j=1,nSnp
 				!k=e-1 ! Sire and Dam gamete
-				if (RecPed(i,e-1)/=0) then
+				if (RecPed(i,e-1)==0) exit
 					if (FilledGenos(RecPed(i,e),j)==1) then
 						if (sum(FilledPhase(RecPed(i,e),j,:))<3) then
 							if (FilledPhase(RecPed(i,e),j,1)==FilledPhase(i,j,e-1)) FounderAssignment(i,j,e-1)=RecPed(RecPed(i,e),2) !Sire of Parent !FounderId(k,1)
 							if (FilledPhase(RecPed(i,e),j,2)==FilledPhase(i,j,e-1)) FounderAssignment(i,j,e-1)=RecPed(RecPed(i,e),3) !Dam  of Parent !FounderId(k,2)
 						endif
 					endif
-				endif
+				!endif
 			enddo
             
 		enddo
@@ -1080,7 +1080,7 @@ subroutine SimpleFillInBasedOnParentsReads
 	do e=1,2
 		do i=1,nInd
 			do j=1,nSnp
-				if (RecPed(i,e+1)/=0) then
+				if (RecPed(i,e+1)==0) exit
 					if (maxval(FilledPhase(i,j,:))==9) then
 						k=Abs((e-1)-1)+1
 						if (FilledGenos(RecPed(i,e+1),j)==0) then
@@ -1091,7 +1091,7 @@ subroutine SimpleFillInBasedOnParentsReads
 							FilledPhase(i,j,e)=1
 						endif
 					endif
-				endif
+				!endif
 			enddo
 		enddo
 	enddo
