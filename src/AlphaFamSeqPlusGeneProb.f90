@@ -596,8 +596,8 @@ subroutine SimpleCleanUpFillIn
 
 	integer i,j,Change !,e,k,g1,g2
 
-	Change=1
-	do while (Change==1)
+	!Change=1
+	!do while (Change==1)
 		Change=0
 		!$OMP PARALLEL DO ORDERED DEFAULT(FIRSTPRIVATE) SHARED (FilledGenos,FilledPhase,nInd,Change, nSnp) !collapse(2)
 		do i=1,nInd
@@ -623,7 +623,7 @@ subroutine SimpleCleanUpFillIn
 			
 		enddo
 		!$OMP END PARALLEL DO
-	enddo
+	!enddo
 end subroutine SimpleCleanUpFillIn
 
 !###########################################################################################
