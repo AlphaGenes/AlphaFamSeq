@@ -549,9 +549,13 @@ subroutine CheckMissingData
 	write (filout1,'("AlphaFamSeqMarkersWithZeroReads",i0,".txt")') Windows
 	open (unit=1,file=trim(filout1),status="unknown")
 		
-	write (filout2,'("AlphaFamSeqCoverage",i0,".txt")') Windows
+	write (filout2,'("AlphaFamSeqIndividualCoverage",i0,".txt")') Windows
 	open (unit=2,file=trim(filout2),status="unknown")
-	
+
+	write (filout3,'("AlphaFamSeqMarkerCoverage",i0,".txt")') Windows
+	open (unit=3,file=trim(filout3),status="unknown")
+
+
 	!write (filout3,'("AlphaFamSeqReads",i0,".txt")') Windows
 	!open (unit=3,file=trim(filout3),status="unknown")
 
@@ -576,12 +580,19 @@ subroutine CheckMissingData
 
 	enddo
 
+		do j=1,nSnp
+			cov=0
+			cov=sum(RawReads(:,j,:))/dble(nIndSeq)
+			write (3,'(1i0,1f7.3)') j,cov
+		enddo
+		
+		!write (3,FmtInt) Ped(i,1), RawReads(i,:,1)
+		!write (3,FmtInt) Ped(i,1), RawReads(i,:,2)
 
 	
-
 	close (1)
 	close (2)
-	!close (3)
+	close (3)
 end subroutine CheckMissingData
 
 !###########################################################################################
