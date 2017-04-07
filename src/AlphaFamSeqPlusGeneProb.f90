@@ -536,7 +536,7 @@ subroutine CheckMissingData
 	use omp_lib
 	implicit none
 
-	integer :: i,j
+	integer :: i,j,nTmpInd
 	real :: cov
 	character(len=50) :: filout1,filout2,filout3
 	character(len=30) :: nChar
@@ -567,11 +567,13 @@ subroutine CheckMissingData
 	enddo
 	!$OMP END PARALLEL DO
 
+	nTmpInd=0
 	do i=1,nInd
 		cov=0
 		do j=1,nSnp
 			cov=cov+sum(RawReads(i,j,:))
 		enddo
+		if (cov.gt.0) nTmpInd=nTmpInd+1
 		cov=cov/dble(nSnp)
 		write (2,'(1i0,1f7.3)') Ped(i,1),cov
 
@@ -582,8 +584,8 @@ subroutine CheckMissingData
 
 		do j=1,nSnp
 			cov=0
-			cov=sum(RawReads(:,j,:))!/dble(nIndSeq)
-			write (3,'(1i0,1f7.3)') j,cov
+			cov=sum(RawReads(:,j,:))/dble(nTmpInd)
+			write (3,'(1i0,1x,1f7.3)') j,cov
 		enddo
 		
 		!write (3,FmtInt) Ped(i,1), RawReads(i,:,1)
