@@ -582,7 +582,7 @@ subroutine CheckMissingData
 
 		do j=1,nSnp
 			cov=0
-			cov=sum(RawReads(:,j,:))/dble(nIndSeq)
+			cov=sum(RawReads(:,j,:))!/dble(nIndSeq)
 			write (3,'(1i0,1f7.3)') j,cov
 		enddo
 		
