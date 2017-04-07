@@ -536,7 +536,7 @@ subroutine CheckMissingData
 	use omp_lib
 	implicit none
 
-	integer :: i,j,nTmpInd
+	integer :: i,j,nTmpInd,e
 	real :: cov
 	character(len=50) :: filout1,filout2,filout3
 	character(len=30) :: nChar
@@ -559,14 +559,6 @@ subroutine CheckMissingData
 	!write (filout3,'("AlphaFamSeqReads",i0,".txt")') Windows
 	!open (unit=3,file=trim(filout3),status="unknown")
 
-	!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (RawReads,nSnp)
-	do j=1,nSnp
-		if (maxval(RawReads(:,j,:))==0) then
-			write (1,'(i0)') j
-		endif
-	enddo
-	!$OMP END PARALLEL DO
-
 	nTmpInd=0
 	do i=1,nInd
 		cov=0
@@ -579,17 +571,28 @@ subroutine CheckMissingData
 
 		!write (3,FmtInt) Ped(i,1), RawReads(i,:,1)
 		!write (3,FmtInt) Ped(i,1), RawReads(i,:,2)
-
 	enddo
 
 		do j=1,nSnp
 			cov=0
+			e=0
 			cov=sum(RawReads(:,j,:))/dble(nTmpInd)
-			write (3,'(1i0,1x,1f7.3)') j,cov
+			if (cov.lt.EditingParameter) then
+				RawReads(:,j,:)=0
+				e=1
+			endif
+			write (3,'(1i0,1x,1f7.3,1x,1i0)') j,cov,e
 		enddo
 		
-		!write (3,FmtInt) Ped(i,1), RawReads(i,:,1)
-		!write (3,FmtInt) Ped(i,1), RawReads(i,:,2)
+
+	!!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (RawReads,nSnp)
+	do j=1,nSnp
+		if (maxval(RawReads(:,j,:))==0) then
+			write (1,'(i0)') j
+		endif
+	enddo
+	!!$OMP END PARALLEL DO
+
 
 	
 	close (1)
