@@ -447,7 +447,7 @@ subroutine CalculateCorrelation(Yield,n,TrueSnp,ImpSnp,CorTrueImp)
 	if (Yield==n) then
 		CorTrueImp = Cor(TrueSnp,ImpSnp)
 	endif
-	
+
 	if (Yield.lt.n) then
 		allocate(TrueTmp(Yield))
 		allocate(ImpTmp(Yield))
