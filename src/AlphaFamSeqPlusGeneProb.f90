@@ -635,6 +635,17 @@ subroutine SimpleCleanUpFillIn
 					Change=1
 				endif
 
+				if (FilledGenos(i,j)/=9) then
+					if ((FilledPhase(i,j,1)/=9).and.(FilledPhase(i,j,2)/=9)) then
+						if (FilledGenos(i,j)/=sum(FilledPhase(i,j,:))) then
+							FilledGenos(i,j)=9
+							FilledPhase(i,j,:)=9
+							Change=1
+							!print*,"CheckError",i,j
+						endif
+					endif
+				endif
+
 			enddo
 			
 		enddo
@@ -856,13 +867,18 @@ subroutine BuildConsensus
 							if (FilledPhase(ConsensusIds(i,m,1),j,ConsensusIds(i,m,2))==0) Count0=Count0+1
 						enddo
 
-						if (Count1>0 .and. Count1.gt.Count0) ConsensusHaplotype(j)=1 !Count0==0
-						if (Count0>0 .and. Count0.gt.Count1) ConsensusHaplotype(j)=0 !Count1==0
+						if (Count1>1 .and. Count1.gt.Count0) ConsensusHaplotype(j)=1 !Count0==0
+						if (Count0>1 .and. Count0.gt.Count1) ConsensusHaplotype(j)=0 !Count1==0
 
 
 						if (ConsensusHaplotype(j)/=9) then
-							do m=3,4								
+							do m=3,4
 								FilledPhase(ConsensusIds(i,m,1),j,ConsensusIds(i,m,2))=ConsensusHaplotype(j)
+								if ((FilledGenos(ConsensusIds(i,m,1),j)/=9).and.(sum(FilledPhase(ConsensusIds(i,m,1),j,:))<3)) then
+									if (FilledGenos(ConsensusIds(i,m,1),j)/=sum(FilledPhase(ConsensusIds(i,m,1),j,:))) then
+										FilledPhase(ConsensusIds(i,m,1),j,ConsensusIds(i,m,2))=9
+									endif
+								endif
 							enddo
 						endif
 
@@ -1161,7 +1177,6 @@ subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 
 			if (((Pr00(i,j)+Pr10(i,j)).ge.GeneProbThresh).and.(Pr01(i,j).lt.Pr10(i,j)).and.(FilledPhase(i,j,2)==9)) FilledPhase(i,j,2)=0
 			if (((Pr11(i,j)+Pr01(i,j)).ge.GeneProbThresh).and.(Pr10(i,j).lt.Pr01(i,j)).and.(FilledPhase(i,j,2)==9)) FilledPhase(i,j,2)=1
-
 
 		enddo
 
