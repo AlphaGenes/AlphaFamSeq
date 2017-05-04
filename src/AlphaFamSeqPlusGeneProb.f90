@@ -556,8 +556,8 @@ subroutine CheckMissingData
 	open (unit=3,file=trim(filout3),status="unknown")
 
 
-	!write (filout3,'("AlphaFamSeqReads",i0,".txt")') Windows
-	!open (unit=3,file=trim(filout3),status="unknown")
+	write (filout3,'("AlphaFamSeqReads",i0,".txt")') Windows
+	open (unit=3,file=trim(filout3),status="unknown")
 
 	nTmpInd=0
 	do i=1,nInd
@@ -569,8 +569,8 @@ subroutine CheckMissingData
 		cov=cov/dble(nSnp)
 		write (2,'(1i0,1f7.3)') Ped(i,1),cov
 
-		!write (3,FmtInt) Ped(i,1), RawReads(i,:,1)
-		!write (3,FmtInt) Ped(i,1), RawReads(i,:,2)
+		write (3,FmtInt) Ped(i,1), RawReads(i,:,1)
+		write (3,FmtInt) Ped(i,1), RawReads(i,:,2)
 	enddo
 
 		do j=1,nSnp
