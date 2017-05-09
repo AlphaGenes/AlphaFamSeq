@@ -3,8 +3,8 @@
 ### What is this repository for? ###
 
 * A family-based phasing algorithm for sequence data
-* version 1.0
-* most updated branch: maradevel
+* Main Developer: Mara Battagin mara.battagin@roslin.ed.ac.uk
+* Most updated branch: maradevel
 
 ### Description ###
 
