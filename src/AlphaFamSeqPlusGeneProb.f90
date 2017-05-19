@@ -575,12 +575,13 @@ subroutine CheckMissingData
 		if (cov.gt.0) nTmpInd=nTmpInd+1
 		cov=cov/dble(nSnp)
 
+		std=0
 		do j=1,nSnp
 			std=std+((sum(RawReads(i,j,:))-cov)**2)
 		enddo
 		std=sqrt(std/(dble(nSnp)-1))
 
-
+		nReadsRemoved=0
 		do j=1,nSnp
 			if (((sum(RawReads(i,j,:))-cov)/std).gt.maxStdForReadsCount) then
 				RawReads(i,j,:)=0
