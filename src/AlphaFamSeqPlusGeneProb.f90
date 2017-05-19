@@ -589,7 +589,7 @@ subroutine CheckMissingData
 		if (cov.gt.0.0) then
 			do j=1,nSnp
 				if (((sum(RawReads(i,j,:))-cov)/std).gt.maxStdForReadsCount) then
-					write(4,'(2i10,1f10.6,2i4)'),Id(i),j,cov,RawReads(i,j,:)
+					write(4,'(2i10,1f10.6,2i4)'),Ped(i,1),j,cov,RawReads(i,j,:)
 					RawReads(i,j,:)=0
 					nReadsRemoved=nReadsRemoved+1
 				endif
