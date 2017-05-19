@@ -582,12 +582,14 @@ subroutine CheckMissingData
 		std=sqrt(std/(dble(nSnp)-1))
 
 		nReadsRemoved=0
-		do j=1,nSnp
-			if (((sum(RawReads(i,j,:))-cov)/std).gt.maxStdForReadsCount) then
-				RawReads(i,j,:)=0
-				nReadsRemoved=nReadsRemoved+1
-			endif
-		enddo
+		if (cov.gt.0.0) then
+			do j=1,nSnp
+				if (((sum(RawReads(i,j,:))-cov)/std).gt.maxStdForReadsCount) then
+					RawReads(i,j,:)=0
+					nReadsRemoved=nReadsRemoved+1
+				endif
+			enddo
+		endif
 
 
 		write (2,'(1i0,1f7.3,1f10.6)') Ped(i,1),cov,dble(nReadsRemoved)/dble(nSnp)*100
