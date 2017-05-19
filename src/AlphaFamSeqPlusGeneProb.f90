@@ -50,7 +50,7 @@ module GlobalPar
 	integer(kind=2),allocatable,dimension(:,:,:) 	:: SequenceData			! Input File - Snp array to add more information to the Reads
 	integer(kind=2),allocatable,dimension(:,:,:) 		:: RawReads				! Input File - Snp array to add more information to the Reads
 	character(len=100), allocatable, dimension(:) 	:: Ids
-	integer(int6), dimension(:), allocatable 		:: position
+	integer(int64), dimension(:), allocatable 		:: position
 	real(real64), allocatable, dimension(:) 		:: quality
 
 	integer(kind=1),allocatable,dimension(:,:) 		:: TrueGenos			! Control Results - True Genotypes to check results 
@@ -583,12 +583,10 @@ subroutine CheckMissingData
 
 		do j=1,nSnp
 			if (((sum(RawReads(i,j,:))-cov)/std).gt.maxStdForReadsCount) then
-				RawReads(i,j,:)==0
+				RawReads(i,j,:)=0
 				nReadsRemoved=nReadsRemoved+1
 			endif
 		enddo
-
-
 
 
 		write (2,'(1i0,1f7.3,1f10.6)') Ped(i,1),cov,dble(nReadsRemoved)/dble(nSnp)*100
