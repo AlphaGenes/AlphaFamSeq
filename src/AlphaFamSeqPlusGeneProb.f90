@@ -12,7 +12,7 @@ module GlobalPar
 	integer :: LenghtSequenceDataFile,nSnp,fistWindow						! SpecFile - Total number of Snps
 	integer :: InternalEdit                    								! SpecFile - Internal Edit 1==yes or 0==no
 	real(kind=8) :: EditingParameter										! SpecFile - 1st Number is the MAF (excluede SNP with MAF=<EditingParameter)
-
+	real(kind=8) :: maxStdForReadsCount										! SpecFile - Remove Reads that are above this standard deviation
 	integer :: nInd 														! Calculated Internally - Number of Individuals in the Pedigree
 	
 	real(kind=8) :: GeneProbThresh  										! SpecFile - Threshold to call a genotype from the probabilities First Value
@@ -50,7 +50,7 @@ module GlobalPar
 	integer(kind=2),allocatable,dimension(:,:,:) 	:: SequenceData			! Input File - Snp array to add more information to the Reads
 	integer(kind=2),allocatable,dimension(:,:,:) 		:: RawReads				! Input File - Snp array to add more information to the Reads
 	character(len=100), allocatable, dimension(:) 	:: Ids
-	integer(int32), dimension(:), allocatable 		:: position
+	integer(int6), dimension(:), allocatable 		:: position
 	real(real64), allocatable, dimension(:) 		:: quality
 
 	integer(kind=1),allocatable,dimension(:,:) 		:: TrueGenos			! Control Results - True Genotypes to check results 
@@ -372,7 +372,14 @@ subroutine ReadSpecfile
                     stop 2
                 endif 
 
-                
+			case('removeoutliersreadscount')
+                read(1, *, iostat=stat) maxStdForReadsCount
+                if (stat /= 0) then
+                    print *, "RemoveOutliersReadsCount not set properly in spec file"
+                    print *, maxStdForReadsCount
+                    stop 2
+                endif 
+
             case('genotypeprobability')
                 read(1, *, iostat=stat) GeneProbThresh,GeneProbThreshMin,ReduceThr,UsePrevGeneProb !nIter 
                 if (stat /= 0) then
@@ -536,8 +543,8 @@ subroutine CheckMissingData
 	use omp_lib
 	implicit none
 
-	integer :: i,j,nTmpInd,e
-	real :: cov
+	integer :: i,j,nTmpInd,e,nReadsRemoved
+	real :: cov,std
 	character(len=50) :: filout1,filout2,filout3
 	character(len=30) :: nChar
 	character(len=80) :: FmtInt
@@ -567,7 +574,24 @@ subroutine CheckMissingData
 		enddo
 		if (cov.gt.0) nTmpInd=nTmpInd+1
 		cov=cov/dble(nSnp)
-		write (2,'(1i0,1f7.3)') Ped(i,1),cov
+
+		do j=1,nSnp
+			std=std+((sum(RawReads(i,j,:))-cov)**2)
+		enddo
+		std=sqrt(std/(dble(nSnp)-1))
+
+
+		do j=1,nSnp
+			if (((sum(RawReads(i,j,:))-cov)/std).gt.maxStdForReadsCount) then
+				RawReads(i,j,:)==0
+				nReadsRemoved=nReadsRemoved+1
+			endif
+		enddo
+
+
+
+
+		write (2,'(1i0,1f7.3,1f10.6)') Ped(i,1),cov,dble(nReadsRemoved)/dble(nSnp)*100
 
 		!write (3,FmtInt) Ped(i,1), RawReads(i,:,1)
 		!write (3,FmtInt) Ped(i,1), RawReads(i,:,2)
@@ -1032,7 +1056,7 @@ subroutine CalculateFounderAssignment
 	
 	FounderAssignment(:,:,:)=0 
 	
-   	!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase,RecPed,FounderAssignment,nSnp,nInd) collapse(2)	
+   	!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase,RecPed,FounderAssignment,nSnp,nInd) !collapse(2)	
 	do e=2,3 ! Sire and Dam pos in the ped
 		do i=1,nInd
 			do j=1,nSnp
