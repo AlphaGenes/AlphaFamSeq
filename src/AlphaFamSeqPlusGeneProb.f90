@@ -545,7 +545,7 @@ subroutine CheckMissingData
 
 	integer :: i,j,nTmpInd,e,nReadsRemoved
 	real :: cov,std
-	character(len=50) :: filout1,filout2,filout3
+	character(len=50) :: filout1,filout2,filout3,filout4
 	character(len=30) :: nChar
 	character(len=80) :: FmtInt
 
@@ -566,6 +566,10 @@ subroutine CheckMissingData
 	!write (filout3,'("AlphaFamSeqReads",i0,".txt")') Windows
 	!open (unit=3,file=trim(filout3),status="unknown")
 
+	write (filout4,'("AlphaFamSeqReadsRemoved",i0,".txt")') Windows
+	open (unit=4,file=trim(filout4),status="unknown")
+
+
 	nTmpInd=0
 	do i=1,nInd
 		cov=0
@@ -585,6 +589,7 @@ subroutine CheckMissingData
 		if (cov.gt.0.0) then
 			do j=1,nSnp
 				if (((sum(RawReads(i,j,:))-cov)/std).gt.maxStdForReadsCount) then
+					write(4,'(2i10,1f10.6,2i4)'),Id(i),j,cov,RawReads(i,j,:)
 					RawReads(i,j,:)=0
 					nReadsRemoved=nReadsRemoved+1
 				endif
