@@ -259,13 +259,13 @@ program FamilyPhase
 	else 
 		CALL RENAME("AlphaFamSeqFinalGenos1.txt", "AlphaFamSeqFinalGenos.txt") 
 		CALL RENAME("AlphaFamSeqFinalPhase1.txt", "AlphaFamSeqFinalPhase.txt") 
-		CALL RENAME("AlphaFamSeqMarkersWithZeroReads1.txt", "AlphaFamSeqMarkersWithZeroReads.txt") 
+		CALL RENAME("AlphaFamSeqEditingMarkersRemoved1.txt", "AlphaFamSeqEditingMarkersRemoved.txt") 
 	endif
 
 	! Compute statistics
 	if ((trim(GenoFile)/="None").or.(trim(PhaseFile)/="None")) print*," Calculate Results"
-	if (trim(GenoFile)/="None") 	call GetResultsImputation(LenghtSequenceDataFile,"AlphaFamSeqFinalGenos.txt",GenoFile,"AlphaFamSeqMarkersWithZeroReads.txt",1,"No","AlphaFamSeq")
-	if (trim(PhaseFile)/="None") 	call GetResultsImputation(LenghtSequenceDataFile,"AlphaFamSeqFinalPhase.txt",PhaseFile,"AlphaFamSeqMarkersWithZeroReads.txt",2,"No","AlphaFamSeq")
+	if (trim(GenoFile)/="None") 	call GetResultsImputation(LenghtSequenceDataFile,"AlphaFamSeqFinalGenos.txt",GenoFile,"AlphaFamSeqEditingMarkersRemoved.txt",1,"No","AlphaFamSeq")
+	if (trim(PhaseFile)/="None") 	call GetResultsImputation(LenghtSequenceDataFile,"AlphaFamSeqFinalPhase.txt",PhaseFile,"AlphaFamSeqEditingMarkersRemoved.txt",2,"No","AlphaFamSeq")
 
 
 end program FamilyPhase
@@ -621,7 +621,7 @@ subroutine CleanUpTheRawData
 		if (cov(i).gt.0.0) then
 			do j=1,nSnp
 				if (((sum(RawReads(i,j,:))-cov(i))/std).gt.maxStdForReadsCount) then
-					write(4,'(2i10,1f10.6,2i4)'),Ped(i,1),j,cov(i),RawReads(i,j,:)
+					write(4,'(2i20,1f10.6,2i4)'),Ped(i,1),j,cov(i),RawReads(i,j,:)
 					RawReads(i,j,:)=0
 					nReadsRemoved=nReadsRemoved+1
 				endif
@@ -684,7 +684,7 @@ subroutine CleanUpTheRawData
 		endif
 
 		if (pHetExcess.le.ThresholdExcessHetero) then
-			write (1,'(1i10,1i20,1i4)') j,position(j),1
+			write (3,'(1i10,1i20,1i4)') j,position(j),1
 			write(5,'(1i20,3i4,5x,3i4,1f10.5)') position(j),ObsGenos(:),EstGenos(:),pHetExcess
 
 			MarkersToExclude(j)=1
@@ -1714,7 +1714,7 @@ subroutine MergeResultsFile
   
 	integer :: i,j,k,l,m,DumI,nSnpWindow,MaxNrMissingSnp
 	integer(kind=1),allocatable,dimension(:) :: TempImput,FinalOutput
-	integer(int32),allocatable,dimension(:) :: MissingSnpTmp,MissingSnp
+	integer(int32),allocatable,dimension(:,:) :: MissingSnpTmp,MissingSnp
 	integer,allocatable,dimension(:,:) :: WindowsInfo
 
 	character(len=80) :: filout1,filout2,nChar,FmtInt
@@ -1731,7 +1731,7 @@ subroutine MergeResultsFile
 
 	open (unit=5,file="AlphaFamSeqFinalPhase.txt",status="unknown")
 	open (unit=6,file="AlphaFamSeqFinalGenos.txt",status="unknown")
-	open (unit=7,file="AlphaFamSeqMarkersWithZeroReads.txt",status="unknown")
+	open (unit=7,file="AlphaFamSeqEditingMarkersRemoved.txt",status="unknown")
 
 
 	read(1,*)
@@ -1829,15 +1829,15 @@ subroutine MergeResultsFile
 
 	! Markers with zero reads
 	MaxNrMissingSnp=LenghtSequenceDataFile+(Windows*ChunkLengthB*2)
-	allocate(MissingSnpTmp(MaxNrMissingSnp))
+	allocate(MissingSnpTmp(MaxNrMissingSnp,3))
 	MissingSnp=0
 	i=1
 	do j=1,Windows
-		write (filout1,'("AlphaFamSeqMarkersWithZeroReads",i0,".txt")') j
+		write (filout1,'("AlphaFamSeqEditingMarkersRemoved",i0,".txt")') j
 		open (unit=4,file=trim(filout1),status="unknown")
 		
 		do 
-			read(4,*,END=904) MissingSnpTmp(i)
+			read(4,*,END=904) MissingSnpTmp(i,1),MissingSnpTmp(i,2),MissingSnpTmp(i,3)
 			i=i+1
 		enddo
 		904 continue
@@ -1845,14 +1845,14 @@ subroutine MergeResultsFile
 	enddo
 
 	i=i-1
-	allocate(MissingSnp(1:i))
-	MissingSnp=MissingSnpTmp(1:i)
+	allocate(MissingSnp(1:i,3))
+	MissingSnp=MissingSnpTmp(1:i,:)
 	deallocate(MissingSnpTmp)
-	call HpSortI(i,MissingSnp)
-	write(7,'(1i0)') MissingSnp(1)	! Problems with array bound if I use a single loop.
+	call HpSortI(i,MissingSnp(:,1))
+	write(7,'(1i20,1i10,1i4)') MissingSnp(1,:) ! Problems with array bound if I use a single loop.
 	do j=2,i
-		if ((j.gt.1).and.(MissingSnp(j)/=MissingSnp(j-1))) then
-			write(7,'(1i0)') MissingSnp(j)
+		if ((j.gt.1).and.(MissingSnp(j,1)/=MissingSnp(j-1,1))) then
+			write(7,'(1i20,1i10,1i4)') MissingSnp(j,:)
 		endif
 	enddo
 	close(7)
@@ -1868,7 +1868,7 @@ subroutine MergeResultsFile
 		open (unit=3,file=trim(filout2),status="unknown")
 		close(3,status="delete")
 		
-		write (filout2,'("AlphaFamSeqMarkersWithZeroReads",i0,".txt")') i
+		write (filout2,'("AlphaFamSeqEditingMarkersRemoved",i0,".txt")') i
 		open (unit=4,file=trim(filout2),status="unknown")
 		close(4,status="delete")
 	enddo
