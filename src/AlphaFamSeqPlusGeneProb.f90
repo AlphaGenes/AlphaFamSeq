@@ -683,14 +683,15 @@ subroutine CleanUpTheRawData
 			MarkersToExclude(j)=1
 		endif
 
-		if (pHetExcess.le.ThresholdExcessHetero) then
-			write (3,'(1i10,1i20,1i4)') j,position(j),1
-			write(5,'(1i20,3i4,5x,3i4,1f10.5)') position(j),ObsGenos(:),EstGenos(:),pHetExcess
+		if (MarkersToExclude(j).ne.1) then
+			if (pHetExcess.le.ThresholdExcessHetero) then
+				write (3,'(1i10,1i20,1i4)') j,position(j),1
+				write(5,'(1i20,3i4,5x,3i4,1f10.5)') position(j),ObsGenos(:),EstGenos(:),pHetExcess
 
-			MarkersToExclude(j)=1
+				MarkersToExclude(j)=1
 		
+			endif
 		endif
-
 
 	enddo
 	!!$OMP END PARALLEL DO
