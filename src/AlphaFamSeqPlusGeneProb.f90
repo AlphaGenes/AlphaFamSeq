@@ -10,9 +10,13 @@ module GlobalPar
 
 	integer :: nIndSeq                         								! SpecFile - Number of Individuals in the sequence file
 	integer :: LenghtSequenceDataFile,nSnp,fistWindow						! SpecFile - Total number of Snps
+	
 	integer :: InternalEdit                    								! SpecFile - Internal Edit 1==yes or 0==no
 	real(kind=8) :: EditingParameter										! SpecFile - 1st Number is the MAF (excluede SNP with MAF=<EditingParameter)
 	real(kind=8) :: maxStdForReadsCount										! SpecFile - Remove Reads that are above this standard deviation
+	real(kind=8) :: ThresholdExcessHetero									! SpecFile - Remove variants with an excess of heterozygotes
+	integer 	 :: ThresholdReadsCount										! SpecFile - Remove single/double/n-tones 
+	
 	integer :: nInd 														! Calculated Internally - Number of Individuals in the Pedigree
 	
 	real(kind=8) :: GeneProbThresh  										! SpecFile - Threshold to call a genotype from the probabilities First Value
@@ -43,12 +47,13 @@ module GlobalPar
 	integer :: SolutionChanged                  							! Control Parameter - used to finish the program 
 	integer :: StartSnp,EndSnp
 	
-	integer(int64),allocatable,dimension(:,:) 				:: Ped          		! Input File - Pedigree
-	integer(int64),allocatable,dimension(:,:) 				:: RecPed				! Temporary File - Pedigree Recoded
-	integer(int64),allocatable,dimension(:) 				:: Id           		! Read Data - used to read unsorted data
+	integer(int64),allocatable,dimension(:,:) 		:: Ped         			! Input File - Pedigree
+	integer(int64),allocatable,dimension(:,:) 		:: RecPed				! Temporary File - Pedigree Recoded
+	integer(int64),allocatable,dimension(:) 		:: Id           		! Read Data - used to read unsorted data
 
 	integer(kind=2),allocatable,dimension(:,:,:) 	:: SequenceData			! Input File - Snp array to add more information to the Reads
-	integer(kind=2),allocatable,dimension(:,:,:) 		:: RawReads				! Input File - Snp array to add more information to the Reads
+	integer(kind=2),allocatable,dimension(:,:,:) 	:: RawReads				! Input File - Snp array to add more information to the Reads
+	
 	character(len=100), allocatable, dimension(:) 	:: Ids
 	integer(int64), dimension(:), allocatable 		:: position
 	real(real64), allocatable, dimension(:) 		:: quality
@@ -56,6 +61,7 @@ module GlobalPar
 	integer(kind=1),allocatable,dimension(:,:) 		:: TrueGenos			! Control Results - True Genotypes to check results 
 	integer(kind=1),allocatable,dimension(:,:,:) 	:: TruePhase			! Control Results - True Phase to check results 
 
+	integer(kind=1),allocatable,dimension(:)		:: MarkersToExclude		! CleanUpTheRawData - 0=use the variant; 1= don't use the variant
 	
 	character(len=1),allocatable,dimension(:,:) 	:: CheckGenos   		! Control Results - Use character to check True vs Imputed Genotypes
 	character(len=1),allocatable,dimension(:,:,:) 	:: CheckPhase 			! Control Results - Use character to check True vs Imputed PhaseFile
@@ -156,7 +162,8 @@ program FamilyPhase
 
 		call ReadData
 		call InitialiseArrays
-		call CheckMissingData
+		call CleanUpTheRawData
+
 		if (UsePrevGeneProb==0) then
 			call RunGeneProb
 			call SaveGeneProbResults
@@ -295,7 +302,6 @@ function probscore(x1)
 	probscore=nint(-10*log10(x2)*100)
 
 	return
-
 end function probscore
 
 !###########################################################################################################################################################
@@ -307,7 +313,6 @@ function score2prob(x1)
 
 	score2prob=10**(-x1/10*100) 
 	return
-
 end function score2prob
 
 !###########################################################################################################################################################
@@ -379,6 +384,24 @@ subroutine ReadSpecfile
                     print *, maxStdForReadsCount
                     stop 2
                 endif 
+
+			case('removemarkerslownrreads')
+                read(1, *, iostat=stat) ThresholdReadsCount
+                if (stat /= 0) then
+                    print *, "RemoveMarkersLowNrReads not set properly in spec file"
+                    print *, ThresholdReadsCount
+                    stop 2
+                endif 
+
+			case('removeexcessheteropvalue')
+                read(1, *, iostat=stat) ThresholdExcessHetero
+                if (stat /= 0) then
+                    print *, "RemoveExcessHeteroPvalue not set properly in spec file"
+                    print *, ThresholdExcessHetero
+                    stop 2
+                endif 
+
+
 
             case('genotypeprobability')
                 read(1, *, iostat=stat) GeneProbThresh,GeneProbThreshMin,ReduceThr,UsePrevGeneProb !nIter 
@@ -531,106 +554,261 @@ end subroutine UseSnpChipInformation
 
 !###########################################################################################
 
-! Print out the Snp positions that have no reads. When we use low coverage sequence to simulate
-!  the data, or when we have a subset of real data, there can be markers with no info.
-!  Doesn't make sense to calculate the statistics also for them
+! This step perform 3 editing (at the moment):
+! 1) Markers with no reads (it happens with simulated data or with a subset of real data) 
+! 2) Remove variants with less than nUserDefined reads for the referece or alternative allele (i.e., single- and double-tones)
+! 3) Remove ReadsCount/invidual that are above a user defined threshold (i.e., excess of reads compare to the average)
+! 4) Remove variants with an excess of heterozygotes using the Exact Tests of HWE described in Wigginton et al., Am.J.Hum.Genet. 76:887-883,2005
 
-! TODO : calculate average coverage for SNP at this point. So you can deallocate the 
-!        RawReads array when you finish to use it and not at the end of the program.
-subroutine CheckMissingData
+! Moreover, the coverage/individual and coverage/marker are calculated in this step
+
+subroutine CleanUpTheRawData
 
 	use GlobalPar
 	use omp_lib
 	implicit none
 
-	integer :: i,j,nTmpInd,e,nReadsRemoved
-	real :: cov,std
-	character(len=50) :: filout1,filout2,filout3,filout4
+	integer :: i,j,nTmpInd,e,nReadsRemoved,pos
+	real 	:: cov(nInd)
+	real 	:: std,covSnp
+	character(len=50) :: filout1,filout2,filout3,filout4,filout5
 	character(len=30) :: nChar
 	character(len=80) :: FmtInt
 
-	!write(nChar,*) nSnp
-	!FmtInt='(i0,'//trim(adjustl(nChar))//'i4)'
-	
+	integer(kind=2),allocatable,dimension(:,:) :: tmpReads 
 
-	write (filout1,'("AlphaFamSeqMarkersWithZeroReads",i0,".txt")') Windows
+	real(kind=8)					 				:: pHetExcess
+	integer											:: ObsGenos(3), EstGenos(3) ! observed genotypes
+
+
+	write (filout1,'("AlphaFamSeqEditingIndividualCoverage",i0,".txt")') Windows
 	open (unit=1,file=trim(filout1),status="unknown")
-		
-	write (filout2,'("AlphaFamSeqIndividualCoverage",i0,".txt")') Windows
+
+	write (filout2,'("AlphaFamSeqEditingMarkerCoverage",i0,".txt")') Windows
 	open (unit=2,file=trim(filout2),status="unknown")
 
-	write (filout3,'("AlphaFamSeqMarkerCoverage",i0,".txt")') Windows
+	write (filout3,'("AlphaFamSeqEditingMarkersRemoved",i0,".txt")') Windows
 	open (unit=3,file=trim(filout3),status="unknown")
 
+	write (filout4,'("AlphaFamSeqEditingIndividualReadsRemoved",i0,".txt")') Windows
+	open (unit=4,file=trim(filout4),status="unknown")
+
+	write (filout5,'("AlphaFamSeqEditingPvalueExcessOfHeterozygotes",i0,".txt")') Windows
+	open (unit=5,file=trim(filout5),status="unknown")
 
 	!write (filout3,'("AlphaFamSeqReads",i0,".txt")') Windows
 	!open (unit=3,file=trim(filout3),status="unknown")
 
-	write (filout4,'("AlphaFamSeqReadsRemoved",i0,".txt")') Windows
-	open (unit=4,file=trim(filout4),status="unknown")
 
+	MarkersToExclude=0 ! 0=Use The marker ; 1=Don't use the marker
 
 	nTmpInd=0
 	do i=1,nInd
-		cov=0
+		cov(i)=0
 		do j=1,nSnp
-			cov=cov+sum(RawReads(i,j,:))
+			cov(i)=cov(i)+sum(RawReads(i,j,:))
 		enddo
-		if (cov.gt.0) nTmpInd=nTmpInd+1
-		cov=cov/dble(nSnp)
+		if (cov(i).gt.0) nTmpInd=nTmpInd+1
+		cov(i)=cov(i)/dble(nSnp)
 
 		std=0
 		do j=1,nSnp
-			std=std+((sum(RawReads(i,j,:))-cov)**2)
+			std=std+((sum(RawReads(i,j,:))-cov(i))**2)
 		enddo
 		std=sqrt(std/(dble(nSnp)-1))
 
 		nReadsRemoved=0
-		if (cov.gt.0.0) then
+		if (cov(i).gt.0.0) then
 			do j=1,nSnp
-				if (((sum(RawReads(i,j,:))-cov)/std).gt.maxStdForReadsCount) then
-					write(4,'(2i10,1f10.6,2i4)'),Ped(i,1),j,cov,RawReads(i,j,:)
+				if (((sum(RawReads(i,j,:))-cov(i))/std).gt.maxStdForReadsCount) then
+					write(4,'(2i10,1f10.6,2i4)'),Ped(i,1),j,cov(i),RawReads(i,j,:)
 					RawReads(i,j,:)=0
 					nReadsRemoved=nReadsRemoved+1
 				endif
 			enddo
 		endif
 
-
-		write (2,'(1i0,1f7.3,1f10.6)') Ped(i,1),cov,dble(nReadsRemoved)/dble(nSnp)*100
+		write (1,'(1i0,1f7.3,1f10.6)') Ped(i,1),cov(i),dble(nReadsRemoved)/dble(nSnp)*100
 
 		!write (3,FmtInt) Ped(i,1), RawReads(i,:,1)
 		!write (3,FmtInt) Ped(i,1), RawReads(i,:,2)
 	enddo
 
-		do j=1,nSnp
-			cov=0
-			e=0
-			cov=sum(RawReads(:,j,:))/dble(nTmpInd)
-			if (cov.lt.EditingParameter) then
-				RawReads(:,j,:)=0
-				e=1
-			endif
-			write (3,'(1i0,1x,1f7.3,1x,1i0)') j,cov,e
-		enddo
-		
+	close(1)
+	close(4)
 
+	do j=1,nSnp
+		covSnp=0
+		!e=0
+		covSnp=sum(RawReads(:,j,:))/dble(nTmpInd)
+		!if (cov.lt.EditingParameter) then
+		!	RawReads(:,j,:)=0
+		!	e=1
+		!endif
+		write (2,'(1i0,1x,1f7.3,1x,1i0)') j,covSnp,e
+	enddo
+	
+	close(2)
+
+	allocate(tmpReads(nTmpInd,2))
+	
 	!!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (RawReads,nSnp)
 	do j=1,nSnp
+		
+		! 1) Markers with zero reads	
 		if (maxval(RawReads(:,j,:))==0) then
-			write (1,'(i0)') j
+			write (3,'(1i10,1i20,1i4)') j,position(j),0
+			MarkersToExclude(j)=1
 		endif
+
+		! 2) Remove single/double-tones and excess heterozygotes
+		
+		tmpReads=9
+		ObsGenos=0
+		EstGenos=0
+		pHetExcess=0.0
+
+		pos=1
+		do i=1,nInd
+			if (cov(i).gt.0.0) then
+				tmpReads(pos,:)=RawReads(i,j,:)
+				pos=pos+1
+			endif
+		enddo
+
+		call ExcessHeterozygotes(tmpReads(:,:),nTmpInd,ObsGenos,EstGenos,pHetExcess)
+
+		if (((ObsGenos(2)+dble(2*ObsGenos(1))).le.ThresholdReadsCount).or.((ObsGenos(2)+dble(2*ObsGenos(1))).lt.ThresholdReadsCount)) then
+			write (3,'(1i10,1i20,1i4)') j,position(j),2
+			MarkersToExclude(j)=1
+		endif
+
+		if (pHetExcess.le.ThresholdExcessHetero) then
+			write (1,'(1i10,1i20,1i4)') j,position(j),1
+			write(5,'(1i20,3i4,5x,3i4,1f10.5)') position(j),ObsGenos(:),EstGenos(:),pHetExcess
+
+			MarkersToExclude(j)=1
+		
+		endif
+
+
 	enddo
 	!!$OMP END PARALLEL DO
 
+	write(*,'(1a10,1x,1i0,1a4,1x,1i0,1a10)'),"Exclude",count(MarkersToExclude(:)==1),"on",nSnp,"Markers"
 
+	deallocate(tmpReads)
 	
-	close (1)
-	close (2)
 	close (3)
-end subroutine CheckMissingData
+	close (5)
+end subroutine CleanUpTheRawData
 
-!###########################################################################################
+
+!###########################################################################################################################################################
+subroutine ExcessHeterozygotes(ReadsCount,n,ObsGenos,EstGenosInit,pHetExcess)
+
+	implicit none
+
+	integer,intent(in) 						:: n ! Nr of individuals
+	integer(kind=2),intent(in)				:: ReadsCount(n,2) ! Reads for 1 variant and all individuals
+	real(kind=8),intent(inout) 				:: pHetExcess
+	integer,intent(inout)					:: ObsGenos(3),EstGenosInit(3) ! observed  & estimated genotypes
+	
+	integer									:: EstGenos(3) ! estimated genotypes
+	
+	integer									:: i,nGeno,RareHomo,CommomHomo,RareCopies,mid,posEst,posObs
+	real(kind=8),allocatable,dimension(:) 	:: probs
+	real(kind=8)							:: SumProbs
+
+	ObsGenos=0
+	EstGenos=0
+	nGeno=0
+
+	do i=1,n
+		if (sum(ReadsCount(i,:)).gt.0) then
+			if ((ReadsCount(i,1).gt.0).and.(ReadsCount(i,2).eq.0)) ObsGenos(1)=ObsGenos(1)+1
+			if ((ReadsCount(i,1).gt.0).and.(ReadsCount(i,2).gt.0)) ObsGenos(2)=ObsGenos(2)+1
+			if ((ReadsCount(i,1).eq.0).and.(ReadsCount(i,2).gt.0)) ObsGenos(3)=ObsGenos(3)+1
+			nGeno=nGeno+1
+		endif
+	enddo
+
+	RareHomo=3
+	CommomHomo=1
+	if (ObsGenos(1).lt.ObsGenos(2)) then
+		RareHomo=1 ! if the number of HomoReferenceAllele < HomoAlternativeAllele switch the common and rare allele
+		CommomHomo=3
+	endif
+
+
+	RareCopies=floor(2.0*dble(ObsGenos(RareHomo))+ObsGenos(2))
+	mid=floor(dble(RareCopies)*dble(2*nGeno-RareCopies)/dble(2*nGeno))
+	if (mid.lt.0) mid=0
+
+	EstGenos(2)=mid
+	EstGenos(RareHomo)=floor(dble(RareCopies-mid)/2.0)
+	if (EstGenos(RareHomo).lt.0) EstGenos(RareHomo)=0
+	EstGenos(CommomHomo)=nGeno-EstGenos(RareHomo)-EstGenos(2)
+	if (EstGenos(CommomHomo).lt.0) EstGenos(CommomHomo)=0
+
+	EstGenosInit(:)=EstGenos(:)
+	
+	! # we observed 21 copies of the minor allele (RareCopies) --> the observed nr of hetero  (ObsGenos(2)) will vary seq(1,21,2)
+
+	! The number of possible heterozygotes is odd if RareCopies is odd, and is even if RareCopies is even
+	if (mod(RareCopies,2).eq.0) then
+		allocate(probs(0:(RareCopies/2)))
+		posEst=(mid)/2
+		posObs=ObsGenos(2)/2
+	else if(mod(RareCopies,2).eq.1) then
+		allocate(probs(0:((RareCopies+1)/2)))
+		posEst=(mid+1)/2
+		posObs=(ObsGenos(2)+1)/2
+	endif
+
+	probs(posEst)=1.0
+	SumProbs=probs(posEst)
+
+	! Start to calculate the probabilities using the equations 2 of Am.J.Hum.Genet.76:887-883,2005
+	!
+	!!!  P(NAB=nAB-2|N,nA) = het_probs[curr_hets] * curr_hets * (curr_hets - 1.0) / (4.0 * (curr_homr + 1.0) * (curr_homc + 1.0))
+	!!!  P(NAB=nAB+2|N,nA) = het_probs[curr_hets] * 4.0 * curr_homr * curr_homc	/((curr_hets + 2.0) * (curr_hets + 1.0))
+
+	do i=posEst,2,-1
+		probs(i-1)=probs(i)*dble(EstGenos(2))*dble(EstGenos(2)-1.0)/(4.0*dble(EstGenos(RareHomo)+1.0)*dble(EstGenos(CommomHomo)+1.0))
+		EstGenos(2)=EstGenos(2)-2
+		EstGenos(1)=EstGenos(1)+1
+		EstGenos(3)=EstGenos(3)+1
+		SumProbs=SumProbs+probs(i-1)
+	enddo
+
+	EstGenos(2)=mid
+	EstGenos(RareHomo)=floor(dble(RareCopies-mid)/2.0)
+	if (EstGenos(RareHomo).lt.0) EstGenos(RareHomo)=0
+	EstGenos(CommomHomo)=nGeno-EstGenos(RareHomo)-EstGenos(2)
+	if (EstGenos(CommomHomo).lt.0) EstGenos(CommomHomo)=0
+
+	if (EstGenos(2).lt.RareCopies) then
+		do i=posEst,(size(probs)-2)
+			probs(i+1)=probs(i)*4.0*dble(EstGenos(CommomHomo))*dble(EstGenos(RareHomo))/(dble(EstGenos(2)+2.0)*dble(EstGenos(2)+1.0))
+			EstGenos(2)=EstGenos(2)+2
+			EstGenos(1)=EstGenos(1)-1
+			EstGenos(3)=EstGenos(3)-1
+			SumProbs=SumProbs+probs(i+1)
+		enddo
+	endif
+
+	probs(:)=probs(:)/SumProbs
+
+	pHetExcess=probs(posObs)
+	if (mid.lt.RareCopies) then
+		do i=(posObs+1),(size(probs)-1)
+			pHetExcess=pHetExcess+probs(i)
+		enddo
+	endif
+end subroutine ExcessHeterozygotes
+
+!###########################################################################################################################################################
 
 ! At the end of each main step of the program, this subroutine fill the gaps
 !  i.e. if a genotype is Homozygote but the phase is missing, then it fill the phase
@@ -854,81 +1032,82 @@ subroutine BuildConsensus
 
 			if (maxval(FounderAssignment(i,:,k))/=0) then
 				do j=1,nSnp
+					if (MarkersToExclude(j).eq.0) then
 						
-					ConsensusIds(i,:,:)=0
-					if (FounderAssignment(i,j,k)/=0) then
+						ConsensusIds(i,:,:)=0
+						if (FounderAssignment(i,j,k)/=0) then
 
-						! Save Ids of the trio (founder-parent-proband)
+							! Save Ids of the trio (founder-parent-proband)
 
-						ConsensusIds(i,1,1)=FounderAssignment(i,j,k)   			! Id Founder
-						ConsensusIds(i,2,1)=FounderAssignment(i,j,k)			! Id Founder
-						ConsensusIds(i,3,1)=RecPed(i,e) 						! Id parent
-						ConsensusIds(i,4,1)=RecPed(i,1) 						! Id proband
+							ConsensusIds(i,1,1)=FounderAssignment(i,j,k)   			! Id Founder
+							ConsensusIds(i,2,1)=FounderAssignment(i,j,k)			! Id Founder
+							ConsensusIds(i,3,1)=RecPed(i,e) 						! Id parent
+							ConsensusIds(i,4,1)=RecPed(i,1) 						! Id proband
 
-						! Save gamete that the trio shared
+							! Save gamete that the trio shared
 
-						ConsensusIds(i,1,2)=1 	! gamete1 Founder
-						ConsensusIds(i,2,2)=2 	! gamete2 Founder
+							ConsensusIds(i,1,2)=1 	! gamete1 Founder
+							ConsensusIds(i,2,2)=2 	! gamete2 Founder
 
-						if(RecPed(ConsensusIds(i,3,1),2)==FounderAssignment(i,j,k)) then
-							ConsensusIds(i,3,2)=1	! From male 
-						endif
-
-						if(RecPed(ConsensusIds(i,3,1),3)==FounderAssignment(i,j,k)) then
-							ConsensusIds(i,3,2)=2  ! From female
-						endif
-
-						ConsensusIds(i,4,2)=k 	
-							
-						ConsensusHaplotype(j)=9
-
-						Count1=0
-						Count0=0
-
-						do m=1,2 ! members and gamets ! Avoid to use markers that are not fully phased
-							if (sum(FilledPhase(ConsensusIds(i,m,1),j,:))<3) then 
-								if (FilledPhase(ConsensusIds(i,m,1),j,ConsensusIds(i,m,2))==1) Count1=Count1+1
-								if (FilledPhase(ConsensusIds(i,m,1),j,ConsensusIds(i,m,2))==0) Count0=Count0+1
+							if(RecPed(ConsensusIds(i,3,1),2)==FounderAssignment(i,j,k)) then
+								ConsensusIds(i,3,2)=1	! From male 
 							endif
-						enddo
 
-						do m=3,4 ! members and gamets
-							if (FilledPhase(ConsensusIds(i,m,1),j,ConsensusIds(i,m,2))==1) Count1=Count1+1
-							if (FilledPhase(ConsensusIds(i,m,1),j,ConsensusIds(i,m,2))==0) Count0=Count0+1
-						enddo
+							if(RecPed(ConsensusIds(i,3,1),3)==FounderAssignment(i,j,k)) then
+								ConsensusIds(i,3,2)=2  ! From female
+							endif
 
-						if (Count1>1 .and. Count1.gt.Count0) ConsensusHaplotype(j)=1 !Count0==0
-						if (Count0>1 .and. Count0.gt.Count1) ConsensusHaplotype(j)=0 !Count1==0
+							ConsensusIds(i,4,2)=k 	
+								
+							ConsensusHaplotype(j)=9
 
+							Count1=0
+							Count0=0
 
-						if (ConsensusHaplotype(j)/=9) then
-							do m=3,4
-								FilledPhase(ConsensusIds(i,m,1),j,ConsensusIds(i,m,2))=ConsensusHaplotype(j)
-								if ((FilledGenos(ConsensusIds(i,m,1),j)/=9).and.(sum(FilledPhase(ConsensusIds(i,m,1),j,:))<3)) then
-									if (FilledGenos(ConsensusIds(i,m,1),j)/=sum(FilledPhase(ConsensusIds(i,m,1),j,:))) then
-										FilledPhase(ConsensusIds(i,m,1),j,ConsensusIds(i,m,2))=9
-									endif
+							do m=1,2 ! members and gamets ! Avoid to use markers that are not fully phased
+								if (sum(FilledPhase(ConsensusIds(i,m,1),j,:))<3) then 
+									if (FilledPhase(ConsensusIds(i,m,1),j,ConsensusIds(i,m,2))==1) Count1=Count1+1
+									if (FilledPhase(ConsensusIds(i,m,1),j,ConsensusIds(i,m,2))==0) Count0=Count0+1
 								endif
 							enddo
+
+							do m=3,4 ! members and gamets
+								if (FilledPhase(ConsensusIds(i,m,1),j,ConsensusIds(i,m,2))==1) Count1=Count1+1
+								if (FilledPhase(ConsensusIds(i,m,1),j,ConsensusIds(i,m,2))==0) Count0=Count0+1
+							enddo
+
+							if (Count1>1 .and. Count1.gt.Count0) ConsensusHaplotype(j)=1 !Count0==0
+							if (Count0>1 .and. Count0.gt.Count1) ConsensusHaplotype(j)=0 !Count1==0
+
+
+							if (ConsensusHaplotype(j)/=9) then
+								do m=3,4
+									FilledPhase(ConsensusIds(i,m,1),j,ConsensusIds(i,m,2))=ConsensusHaplotype(j)
+									if ((FilledGenos(ConsensusIds(i,m,1),j)/=9).and.(sum(FilledPhase(ConsensusIds(i,m,1),j,:))<3)) then
+										if (FilledGenos(ConsensusIds(i,m,1),j)/=sum(FilledPhase(ConsensusIds(i,m,1),j,:))) then
+											FilledPhase(ConsensusIds(i,m,1),j,ConsensusIds(i,m,2))=9
+										endif
+									endif
+								enddo
+							endif
+
+
+							!AlternativeGamete=Abs((ConsensusIds(i,4,2)-1)-1)+1 ! gamete for the other founder (i.e. if i=male --> AlternativeGamete=female)
+							!if (ConsensusHaplotype(j)==0) then
+							!	if ((FilledPhase(ConsensusIds(i,4,1),j,AlternativeGamete)==9).and.(RawReads(ConsensusIds(i,4,1),j,2)>=ReadCountMinThresh)) then
+							!		FilledPhase(ConsensusIds(i,4,1),j,AlternativeGamete)=1
+							!	endif
+							!endif
+
+							!if (ConsensusHaplotype(j)==1) then
+							!	if ((FilledPhase(ConsensusIds(i,4,1),j,AlternativeGamete)==9).and.(RawReads(ConsensusIds(i,4,1),j,1)>=ReadCountMinThresh)) then
+							!		FilledPhase(ConsensusIds(i,4,1),j,AlternativeGamete)=0
+							!	endif
+							!endif
+
+						
 						endif
-
-
-						!AlternativeGamete=Abs((ConsensusIds(i,4,2)-1)-1)+1 ! gamete for the other founder (i.e. if i=male --> AlternativeGamete=female)
-						!if (ConsensusHaplotype(j)==0) then
-						!	if ((FilledPhase(ConsensusIds(i,4,1),j,AlternativeGamete)==9).and.(RawReads(ConsensusIds(i,4,1),j,2)>=ReadCountMinThresh)) then
-						!		FilledPhase(ConsensusIds(i,4,1),j,AlternativeGamete)=1
-						!	endif
-						!endif
-
-						!if (ConsensusHaplotype(j)==1) then
-						!	if ((FilledPhase(ConsensusIds(i,4,1),j,AlternativeGamete)==9).and.(RawReads(ConsensusIds(i,4,1),j,1)>=ReadCountMinThresh)) then
-						!		FilledPhase(ConsensusIds(i,4,1),j,AlternativeGamete)=0
-						!	endif
-						!endif
-
-					
 					endif
-
 				enddo
 			endif
 		enddo
@@ -1066,19 +1245,20 @@ subroutine CalculateFounderAssignment
 	do e=2,3 ! Sire and Dam pos in the ped
 		do i=1,nInd
 			do j=1,nSnp
-				!k=e-1 ! Sire and Dam gamete
-				!if (RecPed(i,e-1)==0) exit
-				if (FilledGenos(RecPed(i,e),j)==1) then
-					if (sum(FilledPhase(RecPed(i,e),j,:))<3) then
-						if (FilledPhase(RecPed(i,e),j,1)==FilledPhase(i,j,e-1)) FounderAssignment(i,j,e-1)=RecPed(RecPed(i,e),2) !Sire of Parent !FounderId(k,1)
-						if (FilledPhase(RecPed(i,e),j,2)==FilledPhase(i,j,e-1)) FounderAssignment(i,j,e-1)=RecPed(RecPed(i,e),3) !Dam  of Parent !FounderId(k,2)
+				if (MarkersToExclude(j).eq.0) then
+					!k=e-1 ! Sire and Dam gamete
+					!if (RecPed(i,e-1)==0) exit
+					if (FilledGenos(RecPed(i,e),j)==1) then
+						if (sum(FilledPhase(RecPed(i,e),j,:))<3) then
+							if (FilledPhase(RecPed(i,e),j,1)==FilledPhase(i,j,e-1)) FounderAssignment(i,j,e-1)=RecPed(RecPed(i,e),2) !Sire of Parent !FounderId(k,1)
+							if (FilledPhase(RecPed(i,e),j,2)==FilledPhase(i,j,e-1)) FounderAssignment(i,j,e-1)=RecPed(RecPed(i,e),3) !Dam  of Parent !FounderId(k,2)
+						endif
 					endif
 				endif
 			enddo
 		enddo
 	enddo
     !$OMP END PARALLEL DO
-
 end subroutine CalculateFounderAssignment
 
 !#####################################################################################################################
@@ -1103,7 +1283,7 @@ subroutine SimpleFillInBasedOnProgenyReads
 	!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (FilledPhase,RecPed,nSnp, nInd) !collapse(2)
 	do i=1,nInd
 		do j=1,nSnp
-			if ((sum(FilledPhase(i,j,:))==0).or.(sum(FilledPhase(i,j,:))==2)) then
+			if ((MarkersToExclude(j).eq.0).and.(sum(FilledPhase(i,j,:))==0).or.(sum(FilledPhase(i,j,:))==2)) then
 				IdSir=RecPed(i,2)
 				IdDam=RecPed(i,3)
 				!if (IdDam/=0) then
@@ -1141,7 +1321,7 @@ subroutine SimpleFillInBasedOnParentsReads
 		do i=1,nInd
 			do j=1,nSnp
 				!if (RecPed(i,e+1)==0) exit
-				if (maxval(FilledPhase(i,j,:))==9) then
+				if ((MarkersToExclude(j).eq.0).and.(maxval(FilledPhase(i,j,:))==9)) then
 					k=Abs((e-1)-1)+1
 					if (FilledGenos(RecPed(i,e+1),j)==0) then
 						FilledPhase(i,j,e)=0
@@ -1212,7 +1392,6 @@ subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 
 	enddo
 	!$OMP END PARALLEL DO
-
 end subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 
 !################################################################################################
@@ -1305,6 +1484,9 @@ subroutine AllocateArrays
 	allocate(CurrentCountID%old(nInd))
 	allocate(CurrentCountID%diff(nInd))
 
+	! Markers to exclude
+	allocate(MarkersToExclude(nSnp))
+
 end subroutine AllocateArrays
 
 !################################################################################################
@@ -1341,6 +1523,9 @@ subroutine DeallocateArrays
 	if (allocated(CurrentCountID%old)) deallocate(CurrentCountID%old)
 	if (allocated(CurrentCountID%diff)) deallocate(CurrentCountID%diff)
 
+	! Markers to exclude
+	deallocate(MarkersToExclude)
+
 	! Checks
 	!deallocate(CheckPhase)
 	!deallocate(CheckGenos)
@@ -1365,7 +1550,6 @@ subroutine CurrentCountFilled
 		CurrentCountID%diff(i)=new-CurrentCountID%old(i)
 		CurrentCountID%old(i)=new
 	enddo
-
 end subroutine CurrentCountFilled
 
 !################################################################################################
