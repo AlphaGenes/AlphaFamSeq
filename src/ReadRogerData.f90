@@ -47,6 +47,10 @@ subroutine readRogerData(filename, Ids, position, quality, SequenceData,nSnpIn,S
   integer(int64), dimension(:), allocatable, intent(out):: position
   integer(kind=2), dimension(:,:,:), allocatable, intent(out):: SequenceData
   integer(kind=2), dimension(:,:,:), allocatable:: SequenceData2
+  
+  integer(int64)  :: tmpPosition
+  real(real64)    :: tmpQuality
+  integer(kind=2), dimension(:,:), allocatable:: tmpSequenceData
 
   integer(int32), intent(in):: SnpUsed,nSnpIn,StartSnp,EndSnp,nIndivIn
   integer(int32)::nSnp,pos,fileUnit, nIndiv
@@ -62,6 +66,7 @@ subroutine readRogerData(filename, Ids, position, quality, SequenceData,nSnpIn,S
   nIndiv = nIndivIn
   
   allocate(SequenceData(nIndiv, SnpUsed, 2))
+  allocate(tmpSequenceData(nIndiv,2))
   allocate(position(SnpUsed))
   allocate(quality(SnpUsed))
   allocate(Ids(nIndiv))
@@ -75,12 +80,16 @@ subroutine readRogerData(filename, Ids, position, quality, SequenceData,nSnpIn,S
     write(Ids(i), *) dumC(i+5)
   end do
 
-  !pos=1
+  pos=1
   do j = 1, nSnp
-     !if ((j.ge.StartSnp).and.(j.le.EndSnp)) then
-      read(fileUnit, *) temp, position(j), temp, temp, quality(j), (SequenceData(i, j, 1), SequenceData(i, j,2), i =1, nIndiv)
-      !pos=pos+1
-    !end if
+      read(fileUnit, *) temp, tmpPosition, temp, temp, tmpQuality, (tmpSequenceData(i,1), tmpSequenceData(i,2), i =1, nIndiv)
+      if ((j.ge.StartSnp).and.(j.le.EndSnp)) then
+        position(pos)=tmpPosition
+        quality(pos)=tmpQuality
+        SequenceData(:,pos,1)=tmpSequenceData(:,1)
+        SequenceData(:,pos,2)=tmpSequenceData(:,2)
+        pos=pos+1
+      end if
   end do
   tend = omp_get_wtime()
   write(*,*) "Total wall time for Importing Reads", tend - tstart
