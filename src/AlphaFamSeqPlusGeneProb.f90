@@ -1337,6 +1337,10 @@ subroutine DeallocateArrays
 	! Founders
 	deallocate(FounderAssignment)
 	
+	! CountPhase
+	if (allocated(CurrentCountID%old)) deallocate(CurrentCountID%old)
+	if (allocated(CurrentCountID%diff)) deallocate(CurrentCountID%diff)
+
 	! Checks
 	!deallocate(CheckPhase)
 	!deallocate(CheckGenos)
