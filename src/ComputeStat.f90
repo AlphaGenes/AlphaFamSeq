@@ -163,7 +163,7 @@ subroutine CalculateResultsByIndividual(nSnp,gam,nInd,ImpSnp,TrueSnp,MarkerToExc
 
 	integer(int32),intent(in) :: nSnp
 	integer,intent(in) :: gam,nInd
-	integer(int32),intent(in),allocatable,dimension(:,:,:) :: ImpSnp, TrueSnp
+	integer(int32),intent(inout),allocatable,dimension(:,:,:) :: ImpSnp, TrueSnp
 	integer(int32),intent(in), allocatable,dimension(:) :: MarkerToExclude
 	
 	integer,intent(inout),allocatable,dimension(:,:) :: Yield,Correct
@@ -183,12 +183,13 @@ subroutine CalculateResultsByIndividual(nSnp,gam,nInd,ImpSnp,TrueSnp,MarkerToExc
 			FinalCor(i,g)=D_QNAN
 
 			do j=1,nSnp
-				if (MarkerToExclude(j)==0) then
+				if (MarkerToExclude(j).eq.1) ImpSnp(i,j,g)=9
+				!if (MarkerToExclude(j)==0) then
 					if ((ImpSnp(i,j,g)/=9).and.(TrueSnp(i,j,g)/=9)) then
 						Yield(i,g)=Yield(i,g)+1
 						if (ImpSnp(i,j,g)==TrueSnp(i,j,g)) Correct(i,g)=Correct(i,g)+1
 					endif
-				endif
+				!endif
 			enddo
 
 			if (Yield(i,g).gt.1) then
@@ -292,7 +293,7 @@ subroutine ReadMarkersToExclude(MarkerToExclude,ExclueSnpFile,nSnpUsed,nSnp,True
 	character(len=*), 	intent(in):: ExclueSnpFile
 	integer(int32),		intent(in),allocatable,dimension(:,:,:) :: TrueSnp
 
-	integer :: DumI,i,a
+	integer :: DumI,DumI2,i,a
 
 	allocate(MarkerToExclude(nSnp))
 	MarkerToExclude=0
@@ -300,7 +301,7 @@ subroutine ReadMarkersToExclude(MarkerToExclude,ExclueSnpFile,nSnpUsed,nSnp,True
 	open(12,file=trim(ExclueSnpFile),action="read")
 	nSnpUsed=0
 	do
-		read(12,*,end=912) DumI
+		read(12,*,end=912) DumI,DumI2,DumI2
 		MarkerToExclude(DumI)=1
 	enddo
 	912 continue
@@ -315,7 +316,6 @@ subroutine ReadMarkersToExclude(MarkerToExclude,ExclueSnpFile,nSnpUsed,nSnp,True
 	enddo
 
 	nSnpUsed=count(MarkerToExclude(:)==0)
-	
 end subroutine ReadMarkersToExclude
 
 !###########################################################################################################################################################
@@ -459,6 +459,7 @@ subroutine CalculateCorrelation(Yield,n,TrueSnp,ImpSnp,CorTrueImp)
 				p=p+1
 			endif
 		enddo
+
 		
 		CorTrueImp = Cor(TrueTmp,ImpTmp)
 		if (allocated(TrueTmp)) deallocate(TrueTmp)
