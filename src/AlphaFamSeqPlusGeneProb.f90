@@ -683,7 +683,7 @@ subroutine CleanUpTheRawData
 
 		call ExcessHeterozygotes(tmpReads(:,:),nTmpInd,ObsGenos,EstGenos,pHetExcess)
 
-		if (((ObsGenos(2)+dble(2*ObsGenos(1))).le.ThresholdReadsCount).or.((ObsGenos(2)+dble(2*ObsGenos(3))).lt.ThresholdReadsCount)) then
+		if (((ObsGenos(2)+dble(2*ObsGenos(1))).le.ThresholdReadsCount).or.((ObsGenos(2)+dble(2*ObsGenos(3))).le.ThresholdReadsCount)) then
 			if (MarkersToExclude(j).ne.1) then
 				write (3,'(1i10,1i20,1i4)') j,position(j),2
 				MarkersToExclude(j)=1
