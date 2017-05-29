@@ -13,7 +13,7 @@ module GlobalPar
 	
 	integer :: InternalEdit                    								! SpecFile - Internal Edit 1==yes or 0==no
 	real(kind=8) :: EditingParameter										! SpecFile - 1st Number is the MAF (excluede SNP with MAF=<EditingParameter)
-	real(kind=8) :: maxStdForReadsCount										! SpecFile - Remove Reads that are above this standard deviation
+	real(kind=8) :: maxStdForReadsCount,ThresholdMaxReadsCount				! SpecFile - Remove Reads that are above this standard deviation
 	real(kind=8) :: ThresholdExcessHetero									! SpecFile - Remove variants with an excess of heterozygotes
 	integer 	 :: ThresholdReadsCount										! SpecFile - Remove single/double/n-tones 
 	
@@ -381,7 +381,7 @@ subroutine ReadSpecfile
                 read(1, *, iostat=stat) maxStdForReadsCount
                 if (stat /= 0) then
                     print *, "RemoveOutliersReadsCount not set properly in spec file"
-                    print *, maxStdForReadsCount
+                    print *, maxStdForReadsCount,ThresholdMaxReadsCount
                     stop 2
                 endif 
 
@@ -568,14 +568,15 @@ subroutine CleanUpTheRawData
 	use omp_lib
 	implicit none
 
-	integer :: i,j,nTmpInd,e,nReadsRemoved,pos
+	integer :: i,j,nReadsRemoved,nTmpInd,e,pos
 	real 	:: cov(nInd)
 	real 	:: std,covSnp
 	character(len=50) :: filout1,filout2,filout3,filout4,filout5
 	character(len=30) :: nChar
 	character(len=80) :: FmtInt
 
-	integer(kind=2),allocatable,dimension(:,:) :: tmpReads 
+	integer(kind=2),allocatable,dimension(:) :: ReadsRemoved
+	integer(kind=2),allocatable,dimension(:,:) :: tmpReads
 
 	real(kind=8)					 				:: pHetExcess
 	integer											:: ObsGenos(3), EstGenos(3) ! observed genotypes
@@ -599,8 +600,22 @@ subroutine CleanUpTheRawData
 	!write (filout3,'("AlphaFamSeqReads",i0,".txt")') Windows
 	!open (unit=3,file=trim(filout3),status="unknown")
 
-
+	allocate(ReadsRemoved(nSnp))
+	ReadsRemoved(:)=0
 	MarkersToExclude=0 ! 0=Use The marker ; 1=Don't use the marker
+
+	do j=1,nSnp
+		covSnp=0
+		!e=0
+		covSnp=sum(RawReads(:,j,:))/dble(nTmpInd)
+		!if (cov.lt.EditingParameter) then
+		!	RawReads(:,j,:)=0
+		!	e=1
+		!endif
+		write (2,'(1i0,1x,1f7.3,1x,1i0)') j,covSnp,e
+	enddo
+	close(2)
+
 
 	nTmpInd=0
 	do i=1,nInd
@@ -624,6 +639,7 @@ subroutine CleanUpTheRawData
 					write(4,'(2i20,1f10.6,2i4)'),Ped(i,1),j,cov(i),RawReads(i,j,:)
 					RawReads(i,j,:)=0
 					nReadsRemoved=nReadsRemoved+1
+					ReadsRemoved(j)=ReadsRemoved(j)+1
 				endif
 			enddo
 		endif
@@ -637,18 +653,6 @@ subroutine CleanUpTheRawData
 	close(1)
 	close(4)
 
-	do j=1,nSnp
-		covSnp=0
-		!e=0
-		covSnp=sum(RawReads(:,j,:))/dble(nTmpInd)
-		!if (cov.lt.EditingParameter) then
-		!	RawReads(:,j,:)=0
-		!	e=1
-		!endif
-		write (2,'(1i0,1x,1f7.3,1x,1i0)') j,covSnp,e
-	enddo
-	
-	close(2)
 
 	allocate(tmpReads(nTmpInd,2))
 	
@@ -656,9 +660,10 @@ subroutine CleanUpTheRawData
 	do j=1,nSnp
 		
 		! 1) Markers with zero reads	
-		if (maxval(RawReads(:,j,:))==0) then
+		if ((maxval(RawReads(:,j,:))==0).or.(ReadsRemoved(j).gt.(dble(nInd)*ThresholdMaxReadsCount))) then
 			write (3,'(1i10,1i20,1i4)') j,position(j),0
 			MarkersToExclude(j)=1
+			RawReads(:,j,:)=0
 		endif
 
 		! 2) Remove single/double-tones and excess heterozygotes
