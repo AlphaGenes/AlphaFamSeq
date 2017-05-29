@@ -679,8 +679,10 @@ subroutine CleanUpTheRawData
 		call ExcessHeterozygotes(tmpReads(:,:),nTmpInd,ObsGenos,EstGenos,pHetExcess)
 
 		if (((ObsGenos(2)+dble(2*ObsGenos(1))).le.ThresholdReadsCount).or.((ObsGenos(2)+dble(2*ObsGenos(3))).lt.ThresholdReadsCount)) then
-			write (3,'(1i10,1i20,1i4)') j,position(j),2
-			MarkersToExclude(j)=1
+			if (MarkersToExclude(j).ne.1) then
+				write (3,'(1i10,1i20,1i4)') j,position(j),2
+				MarkersToExclude(j)=1
+			endif
 		endif
 
 		if (MarkersToExclude(j).ne.1) then
@@ -717,8 +719,8 @@ subroutine ExcessHeterozygotes(ReadsCount,n,ObsGenos,EstGenosInit,pHetExcess)
 	
 	integer									:: EstGenos(3) ! estimated genotypes
 	
-	integer									:: i,nGeno,RareHomo,CommomHomo,RareCopies,mid,posEst,posObs
-	real(kind=8),allocatable,dimension(:) 	:: probs
+	integer									:: i,nGeno,RareHomo,CommomHomo,RareCopies,mid,posEst,posObs,FirstInd
+	real(kind=8),allocatable,dimension(:) 	:: probs,plow,phigh
 	real(kind=8)							:: SumProbs
 
 	ObsGenos=0
@@ -741,72 +743,107 @@ subroutine ExcessHeterozygotes(ReadsCount,n,ObsGenos,EstGenosInit,pHetExcess)
 		CommomHomo=3
 	endif
 
-
-	RareCopies=floor(2.0*dble(ObsGenos(RareHomo))+ObsGenos(2))
-	mid=floor(dble(RareCopies)*dble(2*nGeno-RareCopies)/dble(2*nGeno))
-	if (mid.lt.0) mid=0
-
-	EstGenos(2)=mid
-	EstGenos(RareHomo)=floor(dble(RareCopies-mid)/2.0)
-	if (EstGenos(RareHomo).lt.0) EstGenos(RareHomo)=0
-	EstGenos(CommomHomo)=nGeno-EstGenos(RareHomo)-EstGenos(2)
-	if (EstGenos(CommomHomo).lt.0) EstGenos(CommomHomo)=0
-
-	EstGenosInit(:)=EstGenos(:)
+	RareCopies=nint(2.0*dble(ObsGenos(RareHomo))+ObsGenos(2))
 	
-	! # we observed 21 copies of the minor allele (RareCopies) --> the observed nr of hetero  (ObsGenos(2)) will vary seq(1,21,2)
+	if (RareCopies.lt.2) then
+		pHetExcess=1
+	else if (RareCopies.ge.2) then
 
-	! The number of possible heterozygotes is odd if RareCopies is odd, and is even if RareCopies is even
-	if (mod(RareCopies,2).eq.0) then
-		allocate(probs(0:(RareCopies/2)))
-		posEst=(mid)/2
-		posObs=ObsGenos(2)/2
-	else if(mod(RareCopies,2).eq.1) then
-		allocate(probs(0:((RareCopies+1)/2)))
-		posEst=(mid+1)/2
-		posObs=(ObsGenos(2)+1)/2
-	endif
+		mid=nint(dble(RareCopies)*dble(2*nGeno-RareCopies)/dble(2*nGeno))
+		
+		if (mid.lt.0) mid=0
 
-	probs(posEst)=1.0
-	SumProbs=probs(posEst)
+		if ((mod(RareCopies,2).eq.0).and.(mod(mid,2).ne.0)) mid=mid+1
+		if ((mod(RareCopies,2).ne.0).and.(mod(mid,2).eq.0)) mid=mid+1
 
-	! Start to calculate the probabilities using the equations 2 of Am.J.Hum.Genet.76:887-883,2005
-	!
-	!!!  P(NAB=nAB-2|N,nA) = het_probs[curr_hets] * curr_hets * (curr_hets - 1.0) / (4.0 * (curr_homr + 1.0) * (curr_homc + 1.0))
-	!!!  P(NAB=nAB+2|N,nA) = het_probs[curr_hets] * 4.0 * curr_homr * curr_homc	/((curr_hets + 2.0) * (curr_hets + 1.0))
+		EstGenos(2)=mid
+		EstGenos(RareHomo)=floor(dble(RareCopies-mid)/2.0)
+		if (EstGenos(RareHomo).lt.0) EstGenos(RareHomo)=0
+		EstGenos(CommomHomo)=nGeno-EstGenos(RareHomo)-EstGenos(2)
+		if (EstGenos(CommomHomo).lt.0) EstGenos(CommomHomo)=0
 
-	do i=posEst,2,-1
-		probs(i-1)=probs(i)*dble(EstGenos(2))*dble(EstGenos(2)-1.0)/(4.0*dble(EstGenos(RareHomo)+1.0)*dble(EstGenos(CommomHomo)+1.0))
-		EstGenos(2)=EstGenos(2)-2
-		EstGenos(1)=EstGenos(1)+1
-		EstGenos(3)=EstGenos(3)+1
-		SumProbs=SumProbs+probs(i-1)
-	enddo
+		EstGenosInit(:)=EstGenos(:)
+		
+		! # we observed 21 copies of the minor allele (RareCopies) --> the observed nr of hetero  (ObsGenos(2)) will vary seq(1,21,2)
 
-	EstGenos(2)=mid
-	EstGenos(RareHomo)=floor(dble(RareCopies-mid)/2.0)
-	if (EstGenos(RareHomo).lt.0) EstGenos(RareHomo)=0
-	EstGenos(CommomHomo)=nGeno-EstGenos(RareHomo)-EstGenos(2)
-	if (EstGenos(CommomHomo).lt.0) EstGenos(CommomHomo)=0
+		! The number of possible heterozygotes is odd if RareCopies is odd, and is even if RareCopies is even
+		if (mod(RareCopies,2).eq.0) then
+			allocate(probs(0:(RareCopies/2)))
+			allocate(plow(0:(RareCopies/2)))
+			
+			posEst=(mid)/2
+			posObs=ObsGenos(2)/2
+			FirstInd=0
+		else if(mod(RareCopies,2).eq.1) then
+			allocate(probs(1:((RareCopies+1)/2)))
+			allocate(plow(1:((RareCopies+1)/2)))
+			
+			posEst=(mid+1)/2
+			posObs=(ObsGenos(2)+1)/2
+			FirstInd=1
+		endif
 
-	if (EstGenos(2).lt.RareCopies) then
-		do i=posEst,(size(probs)-2)
-			probs(i+1)=probs(i)*4.0*dble(EstGenos(CommomHomo))*dble(EstGenos(RareHomo))/(dble(EstGenos(2)+2.0)*dble(EstGenos(2)+1.0))
-			EstGenos(2)=EstGenos(2)+2
-			EstGenos(1)=EstGenos(1)-1
-			EstGenos(3)=EstGenos(3)-1
-			SumProbs=SumProbs+probs(i+1)
+		probs(posEst)=1.0
+		SumProbs=probs(posEst)
+
+		! Start to calculate the probabilities using the equations 2 of Am.J.Hum.Genet.76:887-883,2005
+		!
+		!!!  P(NAB=nAB-2|N,nA) = het_probs[curr_hets] * curr_hets * (curr_hets - 1.0) / (4.0 * (curr_homr + 1.0) * (curr_homc + 1.0))
+		!!!  P(NAB=nAB+2|N,nA) = het_probs[curr_hets] * 4.0 * curr_homr * curr_homc	/((curr_hets + 2.0) * (curr_hets + 1.0))
+		do i=posEst,(FirstInd+1),-1
+			probs(i-1)=probs(i)*dble(EstGenos(2))*dble(EstGenos(2)-1.0)/(4.0*dble(EstGenos(RareHomo)+1.0)*dble(EstGenos(CommomHomo)+1.0))
+			EstGenos(2)=EstGenos(2)-2
+			EstGenos(1)=EstGenos(1)+1
+			EstGenos(3)=EstGenos(3)+1
+			SumProbs=SumProbs+probs(i-1)
 		enddo
-	endif
 
-	probs(:)=probs(:)/SumProbs
+		EstGenos(2)=mid
+		EstGenos(RareHomo)=floor(dble(RareCopies-mid)/2.0)
+		if (EstGenos(RareHomo).lt.0) EstGenos(RareHomo)=0
+		EstGenos(CommomHomo)=nGeno-EstGenos(RareHomo)-EstGenos(2)
+		if (EstGenos(CommomHomo).lt.0) EstGenos(CommomHomo)=0
 
-	pHetExcess=probs(posObs)
-	if (mid.lt.RareCopies) then
-		do i=(posObs+1),(size(probs)-1)
-			pHetExcess=pHetExcess+probs(i)
+		if (EstGenos(2).lt.RareCopies) then
+			do i=posEst,(size(probs)-(2-FirstInd))
+				probs(i+1)=probs(i)*4.0*dble(EstGenos(CommomHomo))*dble(EstGenos(RareHomo))/(dble(EstGenos(2)+2.0)*dble(EstGenos(2)+1.0))
+				EstGenos(2)=EstGenos(2)+2
+				EstGenos(1)=EstGenos(1)-1
+				EstGenos(3)=EstGenos(3)-1
+				SumProbs=SumProbs+probs(i+1)
+			enddo
+		endif
+		
+!		if ((ObsGenos(1)==611).and.(ObsGenos(2)==0).and.(ObsGenos(3)==1)) print*,probs(:)
+
+
+		probs(:)=probs(:)/SumProbs
+		plow=1
+		plow(FirstInd)=probs(FirstInd)
+
+!		if ((ObsGenos(1)==611).and.(ObsGenos(2)==0).and.(ObsGenos(3)==1)) print*,probs(:)
+
+		do i=(FirstInd+1),(size(probs)-1)
+			plow(i)=plow(i-1)+probs(i)
 		enddo
+
+
+
+!		if ((ObsGenos(1)==611).and.(ObsGenos(2)==0).and.(ObsGenos(3)==1)) print*,plow(:),posObs
+		if (FirstInd.eq.0) then
+			if (posObs.gt.0) pHetExcess=1-plow(posObs-1)
+			if (posObs.eq.0) pHetExcess=1
+		endif
+
+		if (FirstInd.eq.1) then
+			if (posObs.gt.1) pHetExcess=1-plow(posObs-1)
+			if (posObs.eq.1) pHetExcess=1
+		endif
+
+		deallocate(probs)
+		deallocate(plow)
 	endif
+
 end subroutine ExcessHeterozygotes
 
 !###########################################################################################################################################################
