@@ -97,13 +97,14 @@ subroutine readRogerData(filename, Ids, position, quality, SequenceData,nSnpIn,S
 
 end subroutine readRogerData
 
-  subroutine readAlphaSimReads(filename, Ids,SequenceData,nSnpIn,SnpUsed,StartSnp,EndSnp,nIndivIn)
+  subroutine readAlphaSimReads(filename, Ids,position,SequenceData,nSnpIn,SnpUsed,StartSnp,EndSnp,nIndivIn)
   use ISO_Fortran_Env
   use omp_lib
   implicit none
   
   character(len=*), intent(in)::filename
   character(len=100), allocatable, dimension(:), intent(out):: Ids
+  integer(int64), dimension(:), allocatable, intent(out):: position
   
   integer, dimension(:), allocatable::dumE
   integer(kind=2), dimension(:,:,:), allocatable::SequenceData
@@ -123,15 +124,11 @@ end subroutine readRogerData
   allocate(dumE(StartSnp-1))
   allocate(SequenceData(nIndiv, SnpUsed, 2))
   allocate(Ids(nIndiv))
+  allocate(position(SnpUsed))
   
-  ! do i = 1, nIndiv
-  !   read(fileUnit, *) Ids(i),dumE
-  !   !read(dumE(StartSnp:EndSnp), *) 
-  !   SequenceData(i,:, 1)=dumE(StartSnp:EndSnp)
-  !   read(fileUnit, *) dumI,dumE
-  !   !read(dumE(StartSnp:EndSnp), *) 
-  !   SequenceData(i,:, 2)=dumE(StartSnp:EndSnp)
-  ! end do
+  do i=1,SnpUsed
+    position(i)=i
+  enddo
 
   tstart = omp_get_wtime()
   do i = 1, nIndiv
