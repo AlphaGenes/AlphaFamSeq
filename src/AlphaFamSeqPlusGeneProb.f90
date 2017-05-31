@@ -1722,7 +1722,7 @@ subroutine ReadData
 
 
 	if (trim(ReadsType)=="VcfTools") call readRogerData(ReadsFile, Ids, position, quality, SequenceData,LenghtSequenceDataFile,nSnp,StartSnp,EndSnp,nIndSeq)
-	if (trim(ReadsType)=="AlphaSim") call readAlphaSimReads(ReadsFile, Ids, SequenceData,LenghtSequenceDataFile,nSnp,StartSnp,EndSnp,nIndSeq)
+	if (trim(ReadsType)=="AlphaSim") call readAlphaSimReads(ReadsFile, Ids,position,SequenceData,LenghtSequenceDataFile,nSnp,StartSnp,EndSnp,nIndSeq)
 	
 	allocate(RawReads(nInd,nSnp,2))
 	RawReads(:,:,:)=0
