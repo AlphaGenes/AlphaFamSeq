@@ -223,7 +223,7 @@ program FamilyPhase
 				SolutionChanged=0
 			endif
 
-			if (maxval(CurrentCountID%diff).gt.(dble(nSnp)*.0001)*2) then
+			if ((maxval(CurrentCountID%diff).gt.(dble(nSnp)*.0001)*2).and.(GeneProbThresh.eq.GeneProbThreshMin)) then
 !				print*,maxval(CurrentCountID%diff),(dble(nSnp)*.0001)*2
 				SolutionChanged=1
 			else
