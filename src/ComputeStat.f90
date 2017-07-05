@@ -122,6 +122,7 @@ subroutine PrintMistakeIdentifier(nInd,nSnp,gam,Id,MarkerToExclude,ImpSnp,TrueSn
 
 	do i=1,nInd
 		do g=1,gam
+			CheckGenoError=0
 			do j=1,nSnp
 				if ((ImpSnp(i,j,g)/=9).and.(TrueSnp(i,j,g)/=ImpSnp(i,j,g))) then
 					write(103,'(5(1x,i0))') i,g,j,TrueSnp(i,j,g),ImpSnp(i,j,g)
@@ -152,9 +153,9 @@ subroutine PrintMistakeIdentifier(nInd,nSnp,gam,Id,MarkerToExclude,ImpSnp,TrueSn
 				endif
 
 			enddo
-			write(104,'(6(1x,i0))') Id(i),g,0,CheckGenoError(1,:)
-			write(104,'(6(1x,i0))') Id(i),g,0,CheckGenoError(2,:)
-			write(104,'(6(1x,i0))') Id(i),g,0,CheckGenoError(3,:)
+			if (gam==1) write(104,'(6(1x,i0))') Id(i),g,0,CheckGenoError(1,:)
+			if (gam==1) write(104,'(6(1x,i0))') Id(i),g,0,CheckGenoError(2,:)
+			if (gam==1) write(104,'(6(1x,i0))') Id(i),g,0,CheckGenoError(3,:)
 		enddo
 	enddo
 
