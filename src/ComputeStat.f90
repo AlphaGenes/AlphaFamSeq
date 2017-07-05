@@ -154,8 +154,8 @@ subroutine PrintMistakeIdentifier(nInd,nSnp,gam,Id,MarkerToExclude,ImpSnp,TrueSn
 
 			enddo
 			if (gam==1) write(104,'(6(1x,i0))') Id(i),g,0,CheckGenoError(1,:)
-			if (gam==1) write(104,'(6(1x,i0))') Id(i),g,0,CheckGenoError(2,:)
-			if (gam==1) write(104,'(6(1x,i0))') Id(i),g,0,CheckGenoError(3,:)
+			if (gam==1) write(104,'(6(1x,i0))') Id(i),g,1,CheckGenoError(2,:)
+			if (gam==1) write(104,'(6(1x,i0))') Id(i),g,2,CheckGenoError(3,:)
 		enddo
 	enddo
 
