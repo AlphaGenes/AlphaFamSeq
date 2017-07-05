@@ -428,7 +428,7 @@ subroutine SetSomeParametes(gam,Geno1orPhase2,fileKind,prefix,nInd,nIndTrue,nInd
 	filout1=trim(adjustl(prefix))//"Stat"//trim(adjustl(fileKind))//"ByMarker.txt"
 	filout2=trim(adjustl(prefix))//"Stat"//trim(adjustl(fileKind))//"ByIndividual.txt"
 	filout3=trim(adjustl(prefix))//"MistakeIdentifiers"//trim(adjustl(fileKind))//".txt"
-	filout3=trim(adjustl(prefix))//"CheckHeteroAndHomoResults"//trim(adjustl(fileKind))//".txt"
+	filout4=trim(adjustl(prefix))//"CheckHeteroAndHomoResults"//trim(adjustl(fileKind))//".txt"
 end subroutine SetSomeParametes
 
 !###########################################################################################################################################################
