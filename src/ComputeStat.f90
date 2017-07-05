@@ -64,10 +64,10 @@ subroutine GetResultsImputation(nSnp,ImpFile,TrueFile,ExclueSnpFile,Geno1orPhase
 	real(real32), allocatable,dimension(:,:) :: FinalCor
 
 	character(len=5) :: fileKind
-	character(len=300) :: filout1,filout2,filout3
+	character(len=300) :: filout1,filout2,filout3,filout4
 
 	call GetLengthOfInputFiles(ImpFile,nIndImp,TrueFile,nIndTrue,nInd)
-	call SetSomeParametes(gam,Geno1orPhase2,fileKind,prefix,nInd,nIndTrue,nIndImp,filout1,filout2,filout3)
+	call SetSomeParametes(gam,Geno1orPhase2,fileKind,prefix,nInd,nIndTrue,nIndImp,filout1,filout2,filout3,filout4)
 	call AllocateInputDataArrays(nInd,nSnp,gam,Id,ImpSnp,TrueSnp)
 	if (nIndImp.le.nIndTrue) call ReadDataIn(gam,nSnp,ImpFile,TrueFile,nIndImp,nIndTrue,Id,ImpSnp,TrueSnp)
 	if (nIndImp.gt.nIndTrue) call ReadDataIn(gam,nSnp,TrueFile,ImpFile,nIndTrue,nIndImp,Id,TrueSnp,ImpSnp)
@@ -86,7 +86,7 @@ subroutine GetResultsImputation(nSnp,ImpFile,TrueFile,ExclueSnpFile,Geno1orPhase
 	! Print Mistakes
 	print*,trim(MistakeIdentifier)
 	if (trim(MistakeIdentifier)=="Yes") then
-		call PrintMistakeIdentifier(nInd,nSnp,gam,MarkerToExclude,ImpSnp,TrueSnp,filout3)
+		call PrintMistakeIdentifier(nInd,nSnp,gam,Id,MarkerToExclude,ImpSnp,TrueSnp,filout3,filout4)
 	endif
 
 	call DeallocateInputDataArrays(Id,ImpSnp,TrueSnp)
@@ -95,22 +95,29 @@ end subroutine GetResultsImputation
 
 !###########################################################################################################################################################
 
-subroutine PrintMistakeIdentifier(nInd,nSnp,gam,MarkerToExclude,ImpSnp,TrueSnp,filout3)
+subroutine PrintMistakeIdentifier(nInd,nSnp,gam,Id,MarkerToExclude,ImpSnp,TrueSnp,filout3,filout4)
 
 	implicit none
 
 	integer, 		intent(in) :: nInd,gam
 	integer(int32), intent(in) :: nSnp
+	integer(int64),		intent(in), allocatable,dimension(:) :: Id
+	
 
 	integer(int32),intent(in),allocatable,dimension(:,:,:) :: ImpSnp, TrueSnp
 	integer(int32),	intent(in), allocatable,dimension(:) :: MarkerToExclude
 
-	character(len=300),	intent(in) :: filout3
+	character(len=300),	intent(in) :: filout3,filout4
 
 	integer i,g,j
 
+	integer :: CheckGenoError(3,3) !(geno,stat) where 'stat' are: correct,error,missing
+
 	open(103, file=trim(filout3), status="unknown")
 	write(103,'(1a42)') "Id gam Snp True Imputed"
+
+	open(104, file=trim(filout4), status="unknown")
+	write(104,'(1a42)') "Id gam geno correct wrong missing"
 
 
 	do i=1,nInd
@@ -119,11 +126,40 @@ subroutine PrintMistakeIdentifier(nInd,nSnp,gam,MarkerToExclude,ImpSnp,TrueSnp,f
 				if ((ImpSnp(i,j,g)/=9).and.(TrueSnp(i,j,g)/=ImpSnp(i,j,g))) then
 					write(103,'(5(1x,i0))') i,g,j,TrueSnp(i,j,g),ImpSnp(i,j,g)
 				endif
+
+				if (TrueSnp(i,j,g).eq.0) then
+					if (ImpSnp(i,j,g).eq.9) CheckGenoError(1,3)=CheckGenoError(1,3)+1
+					if (ImpSnp(i,j,g).ne.9) then
+						if (ImpSnp(i,j,g).eq.TrueSnp(i,j,g)) CheckGenoError(1,1)=CheckGenoError(1,1)+1
+						if (ImpSnp(i,j,g).ne.TrueSnp(i,j,g)) CheckGenoError(1,2)=CheckGenoError(1,2)+1
+					endif
+				endif
+
+				if (TrueSnp(i,j,g).eq.1) then
+					if (ImpSnp(i,j,g).eq.9) CheckGenoError(2,3)=CheckGenoError(2,3)+1
+					if (ImpSnp(i,j,g).ne.9) then
+						if (ImpSnp(i,j,g).eq.TrueSnp(i,j,g)) CheckGenoError(2,1)=CheckGenoError(2,1)+1
+						if (ImpSnp(i,j,g).ne.TrueSnp(i,j,g)) CheckGenoError(2,2)=CheckGenoError(2,2)+1
+					endif
+				endif
+
+				if (TrueSnp(i,j,g).eq.2) then
+					if (ImpSnp(i,j,g).eq.9) CheckGenoError(3,3)=CheckGenoError(3,3)+1
+					if (ImpSnp(i,j,g).ne.9) then
+						if (ImpSnp(i,j,g).eq.TrueSnp(i,j,g)) CheckGenoError(3,1)=CheckGenoError(3,1)+1
+						if (ImpSnp(i,j,g).ne.TrueSnp(i,j,g)) CheckGenoError(3,2)=CheckGenoError(3,2)+1
+					endif
+				endif
+
 			enddo
+			write(104,'(6(1x,i0))') Id(i),g,0,CheckGenoError(1,:)
+			write(104,'(6(1x,i0))') Id(i),g,0,CheckGenoError(2,:)
+			write(104,'(6(1x,i0))') Id(i),g,0,CheckGenoError(3,:)
 		enddo
 	enddo
 
 	close(103)
+	close(104)
 end subroutine PrintMistakeIdentifier
 
 !###########################################################################################################################################################
@@ -364,7 +400,7 @@ end subroutine ReadDataIn
 
 !###########################################################################################################################################################
 
-subroutine SetSomeParametes(gam,Geno1orPhase2,fileKind,prefix,nInd,nIndTrue,nIndImp,filout1,filout2,filout3)
+subroutine SetSomeParametes(gam,Geno1orPhase2,fileKind,prefix,nInd,nIndTrue,nIndImp,filout1,filout2,filout3,filout4)
 	implicit none
 
 	integer(kind=1),intent(in) :: Geno1orPhase2
@@ -374,7 +410,7 @@ subroutine SetSomeParametes(gam,Geno1orPhase2,fileKind,prefix,nInd,nIndTrue,nInd
 	character(len=5),intent(inout) :: fileKind
 	character(len=*), intent(in):: prefix
 	
-	character(len=300),intent(inout) :: filout1,filout2,filout3
+	character(len=300),intent(inout) :: filout1,filout2,filout3,filout4
 
 	
 	gam=Geno1orPhase2
@@ -391,6 +427,7 @@ subroutine SetSomeParametes(gam,Geno1orPhase2,fileKind,prefix,nInd,nIndTrue,nInd
 	filout1=trim(adjustl(prefix))//"Stat"//trim(adjustl(fileKind))//"ByMarker.txt"
 	filout2=trim(adjustl(prefix))//"Stat"//trim(adjustl(fileKind))//"ByIndividual.txt"
 	filout3=trim(adjustl(prefix))//"MistakeIdentifiers"//trim(adjustl(fileKind))//".txt"
+	filout3=trim(adjustl(prefix))//"CheckHeteroAndHomoResults"//trim(adjustl(fileKind))//".txt"
 end subroutine SetSomeParametes
 
 !###########################################################################################################################################################
