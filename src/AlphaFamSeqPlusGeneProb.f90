@@ -185,6 +185,7 @@ program FamilyPhase
 			
 			if ((IterationNumber>1).and.(GeneProbThresh>GeneProbThreshMin)) then 
 				GeneProbThresh=GeneProbThresh-ReduceThr!0.001
+				if (GeneProbThresh.lt.GeneProbThreshMin) GeneProbThresh=GeneProbThreshMin
 			endif
 
 			call UseGeneProbToSimpleFillInBasedOnOwnReads
