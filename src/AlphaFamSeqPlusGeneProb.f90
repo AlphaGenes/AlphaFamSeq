@@ -232,6 +232,7 @@ program FamilyPhase
 			endif
 
 			write (*,'(2i4,3f10.5)') Windows,IterationNumber,GeneProbThresh,(dble(CurrentCountFilledPhase)/(dble(nInd*nSnp*2))*100),(dble(CurrentCountFilledGenos)/(dble(nInd*nSnp))*100)
+			print*,CurrentCountFilledPhase,CurrentCountFilledGenos,nInd,nSnp
 		enddo
 
 		call WriteResults
