@@ -1979,28 +1979,28 @@ subroutine SaveGeneProbResults
 	implicit none
 
 	integer :: i,j
-	real(kind=4),allocatable,dimension(:) :: AlleleDosage
+	!real(kind=4),allocatable,dimension(:) :: AlleleDosage
 	character(len=30) :: nChar
-	character(len=80) :: FmtReal,filout3,filout5
+	character(len=80) :: FmtReal,filout5 !filout3
 	
 	write(nChar,*) nSnp
 	FmtReal='(i0,'//trim(adjustl(nChar))//'f7.4)'
 	
-	write (filout3,'("AlphaFamSeqFinalAlleleDosage",i0,".txt")') Windows
+	!write (filout3,'("AlphaFamSeqFinalAlleleDosage",i0,".txt")') Windows
 	write (filout5,'("AlphaFamSeqFinalGeneProb",i0,".txt")') Windows
 	
-	open (unit=3,file=trim(filout3),status="unknown")
+	!open (unit=3,file=trim(filout3),status="unknown")
 	open (unit=5,file=trim(filout5),status="unknown")
 	
-	allocate(AlleleDosage(nSnp))
+	!allocate(AlleleDosage(nSnp))
 
 	do i=1,nInd
 	
-		do j=1,nSnp
-			AlleleDosage(j)=(0.0*Pr00(i,j)+(Pr01(i,j)+Pr10(i,j))+2.0*Pr11(i,j))
-		enddo
+		!do j=1,nSnp
+		!	AlleleDosage(j)=(0.0*Pr00(i,j)+(Pr01(i,j)+Pr10(i,j))+2.0*Pr11(i,j))
+		!enddo
 
-		write (3,FmtReal) Ped(i,1),AlleleDosage(:)
+		!write (3,FmtReal) Ped(i,1),AlleleDosage(:)
 		write (5,FmtReal) Ped(i,1),Pr00(i,:)
 		write (5,FmtReal) Ped(i,1),Pr01(i,:)
 		write (5,FmtReal) Ped(i,1),Pr10(i,:)
@@ -2009,10 +2009,10 @@ subroutine SaveGeneProbResults
 	
 	enddo
 
-	deallocate(AlleleDosage)
+	!deallocate(AlleleDosage)
 
 
-	close (3)
+	!close (3)
 	close (5)
 end subroutine SaveGeneProbResults
 
