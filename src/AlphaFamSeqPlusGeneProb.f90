@@ -9,7 +9,7 @@ module GlobalPar
 	implicit none
 
 	integer :: nIndSeq                         								! SpecFile - Number of Individuals in the sequence file
-	integer(int64) :: LenghtSequenceDataFile,nSnp,fistWindow						! SpecFile - Total number of Snps
+	integer :: LenghtSequenceDataFile,nSnp,fistWindow						! SpecFile - Total number of Snps
 	
 	integer :: InternalEdit                    								! SpecFile - Internal Edit 1==yes or 0==no
 	real(kind=8) :: EditingParameter										! SpecFile - 1st Number is the MAF (excluede SNP with MAF=<EditingParameter)
@@ -17,7 +17,7 @@ module GlobalPar
 	real(kind=8) :: ThresholdExcessHetero									! SpecFile - Remove variants with an excess of heterozygotes
 	integer 	 :: ThresholdReadsCount										! SpecFile - Remove single/double/n-tones 
 	
-	integer(int64) :: nInd 														! Calculated Internally - Number of Individuals in the Pedigree
+	integer :: nInd 														! Calculated Internally - Number of Individuals in the Pedigree
 	
 	real(kind=8) :: GeneProbThresh  										! SpecFile - Threshold to call a genotype from the probabilities First Value
 	real(kind=8) :: GeneProbThreshMin										! SpecFile - Threshold to call a genotype from the probabilities Last Value
