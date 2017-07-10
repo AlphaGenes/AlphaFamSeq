@@ -9,7 +9,7 @@ module GlobalPar
 	implicit none
 
 	integer :: nIndSeq                         								! SpecFile - Number of Individuals in the sequence file
-	integer :: LenghtSequenceDataFile,nSnp,fistWindow						! SpecFile - Total number of Snps
+	integer(int64) :: LenghtSequenceDataFile,nSnp,fistWindow						! SpecFile - Total number of Snps
 	
 	integer :: InternalEdit                    								! SpecFile - Internal Edit 1==yes or 0==no
 	real(kind=8) :: EditingParameter										! SpecFile - 1st Number is the MAF (excluede SNP with MAF=<EditingParameter)
@@ -17,7 +17,7 @@ module GlobalPar
 	real(kind=8) :: ThresholdExcessHetero									! SpecFile - Remove variants with an excess of heterozygotes
 	integer 	 :: ThresholdReadsCount										! SpecFile - Remove single/double/n-tones 
 	
-	integer :: nInd 														! Calculated Internally - Number of Individuals in the Pedigree
+	integer(int64) :: nInd 														! Calculated Internally - Number of Individuals in the Pedigree
 	
 	real(kind=8) :: GeneProbThresh  										! SpecFile - Threshold to call a genotype from the probabilities First Value
 	real(kind=8) :: GeneProbThreshMin										! SpecFile - Threshold to call a genotype from the probabilities Last Value
@@ -42,8 +42,8 @@ module GlobalPar
 	character(len=300) :: PhaseFile             							! SpecFile - Control Results File Name - True Phase to check results 
 
 	integer :: IterationNumber                  							! Control Parameter - Define the number of Iterations
-	integer :: CurrentCountFilledPhase          							! Control Parameter - used to finish the program
-	integer :: CurrentCountFilledGenos          							! Control Parameter - used to finish the program
+	integer(int64) :: CurrentCountFilledPhase          							! Control Parameter - used to finish the program
+	integer(int64) :: CurrentCountFilledGenos          							! Control Parameter - used to finish the program
 	integer :: SolutionChanged                  							! Control Parameter - used to finish the program 
 	integer :: StartSnp,EndSnp
 	
@@ -231,7 +231,7 @@ program FamilyPhase
 				SolutionChanged=0
 			endif
 
-			write (*,'(2i4,3f10.5)') Windows,IterationNumber,GeneProbThresh,(dble(CurrentCountFilledPhase)/(dble(nInd*nSnp*2))*100),(dble(CurrentCountFilledGenos)/(dble(nInd*nSnp))*100)
+			write (*,'(2i4,3f10.3)') Windows,IterationNumber,GeneProbThresh,(dble(CurrentCountFilledPhase)/(dble(nInd*nSnp*2))*100),(dble(CurrentCountFilledGenos)/(dble(nInd*nSnp))*100)
 			print*,CurrentCountFilledPhase,CurrentCountFilledGenos,nInd,nSnp
 		enddo
 
