@@ -155,7 +155,7 @@ contains
 
                     ProdFactTmp=DFactorialInLog(k)-(DFactorialInLog(i)+DFactorialInLog(k-i)) 
                     GMatRds(i,1,k)=ProdFactTmp+(dfloat(i)*log(ErrorRate))+(dfloat(k-i)*log(1.0-ErrorRate))
-                    GMatRds(i,2,k)=ProdFactTmp+(dfloat(k)*log(0.5))
+                    GMatRds(i,2,k)=ProdFactTmp+(dfloat(i)*log(.48))+(dfloat(k-i)*log(.52))!ProdFactTmp+(dfloat(k)*log(0.5))
                     GMatRds(i,3,k)=ProdFactTmp+(dfloat(i)*log(1.0-ErrorRate))+(dfloat(k-i)*log(ErrorRate))
                 enddo
             enddo
