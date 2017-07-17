@@ -204,6 +204,7 @@ program FamilyPhase
 
 			call CalculateFounderAssignment
 			call ChunkDefinition
+!			call CountFounder
 			
 			call BuildConsensus
 			call SimpleCleanUpFillIn
@@ -1084,21 +1085,24 @@ subroutine BuildConsensus
 
 							! Save Ids of the trio (founder-parent-proband)
 
-							ConsensusIds(i,1,1)=FounderAssignment(i,j,k)   			! Id Founder
-							ConsensusIds(i,2,1)=FounderAssignment(i,j,k)			! Id Founder
-							ConsensusIds(i,3,1)=RecPed(i,e) 						! Id parent
-							ConsensusIds(i,4,1)=RecPed(i,1) 						! Id proband
+							ConsensusIds(i,4,1)=RecPed(i,1) 													! Id proband
+							ConsensusIds(i,3,1)=RecPed(i,e) 													! Id parent
+							
+							ConsensusIds(i,1,1)=RecPed(ConsensusIds(i,3,1),FounderAssignment(i,j,k))			! Id Founder
+							ConsensusIds(i,2,1)=RecPed(ConsensusIds(i,3,1),FounderAssignment(i,j,k))			! Id Founder
 
 							! Save gamete that the trio shared
 
 							ConsensusIds(i,1,2)=1 	! gamete1 Founder
 							ConsensusIds(i,2,2)=2 	! gamete2 Founder
 
-							if(RecPed(ConsensusIds(i,3,1),2)==FounderAssignment(i,j,k)) then
+							!if(RecPed(ConsensusIds(i,3,1),2)==FounderAssignment(i,j,k)) then
+							if (FounderAssignment(i,j,k)==2) then
 								ConsensusIds(i,3,2)=1	! From male 
 							endif
 
-							if(RecPed(ConsensusIds(i,3,1),3)==FounderAssignment(i,j,k)) then
+							!if(RecPed(ConsensusIds(i,3,1),3)==FounderAssignment(i,j,k)) then
+							if (FounderAssignment(i,j,k)==3) then
 								ConsensusIds(i,3,2)=2  ! From female
 							endif
 
@@ -1270,6 +1274,43 @@ subroutine ChunkDefinition
 	deallocate(FounderAssignmentB)
 end subroutine ChunkDefinition
 
+
+!#####################################################################################################################
+
+subroutine CountFounder
+	use GlobalPar
+	implicit none
+
+	integer :: i,j,k,f1,f2,c1,c2
+
+	do i=1,nInd
+		do k=1,2
+			if (maxval(FounderAssignment(i,:,k))/=0) then
+				f1=0
+				f2=0
+				c1=0
+				c2=0
+				do j=1,nSnp
+					if (FounderAssignment(i,j,k)/=0) then
+						if (FounderAssignment(i,j,k)==f1) c1=c1+1
+						if (FounderAssignment(i,j,k)==f2) c2=c2+1
+						if (f1==0) then
+							f1=FounderAssignment(i,j,k)
+							c1=c1+1
+						endif
+						if ((f1/=0).and.(FounderAssignment(i,j,k)/=f1).and.(f2==0)) then
+							f2=FounderAssignment(i,j,k)
+							c2=c2+1
+						endif
+					endif
+				enddo
+				write(*,'(7i10)'),i,Ped(i,1),k,f1,c1,f2,c2
+			endif
+		enddo
+	enddo
+
+end subroutine CountFounder
+
 !#####################################################################################################################
 
 ! CoreOfTheProgram 5a - Assign from which founder the haplotype has been inherited.
@@ -1284,7 +1325,7 @@ subroutine CalculateFounderAssignment
 
 	integer :: i,j,e,k
 	
-	FounderAssignment(:,:,:)=0 
+	FounderAssignment(:,:,:)=0
 	
    	!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase,RecPed,FounderAssignment,nSnp,nInd) !collapse(2)	
 	do e=2,3 ! Sire and Dam pos in the ped
@@ -1295,8 +1336,11 @@ subroutine CalculateFounderAssignment
 					!if (RecPed(i,e-1)==0) exit
 					if (FilledGenos(RecPed(i,e),j)==1) then
 						if (sum(FilledPhase(RecPed(i,e),j,:))<3) then
-							if (FilledPhase(RecPed(i,e),j,1)==FilledPhase(i,j,e-1)) FounderAssignment(i,j,e-1)=RecPed(RecPed(i,e),2) !Sire of Parent !FounderId(k,1)
-							if (FilledPhase(RecPed(i,e),j,2)==FilledPhase(i,j,e-1)) FounderAssignment(i,j,e-1)=RecPed(RecPed(i,e),3) !Dam  of Parent !FounderId(k,2)
+							!if (FilledPhase(RecPed(i,e),j,1)==FilledPhase(i,j,e-1)) FounderAssignment(i,j,e-1)=RecPed(RecPed(i,e),2) !Sire of Parent !FounderId(k,1)
+							!if (FilledPhase(RecPed(i,e),j,2)==FilledPhase(i,j,e-1)) FounderAssignment(i,j,e-1)=RecPed(RecPed(i,e),3) !Dam  of Parent !FounderId(k,2)
+							if (FilledPhase(RecPed(i,e),j,1)==FilledPhase(i,j,e-1)) FounderAssignment(i,j,e-1)=2 !Sire of Parent !FounderId(k,1)
+							if (FilledPhase(RecPed(i,e),j,2)==FilledPhase(i,j,e-1)) FounderAssignment(i,j,e-1)=3 !Dam  of Parent !FounderId(k,2)
+
 						endif
 					endif
 				endif
