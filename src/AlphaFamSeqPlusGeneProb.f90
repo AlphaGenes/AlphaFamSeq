@@ -42,8 +42,8 @@ module GlobalPar
 	character(len=300) :: PhaseFile             							! SpecFile - Control Results File Name - True Phase to check results 
 
 	integer :: IterationNumber                  							! Control Parameter - Define the number of Iterations
-	integer(int64) :: CurrentCountFilledPhase          							! Control Parameter - used to finish the program
-	integer(int64) :: CurrentCountFilledGenos          							! Control Parameter - used to finish the program
+	integer(kind=8) :: CurrentCountFilledPhase          							! Control Parameter - used to finish the program
+	integer(kind=8) :: CurrentCountFilledGenos          							! Control Parameter - used to finish the program
 	integer :: SolutionChanged                  							! Control Parameter - used to finish the program 
 	integer :: StartSnp,EndSnp
 	
@@ -101,7 +101,7 @@ program FamilyPhase
 	use CalculateStatisticsForGenoAndPhase
 	implicit none
 
-	integer(int64) :: OldCount,NewCount
+	integer(kind=8) :: OldCount,NewCount
 	integer(int32) :: Seed1,Seed2
 	real(kind=8) :: InitialGeneProbThresh
 	logical:: fileExists
@@ -233,7 +233,7 @@ program FamilyPhase
 			endif
 
 			write (*,'(2i4,3f10.3)') Windows,IterationNumber,GeneProbThresh,(dble(CurrentCountFilledPhase)/(dble(nInd*nSnp*2))*100),(dble(CurrentCountFilledGenos)/(dble(nInd*nSnp))*100)
-			print*,CurrentCountFilledPhase,CurrentCountFilledGenos,nInd,nSnp
+			!print*,CurrentCountFilledPhase,CurrentCountFilledGenos,nInd,nSnp
 		enddo
 
 		call WriteResults
@@ -1096,16 +1096,9 @@ subroutine BuildConsensus
 							ConsensusIds(i,1,2)=1 	! gamete1 Founder
 							ConsensusIds(i,2,2)=2 	! gamete2 Founder
 
-							!if(RecPed(ConsensusIds(i,3,1),2)==FounderAssignment(i,j,k)) then
-							if (FounderAssignment(i,j,k)==2) then
-								ConsensusIds(i,3,2)=1	! From male 
-							endif
-
-							!if(RecPed(ConsensusIds(i,3,1),3)==FounderAssignment(i,j,k)) then
-							if (FounderAssignment(i,j,k)==3) then
-								ConsensusIds(i,3,2)=2  ! From female
-							endif
-
+							if (FounderAssignment(i,j,k)==2) ConsensusIds(i,3,2)=1	! From male 
+							if (FounderAssignment(i,j,k)==3) ConsensusIds(i,3,2)=2  ! From female
+							
 							ConsensusIds(i,4,2)=k 	
 								
 							ConsensusHaplotype(j)=9
@@ -1113,12 +1106,12 @@ subroutine BuildConsensus
 							Count1=0
 							Count0=0
 
-							do m=1,2 ! members and gamets ! Avoid to use markers that are not fully phased
-								if (sum(FilledPhase(ConsensusIds(i,m,1),j,:))<3) then 
+							if (sum(FilledPhase(ConsensusIds(i,1,1),j,:))<3) then
+								do m=1,2 ! members and gamets ! Avoid to use markers that are not fully phased
 									if (FilledPhase(ConsensusIds(i,m,1),j,ConsensusIds(i,m,2))==1) Count1=Count1+1
 									if (FilledPhase(ConsensusIds(i,m,1),j,ConsensusIds(i,m,2))==0) Count0=Count0+1
-								endif
-							enddo
+								enddo
+							endif
 
 							do m=3,4 ! members and gamets
 								if (FilledPhase(ConsensusIds(i,m,1),j,ConsensusIds(i,m,2))==1) Count1=Count1+1
@@ -1274,7 +1267,6 @@ subroutine ChunkDefinition
 	deallocate(FounderAssignmentB)
 end subroutine ChunkDefinition
 
-
 !#####################################################################################################################
 
 subroutine CountFounder
@@ -1308,7 +1300,6 @@ subroutine CountFounder
 			endif
 		enddo
 	enddo
-
 end subroutine CountFounder
 
 !#####################################################################################################################
@@ -2024,41 +2015,86 @@ subroutine SaveGeneProbResults
 
 	implicit none
 
-	integer :: i,j
-	!real(kind=4),allocatable,dimension(:) :: AlleleDosage
+	integer :: i,j,nRow,p,stat,DumI
 	character(len=30) :: nChar
-	character(len=80) :: FmtReal,filout5 !filout3
+	character(len=80) :: FmtReal,filout5,filout6
 	
-	write(nChar,*) nSnp
+	integer,allocatable,dimension(:) :: SeqColToKeep
+	real,allocatable,dimension(:) 	 :: ReducedGeneProb
+
+	! WriteOut ReducedFileOf GeneProb
+	open (unit=2,file="SeqColToKeep.txt",status="old")
+	
+	nRow = 0
+	do
+	    read(2, *, iostat=stat) DumI
+	    if (stat/=0) exit
+	    nRow = nRow + 1
+	enddo
+	rewind(2)
+
+	allocate(SeqColToKeep(nRow))
+	allocate(ReducedGeneProb(nRow))
+
+	SeqColToKeep(:)=0
+	ReducedGeneProb(:)=0
+
+	do i=1,nRow
+		read(2,*) SeqColToKeep(i)
+	enddo
+	close (2)
+
+
+	write(nChar,*) nRow
 	FmtReal='(i0,'//trim(adjustl(nChar))//'f7.4)'
-	
-	!write (filout3,'("AlphaFamSeqFinalAlleleDosage",i0,".txt")') Windows
-	write (filout5,'("AlphaFamSeqFinalGeneProb",i0,".txt")') Windows
-	
-	!open (unit=3,file=trim(filout3),status="unknown")
-	open (unit=5,file=trim(filout5),status="unknown")
-	
-	!allocate(AlleleDosage(nSnp))
+	write (filout6,'("AlphaFamSeqReducedGeneProb",i0,".txt")') Windows
+	open (unit=6,file=trim(filout6),status="unknown")
 
 	do i=1,nInd
-	
-		!do j=1,nSnp
-		!	AlleleDosage(j)=(0.0*Pr00(i,j)+(Pr01(i,j)+Pr10(i,j))+2.0*Pr11(i,j))
-		!enddo
+		p=1
+		do j=1,nRow
+			ReducedGeneProb(p)=Pr00(i,SeqColToKeep(j))
+			p=p+1
+		enddo
+		write (6,FmtReal) Ped(i,1),ReducedGeneProb(:)
+		p=1
+		do j=1,nRow
+			ReducedGeneProb(p)=Pr01(i,SeqColToKeep(j))
+			p=p+1
+		enddo
+		write (6,FmtReal) Ped(i,1),ReducedGeneProb(:)
+		p=1
+		do j=1,nRow
+			ReducedGeneProb(p)=Pr10(i,SeqColToKeep(j))
+			p=p+1
+		enddo
+		write (6,FmtReal) Ped(i,1),ReducedGeneProb(:)
+		p=1
+		do j=1,nRow
+			ReducedGeneProb(p)=Pr11(i,SeqColToKeep(j))
+			p=p+1
+		enddo
+		write (6,FmtReal) Ped(i,1),ReducedGeneProb(:)
+	enddo
+	close(6)
 
-		!write (3,FmtReal) Ped(i,1),AlleleDosage(:)
+	deallocate(SeqColToKeep)
+	deallocate(ReducedGeneProb)
+
+	! Write Out Full file of GeneProb
+
+	write(nChar,*) nSnp
+	FmtReal='(i0,'//trim(adjustl(nChar))//'f7.4)'
+	write (filout5,'("AlphaFamSeqFinalGeneProb",i0,".txt")') Windows
+	open (unit=5,file=trim(filout5),status="unknown")
+
+	do i=1,nInd
 		write (5,FmtReal) Ped(i,1),Pr00(i,:)
 		write (5,FmtReal) Ped(i,1),Pr01(i,:)
 		write (5,FmtReal) Ped(i,1),Pr10(i,:)
 		write (5,FmtReal) Ped(i,1),Pr11(i,:)
-
-	
 	enddo
 
-	!deallocate(AlleleDosage)
-
-
-	!close (3)
 	close (5)
 end subroutine SaveGeneProbResults
 
@@ -2070,13 +2106,62 @@ subroutine WriteResults
 
 	implicit none
 
-	integer :: i,j
-	real(kind=4),allocatable,dimension(:) :: AlleleDosage
+	integer :: i,j,nRow,stat,DumI,p
 	character(len=30) :: nChar
-	character(len=80) :: FmtInt,FmtInt2,FmtCha,FmtReal,filout1,filout2,filout3,filout4,filout5
-	!real(kind=8)		:: score2prob
+	character(len=80) :: FmtInt,FmtInt2,FmtCha,FmtReal,filout1,filout2,filout3,filout4,filout6,filout7
+		
+	integer,allocatable,dimension(:) 			:: SeqColToKeep
+	integer(kind=1),allocatable,dimension(:) 	:: ReducedGenos
 
+	! Save Reduced Genotypes
+	open (unit=6,file="SeqColToKeep.txt",status="old")
 	
+	nRow = 0
+	do
+	    read(6, *, iostat=stat) DumI
+	    if (stat/=0) exit
+	    nRow = nRow + 1
+	enddo
+	rewind(6)
+
+	allocate(SeqColToKeep(nRow))
+	allocate(ReducedGenos(nRow))
+	
+	SeqColToKeep(:)=0
+	ReducedGenos(:)=9
+
+	do i=1,nRow
+		read(6,*) SeqColToKeep(i)
+	enddo
+	close (6)
+
+
+	write(nChar,*) nRow
+	FmtInt='(i0,'//trim(adjustl(nChar))//'i2)'
+	write (filout7,'("AlphaFamSeqReducedGenos",i0,".txt")') Windows
+	open (unit=7,file=trim(filout7),status="unknown")
+
+	do i=1,nInd
+		p=1
+		do j=1,nRow
+			ReducedGenos(p)=FilledGenos(i,SeqColToKeep(j))
+			p=p+1
+		enddo
+		write (7,FmtInt) Ped(i,1),ReducedGenos(:)
+	enddo
+	close(7)
+
+	deallocate(SeqColToKeep)
+	deallocate(ReducedGenos)
+
+
+
+
+
+
+
+	! WriteOut Full Output
+
 	write(nChar,*) nSnp
 	FmtInt='(i0,'//trim(adjustl(nChar))//'i2)'
 	FmtInt2='(i0,'//trim(adjustl(nChar))//'(1x,i0))'
@@ -2085,48 +2170,28 @@ subroutine WriteResults
 	
 	write (filout1,'("AlphaFamSeqFinalPhase",i0,".txt")') Windows
 	write (filout2,'("AlphaFamSeqFinalGenos",i0,".txt")') Windows
-	!write (filout3,'("AlphaFamSeqFinalAlleleDosage",i0,".txt")') Windows
-	!write (filout5,'("AlphaFamSeqFinalGeneProb",i0,".txt")') Windows
 	write (filout4,'("AlphaFamSeqFounderAssignment",i0,".txt")') Windows
 	
 	open (unit=1,file=trim(filout1),status="unknown")
 	open (unit=2,file=trim(filout2),status="unknown")
-	!open (unit=3,file=trim(filout3),status="unknown")
-	!open (unit=5,file=trim(filout5),status="unknown")
 	open (unit=4,file=trim(filout4),status="unknown")
 	
-	!allocate(AlleleDosage(nSnp))
 
 	do i=1,nInd
 		write (1,FmtInt) Ped(i,1),FilledPhase(i,:,1)
 		write (1,FmtInt) Ped(i,1),FilledPhase(i,:,2)
 		write (2,FmtInt) Ped(i,1),FilledGenos(i,:)
 
-		! do j=1,nSnp
-		! 	AlleleDosage(j)=(0.0*Pr00(i,j)+(Pr01(i,j)+Pr10(i,j))+2.0*Pr11(i,j))
-		! enddo
-
-		! write (3,FmtReal) Ped(i,1),AlleleDosage(:)
-		! write (5,FmtReal) Ped(i,1),Pr00(i,:)
-		! write (5,FmtReal) Ped(i,1),Pr01(i,:)
-		! write (5,FmtReal) Ped(i,1),Pr10(i,:)
-		! write (5,FmtReal) Ped(i,1),Pr11(i,:)
-
 		if (maxval(FounderAssignment(i,:,:))/=0) then 
 			write (4,FmtInt2) Ped(i,1),FounderAssignment(i,:,1)
 			write (4,FmtInt2) Ped(i,1),FounderAssignment(i,:,2)
 		endif
-
-
 	enddo
-
-	!deallocate(AlleleDosage)
-
 
 	close (1)
 	close (2)
-	!close (3)
 	close (4)
+
 end subroutine WriteResults
 
 
