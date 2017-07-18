@@ -101,7 +101,7 @@ program FamilyPhase
 	use CalculateStatisticsForGenoAndPhase
 	implicit none
 
-	integer :: OldCount,NewCount
+	integer(int64) :: OldCount,NewCount
 	integer(int32) :: Seed1,Seed2
 	real(kind=8) :: InitialGeneProbThresh
 	logical:: fileExists
