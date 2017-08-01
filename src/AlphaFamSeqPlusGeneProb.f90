@@ -189,7 +189,7 @@ program FamilyPhase
 			endif
 
 			call UseGeneProbToSimpleFillInBasedOnOwnReads
-			!if (IterationNumber==1) call ReadSamFile
+			if (IterationNumber==1) call ReadSamFile
 			call SimpleCleanUpFillIn
 			!call CurrentCountFilled
 
@@ -233,7 +233,8 @@ program FamilyPhase
 				SolutionChanged=0
 			endif
 
-			write (*,'(2i4,3f10.3)') Windows,IterationNumber,GeneProbThresh,(dble(CurrentCountFilledPhase)/(dble(nInd*nSnp*2))*100),(dble(CurrentCountFilledGenos)/(dble(nInd*nSnp))*100)
+			!write (*,'(2i4,3f10.3)') Windows,IterationNumber,GeneProbThresh,(dble(CurrentCountFilledPhase)/(dble(nInd*nSnp*2))*100),(dble(CurrentCountFilledGenos)/(dble(nInd*nSnp))*100)
+			write (*,'(2i4,1f10.3,2i15)') Windows,IterationNumber,GeneProbThresh,CurrentCountFilledPhase,CurrentCountFilledGenos
 			!print*,CurrentCountFilledPhase,CurrentCountFilledGenos,nInd,nSnp
 		enddo
 
@@ -1544,7 +1545,7 @@ subroutine ReadSamFile
 			    endif
 			enddo
 			12 close(12)
-			print*,tmpId,cp,cm,wp,wm
+			if (tmpId.ne.0) print*,tmpId,cp,cm,wp,wm
 		endif
 	enddo
 end subroutine ReadSamFile
@@ -1571,12 +1572,12 @@ subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 	do i=1,nInd
 		do j=1,nSnp
 
-			if ((Pr00(i,j).ge.GeneProbThresh).and.(sum(FilledPhase(i,j,:))>3)) then
+			if ((Pr00(i,j).ge.GeneProbThresh).and.(sum(FilledPhase(i,j,:))>3).and.(FilledGenos(i,j)==9)) then
 				FilledGenos(i,j)=0
 				FilledPhase(i,j,:)=0
 			endif
 
-			if (((Pr01(i,j)+Pr10(i,j)).ge.GeneProbThresh).and.(sum(FilledPhase(i,j,:))>3)) then
+			if (((Pr01(i,j)+Pr10(i,j)).ge.GeneProbThresh).and.(sum(FilledPhase(i,j,:))>3).and.(FilledGenos(i,j)==9)) then
 				FilledGenos(i,j)=1
 				if (Pr01(i,j).ge.GeneProbThresh) then
 					FilledPhase(i,j,1)=0
@@ -1588,7 +1589,7 @@ subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 				endif
 			endif
 
-			if ((Pr11(i,j).ge.GeneProbThresh).and.(sum(FilledPhase(i,j,:))>3)) then
+			if ((Pr11(i,j).ge.GeneProbThresh).and.(sum(FilledPhase(i,j,:))>3).and.(FilledGenos(i,j)==9)) then
 				FilledGenos(i,j)=2
 				FilledPhase(i,j,:)=1
 			endif
