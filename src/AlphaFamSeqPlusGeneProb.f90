@@ -189,7 +189,7 @@ program FamilyPhase
 			endif
 
 			call UseGeneProbToSimpleFillInBasedOnOwnReads
-			if (IterationNumber==1) call ReadSamFile
+			!if (IterationNumber==1) call ReadSamFile
 			call SimpleCleanUpFillIn
 			!call CurrentCountFilled
 
@@ -1433,116 +1433,120 @@ subroutine ReadSamFile
 	real 	:: LikeP,LikeM
 	real(kind=8) :: p0,m0
 	character(len=100) :: filout12
+	logical :: exist12
 
 	allocate(HapPos(5000))
 	allocate(SamHap(5000))
 
-	HapPos=0
-	SamHap=9
 
 	do i=nInd,1,-1
+		tmpId=0
+		HapLength=0
+		HapPos=0
+		SamHap=9
+
 		cp=0
 		cm=0
 		wp=0
 		wm=0
 		write (filout12,'(i0,".FilledPhase.txt")') Ped(i,1)
-		open(unit=12, file=trim(filout12), status="unknown")
+		inquire  (file=trim(filout12),exist=exist12)
+		if (exist12) then
+			open(unit=12, file=trim(filout12), status="unknown")
 
-		do 
-			read(12,*,end=12),tmpId,HapLength,(HapPos(k),k=1,HapLength)
-	    	read(12,*),tmpId,HapLength,(SamHap(k),k=1,HapLength)
-	    	!print*,tmpId,HapLength,HapPos(1:HapLength)
+			do 
+				read(12,*,end=12),tmpId,HapLength,(HapPos(k),k=1,HapLength)
+		    	read(12,*),tmpId,HapLength,(SamHap(k),k=1,HapLength)
+		    	!print*,tmpId,HapLength,HapPos(1:HapLength)
 
-	    	LikeP=log(.5)
-	    	LikeM=log(.5)
+		    	LikeP=log(.5)
+		    	LikeM=log(.5)
 
-		    do j=1,HapLength
-		        p0=Pr00(i,HapPos(j))+Pr01(i,HapPos(j))
-		        m0=Pr00(i,HapPos(j))+Pr10(i,HapPos(j))
-		        
-		        if (p0.lt.0.0000001) p0=0.0000001
-		        if (m0.lt.0.0000001) m0=0.0000001
+			    do j=1,HapLength
+			        p0=Pr00(i,HapPos(j))+Pr01(i,HapPos(j))
+			        m0=Pr00(i,HapPos(j))+Pr10(i,HapPos(j))
+			        
+			        if (p0.lt.0.0000001) p0=0.0000001
+			        if (m0.lt.0.0000001) m0=0.0000001
 
-		        if (p0.gt.0.9999999) p0=0.9999999
-		        if (m0.gt.0.9999999) m0=0.9999999
+			        if (p0.gt.0.9999999) p0=0.9999999
+			        if (m0.gt.0.9999999) m0=0.9999999
 
-		      if (SamHap(j)==0) then
-		        LikeP=LikeP+log(p0)
-		        LikeM=LikeM+log(m0)
-		      else if (SamHap(j)==1) then
-		        LikeP=LikeP+log(abs(p0-1))
-		        LikeM=LikeM+log(abs(m0-1))
-		      endif
-		    enddo
+			      if (SamHap(j)==0) then
+			        LikeP=LikeP+log(p0)
+			        LikeM=LikeM+log(m0)
+			      else if (SamHap(j)==1) then
+			        LikeP=LikeP+log(abs(p0-1))
+			        LikeM=LikeM+log(abs(m0-1))
+			      endif
+			    enddo
 
-		    !if (i==1) print*,LikeP,LikeM
-		    if (LikeP.gt.LikeM) then ! The haplotype is paternal
-		      do j=1,HapLength
-		        if (FilledPhase(i,HapPos(j),1)==9) then
-		        	cp=cp+1
-		        	FilledPhase(i,HapPos(j),1)=SamHap(j)
-		        	FilledGenos(i,HapPos(j))=1
-		        endif
-		        if (FilledPhase(i,HapPos(j),2)==9) then
-		        	cm=cm+1
-		        	FilledPhase(i,HapPos(j),2)=abs(SamHap(j)-1)
-		        	FilledGenos(i,HapPos(j))=1
-		        endif
+			    !if (i==1) print*,LikeP,LikeM
+			    if (LikeP.gt.LikeM) then ! The haplotype is paternal
+			      do j=1,HapLength
+			        if (FilledPhase(i,HapPos(j),1)==9) then
+			        	cp=cp+1
+			        	FilledPhase(i,HapPos(j),1)=SamHap(j)
+			        	FilledGenos(i,HapPos(j))=1
+			        endif
+			        if (FilledPhase(i,HapPos(j),2)==9) then
+			        	cm=cm+1
+			        	FilledPhase(i,HapPos(j),2)=abs(SamHap(j)-1)
+			        	FilledGenos(i,HapPos(j))=1
+			        endif
 
-		      	if (FilledPhase(i,HapPos(j),1)/=SamHap(j)) then
-		      		wp=wp+1
-		      		FilledPhase(i,HapPos(j),1)=9
-		      		FilledGenos(i,HapPos(j))=1
-		      	endif
-		      	if (FilledPhase(i,HapPos(j),2)/=abs(SamHap(j)-1)) then
-		      		wm=wm+1
-		      		FilledPhase(i,HapPos(j),1)=9
-		      		FilledGenos(i,HapPos(j))=1
-		      	endif
-		      enddo
-		    endif
-		    
-		    if (LikeM.gt.LikeP) then
-		      do j=1,HapLength
-		        if (FilledPhase(i,HapPos(j),2)==9) then
-		        	cm=cm+1
-		        	FilledPhase(i,HapPos(j),2)=SamHap(j)
-		        	FilledGenos(i,HapPos(j))=1
-		        endif
-		        if (FilledPhase(i,HapPos(j),1)==9) then
-		        	cp=cp+1
-		        	FilledPhase(i,HapPos(j),1)=abs(SamHap(j)-1)
-		        	FilledGenos(i,HapPos(j))=1
-		        endif
+			      	if (FilledPhase(i,HapPos(j),1)/=SamHap(j)) then
+			      		wp=wp+1
+			      		FilledPhase(i,HapPos(j),1)=9
+			      		FilledGenos(i,HapPos(j))=1
+			      	endif
+			      	if (FilledPhase(i,HapPos(j),2)/=abs(SamHap(j)-1)) then
+			      		wm=wm+1
+			      		FilledPhase(i,HapPos(j),1)=9
+			      		FilledGenos(i,HapPos(j))=1
+			      	endif
+			      enddo
+			    endif
+			    
+			    if (LikeM.gt.LikeP) then
+			      do j=1,HapLength
+			        if (FilledPhase(i,HapPos(j),2)==9) then
+			        	cm=cm+1
+			        	FilledPhase(i,HapPos(j),2)=SamHap(j)
+			        	FilledGenos(i,HapPos(j))=1
+			        endif
+			        if (FilledPhase(i,HapPos(j),1)==9) then
+			        	cp=cp+1
+			        	FilledPhase(i,HapPos(j),1)=abs(SamHap(j)-1)
+			        	FilledGenos(i,HapPos(j))=1
+			        endif
 
-		      	if (FilledPhase(i,HapPos(j),2)/=SamHap(j)) then
-		      		wm=wm+1
-		      		FilledPhase(i,HapPos(j),1)=9
-		      		FilledGenos(i,HapPos(j))=1
-		      	endif
-		      	if (FilledPhase(i,HapPos(j),1)/=abs(SamHap(j)-1)) then
-		      		wp=wp+1
-		      		FilledPhase(i,HapPos(j),1)=9
-		      		FilledGenos(i,HapPos(j))=1
-		      	endif
-		      enddo
-		    endif
+			      	if (FilledPhase(i,HapPos(j),2)/=SamHap(j)) then
+			      		wm=wm+1
+			      		FilledPhase(i,HapPos(j),1)=9
+			      		FilledGenos(i,HapPos(j))=1
+			      	endif
+			      	if (FilledPhase(i,HapPos(j),1)/=abs(SamHap(j)-1)) then
+			      		wp=wp+1
+			      		FilledPhase(i,HapPos(j),1)=9
+			      		FilledGenos(i,HapPos(j))=1
+			      	endif
+			      enddo
+			    endif
 
-		   	if (LikeM.eq.LikeP) then
-		      do j=1,HapLength
-		      	if (FilledGenos(i,HapPos(j))/=1) then
-		      		FilledGenos(i,HapPos(j))=1
-		      		FilledPhase(i,HapPos(j),:)=9
-		      	endif
-		      enddo
-		    endif
-
-
-		enddo
-		12 close(12)
-		print*,tmpId,cp,cm,wp,wm
+			   	if (LikeM.eq.LikeP) then
+			      do j=1,HapLength
+			      	if (FilledGenos(i,HapPos(j))/=1) then
+			      		FilledGenos(i,HapPos(j))=1
+			      		FilledPhase(i,HapPos(j),:)=9
+			      	endif
+			      enddo
+			    endif
+			enddo
+			12 close(12)
+			print*,tmpId,cp,cm,wp,wm
+		endif
 	enddo
-
 end subroutine ReadSamFile
 
 !################################################################################################
