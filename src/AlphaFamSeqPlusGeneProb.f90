@@ -42,8 +42,8 @@ module GlobalPar
 	character(len=300) :: PhaseFile             							! SpecFile - Control Results File Name - True Phase to check results 
 
 	integer :: IterationNumber                  							! Control Parameter - Define the number of Iterations
-	integer(kind=8) :: CurrentCountFilledPhase          							! Control Parameter - used to finish the program
-	integer(kind=8) :: CurrentCountFilledGenos          							! Control Parameter - used to finish the program
+	integer(int64) :: CurrentCountFilledPhase          							! Control Parameter - used to finish the program
+	integer(int64) :: CurrentCountFilledGenos          							! Control Parameter - used to finish the program
 	integer :: SolutionChanged                  							! Control Parameter - used to finish the program 
 	integer :: StartSnp,EndSnp
 	
@@ -204,8 +204,9 @@ program FamilyPhase
 			!call CurrentCountFilled
 
 			call CalculateFounderAssignment
+			!call CountFounder
+
 			call ChunkDefinition
-!			call CountFounder
 			
 			call BuildConsensus
 			call SimpleCleanUpFillIn
@@ -1120,8 +1121,8 @@ subroutine BuildConsensus
 								if (FilledPhase(ConsensusIds(i,m,1),j,ConsensusIds(i,m,2))==0) Count0=Count0+1
 							enddo
 
-							if (Count1>1 .and. Count1.gt.Count0) ConsensusHaplotype(j)=1 !Count0==0
-							if (Count0>1 .and. Count0.gt.Count1) ConsensusHaplotype(j)=0 !Count1==0
+							if (Count1>0 .and. Count1.gt.Count0) ConsensusHaplotype(j)=1 !Count0==0
+							if (Count0>0 .and. Count0.gt.Count1) ConsensusHaplotype(j)=0 !Count1==0
 
 
 							if (ConsensusHaplotype(j)/=9) then
@@ -1509,7 +1510,7 @@ subroutine ReadSamFile
 			      enddo
 			    endif
 			    
-			    if (LikeM.gt.LikeP) then
+			    if (LikeM.gt.LikeP) then ! The haplotype is maternal
 			      do j=1,HapLength
 			        if (FilledPhase(i,HapPos(j),2)==9) then
 			        	cm=cm+1
