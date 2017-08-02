@@ -689,9 +689,9 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	        phet=0.
 
 	        do i=1,nAnis ! M Battagin - removed use of the prior (i.e., AlleleFrequencies)
-	          ant(1,i)=log(0.5*0.5)   !log(qprior*qprior)     ! log(.000000001)! 
-	          ant(2,i)=log(2*0.5*0.5) !log(2.0*pprior*qprior) ! log(.000000001)! 
-	          ant(3,i)=log(0.5*0.5)   !log(pprior*pprior)     ! log(.000000001)!
+	          ant(1,i)=log(qprior*qprior)     ! log(.000000001)! log(0.5*0.5)   !
+	          ant(2,i)=log(2.0*pprior*qprior) ! log(.000000001)! log(2*0.5*0.5) !
+	          ant(3,i)=log(pprior*pprior)     ! log(.000000001)! log(0.5*0.5)   !
 	        enddo
 
 	        ! ----------------------------------------------
