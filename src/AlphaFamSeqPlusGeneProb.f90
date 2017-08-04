@@ -2121,19 +2121,19 @@ subroutine ReadPrevGeneProb
 
 	implicit none
 
-	integer :: i,j,DumI
+	integer(int64) :: i,j,DumI
 	character(len=30) :: nChar
 	character(len=80) :: FmtReal,filout5
 	
-	filout5="AlphaFamSeqFinalGeneProb1.txt"
-	open (unit=5,file=trim(filout5),status="old")
+	filout5="AlphaFamSeqFinalGeneProb1.bin"
+	open (unit=5,file=trim(filout5),status="old",form="unformatted")
 	
 	do i=1,nInd
 	
-		read(5,*)DumI,Pr00(i,:)
-		read(5,*)DumI,Pr01(i,:)
-		read(5,*)DumI,Pr10(i,:)
-		read(5,*)DumI,Pr11(i,:)
+		read(5) DumI,Pr00(i,:)
+		read(5) DumI,Pr01(i,:)
+		read(5) DumI,Pr10(i,:)
+		read(5) DumI,Pr11(i,:)
 	
 	enddo
 
@@ -2218,17 +2218,30 @@ subroutine SaveGeneProbResults
 
 	write(nChar,*) nSnp
 	FmtReal='(i0,'//trim(adjustl(nChar))//'f7.4)'
-	write (filout5,'("AlphaFamSeqFinalGeneProb",i0,".txt")') Windows
-	open (unit=5,file=trim(filout5),status="unknown")
+	!write (filout5,'("AlphaFamSeqFinalGeneProb",i0,".txt")') Windows
+	! open (unit=5,file=trim(filout5),status="unknown")
+
+	! do i=1,nInd
+	! 	write (5,FmtReal) Ped(i,1),Pr00(i,:)
+	! 	write (5,FmtReal) Ped(i,1),Pr01(i,:)
+	! 	write (5,FmtReal) Ped(i,1),Pr10(i,:)
+	! 	write (5,FmtReal) Ped(i,1),Pr11(i,:)
+	! enddo
+
+	write (filout5,'("AlphaFamSeqFinalGeneProb",i0,".bin")') Windows
+	open (unit=5,file=trim(filout5),status="unknown",form="unformatted")
 
 	do i=1,nInd
-		write (5,FmtReal) Ped(i,1),Pr00(i,:)
-		write (5,FmtReal) Ped(i,1),Pr01(i,:)
-		write (5,FmtReal) Ped(i,1),Pr10(i,:)
-		write (5,FmtReal) Ped(i,1),Pr11(i,:)
+		write (5) (Ped(i,1)),Pr00(i,:)
+		write (5) (Ped(i,1)),Pr01(i,:)
+		write (5) (Ped(i,1)),Pr10(i,:)
+		write (5) (Ped(i,1)),Pr11(i,:)
 	enddo
 
+
 	close (5)
+
+
 end subroutine SaveGeneProbResults
 
 !###########################################################################################################################################################
