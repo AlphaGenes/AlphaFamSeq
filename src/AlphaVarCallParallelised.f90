@@ -581,7 +581,7 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
         ErrorHomo=0.05
         ProbHetero=0.5
 
-        call GetVariantErrorRate(nAnis,ReadCounts,ErrorHomo,ProbHetero,currentSnp)
+      !  call GetVariantErrorRate(nAnis,ReadCounts,ErrorHomo,ProbHetero,currentSnp)
       !  write(*,'(1i0,1x,1f7.4)'),currentSnp,ErrorHomo
 
         do ia=1,nAnis 
@@ -592,7 +592,7 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
           if (Seq0Snp1Mode==0) then
             freq(:,ia) =log(1.)
             if (sum(ReadCounts(ia,currentSnp,:)).gt.0) then
-              call ReadsLikelihood(ReadCounts(ia,currentSnp,1),ReadCounts(ia,currentSnp,2),ErrorHomo,dble(0.5),freq(1,ia),freq(2,ia),freq(3,ia)) 
+              call ReadsLikelihood(ReadCounts(ia,currentSnp,1),ReadCounts(ia,currentSnp,2),ErrorRate,dble(0.5),freq(1,ia),freq(2,ia),freq(3,ia)) 
             endif
           endif
 
