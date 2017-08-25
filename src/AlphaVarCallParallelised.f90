@@ -56,8 +56,8 @@ contains
       !$OMP PARALLEL DO DEFAULT(FIRSTPRIVATE) PRIVATE(i) SHARED(ReadCounts,InputGenos,MaxReadCounts,GMatSnp,GMatRds,Pr00, Pr01, Pr10, Pr11)
       do i=1,(EndSnp-StartSnp+1)
         call geneprob(i,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos, &
-                      maxfs,MaxMates,MaxReadCounts,GMatSnp,GMatRds,SeqSire,SeqDam, &
-                      Pr00,Pr01,Pr10,Pr11, &
+                      maxfs,MaxMates,GMatSnp,SeqSire,SeqDam, &
+                      Pr00,Pr01,Pr10,Pr11,ErrorRate, &
                       mxeq,mate,ifirst,next,prog)
       enddo
       !$OMP END PARALLEL DO
@@ -461,21 +461,22 @@ contains
 
     !######################################################################################################################################################
 
-subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,MaxMates,MaxReadCounts,GMatSnp,GMatRds,SeqSire,SeqDam,Pr00,Pr01,Pr10,Pr11,mxeq,mate,ifirst,next,prog)
+subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,MaxMates,GMatSnp,SeqSire,SeqDam,Pr00,Pr01,Pr10,Pr11,ErrorRate,mxeq,mate,ifirst,next,prog)
         use ISO_Fortran_Env
 	      implicit none
 
-	      integer, intent(in) :: currentSnp,Seq0Snp1Mode,maxfs,MaxMates,MaxReadCounts
+	      integer, intent(in) :: currentSnp,Seq0Snp1Mode,maxfs,MaxMates
 	      integer, intent(in) :: nAnis
 	      integer(int64), intent(in), dimension (:) :: SeqSire(nAnis),SeqDam(nAnis)
 
 	      real(kind=8),intent(in),dimension(:,:) :: GMatSnp(1:3,1:3)
-	      real(kind=8),intent(in),dimension(:,:,:) :: GMatRds(0:MaxReadCounts,3,MaxReadCounts)
-
+	      
 	      integer(kind=1),intent(in),dimension(:,:) :: InputGenos 
 	      integer(kind=2),intent(in),dimension(:,:,:) :: ReadCounts 
 
 	      real(kind=4),intent(inout),dimension(:,:) :: Pr00,Pr01,Pr10,Pr11 
+        real(kind=8),intent(in) :: ErrorRate
+
 	      
 	      integer,intent(in) :: mxeq
 
@@ -512,7 +513,9 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	      REAL (KIND=8), allocatable,dimension(:,:)     :: ant,term,freq
 	      REAL (KIND=8), allocatable,dimension(:,:,:)   :: work
 
-	     ! print*,currentSnp
+	     real (kind=8)   :: ErrorHomo,ProbHetero
+
+       ! print*,currentSnp
 
 	      pprior= 0.5 
 	      qprior= 1-pprior
@@ -575,37 +578,22 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 
         freq=log(1.)
         
+        ErrorHomo=0.05
+        ProbHetero=0.5
+
+        call GetVariantErrorRate(nAnis,ReadCounts,ErrorHomo,ProbHetero,currentSnp)
+      !  write(*,'(1i0,1x,1f7.4)'),currentSnp,ErrorHomo
+
         do ia=1,nAnis 
 
           if (Seq0Snp1Mode==0) phen(ia) = ReadCounts(ia,currentSnp,2) !!!! was ReadCounts(i,1,2) - MBattagin
           if (Seq0Snp1Mode==1) phen(ia) = InputGenos(ia,currentSnp)
 
           if (Seq0Snp1Mode==0) then
-              sumReads=0
-              sumReads=sum(ReadCounts(ia,currentSnp,:))
-              if (sumReads.eq.0) THEN
-                  freq(:,ia) =log(1.)
-              else
-                  do i = 0, sumReads
-                      IF (phen(ia).eq.i) THEN
-                          IF (GMatRds(i, 1,sumReads).lt.log(.000000001))then 
-                              freq(1,ia) =-9999
-                          else
-                              freq(1,ia) =GMatRds(i, 1,sumReads)
-                          endif
-                          IF(GMatRds(i, 2,sumReads).lt.log(.000000001))then
-                              freq(2,ia) =-9999
-                          else
-                              freq(2,ia)=GMatRds(i, 2,sumReads)
-                          endif
-                          IF(GMatRds(i, 3,sumReads).lt.log(.000000001))then
-                              freq(3,ia) =-9999
-                          else
-                              freq(3,ia) =GMatRds(i, 3,sumReads)
-                          endif
-                      endif
-                  enddo
-              endif
+            freq(:,ia) =log(1.)
+            if (sum(ReadCounts(ia,currentSnp,:)).gt.0) then
+              call ReadsLikelihood(ReadCounts(ia,currentSnp,1),ReadCounts(ia,currentSnp,2),ErrorHomo,dble(0.5),freq(1,ia),freq(2,ia),freq(3,ia)) 
+            endif
           endif
 
           if (Seq0Snp1Mode==1) then
@@ -1312,16 +1300,114 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
       real(kind=8),intent(in) :: x1
       real(kind=8) :: x2
       
-    x2=x1
-  if (x2.le.0.0001) x2=0.0001
-  if (x2.ge.0.9999) x2=0.9999
-  probscore=nint(-10*log10(x2)*100)
-
-  return
-     
+      x2=x1
+      if (x2.le.0.0001) x2=0.0001
+      if (x2.ge.0.9999) x2=0.9999
+      probscore=nint(-10*log10(x2)*100)
 
       return
     end function probscore
+
+    !###########################################################################################################################################################
+
+    subroutine ReadsLikelihood(nRef,nAlt,ErrorHomo,ProbHetero,lPr0,lPr1,lPr2)
+      implicit none
+      
+      integer(kind=2),intent(in)  :: nRef,nAlt
+      REAL (KIND=8),intent(in)    :: ErrorHomo,ProbHetero
+      REAL (KIND=8),intent(inout) :: lPr0,lPr1,lPr2
+
+          if ((nRef+nAlt)==0) then
+            lPr0=log(1.)
+            lPr1=log(1.)
+            lPr2=log(1.)
+          else
+            lPr0=(dble(nRef)*log(1-ErrorHomo))+(dble(nAlt)*log(ErrorHomo))
+!            if (lPr0.lt.log(.000000001)) lPr0=-9999
+            
+            lPr1=(dble(nRef)*log(ProbHetero))+(dble(nAlt)*log(1-ProbHetero))
+!            if (lPr1.lt.log(.000000001)) lPr1=-9999
+            
+            lPr2=(dble(nAlt)*log(1-ErrorHomo))+(dble(nRef)*log(ErrorHomo))
+!            if (lPr2.lt.log(.000000001)) lPr2=-9999
+          endif
+    end subroutine ReadsLikelihood
+
+    !###########################################################################################################################################################
+
+    subroutine GetVariantErrorRate(nInd,ReadCounts,ErrorHomo,ProbHetero,currentSnp)
+      implicit none
+      
+      integer,intent(in)                          :: nInd,currentSnp
+      integer(kind=2),intent(in),dimension(:,:,:) :: ReadCounts 
+      real (kind=8), intent(inout)                :: ErrorHomo,ProbHetero
+
+      integer :: i,nHomo,nHetero
+      real (kind=8) :: lPr0,lPr1,lPr2,prob0,prob1,prob2,oldProbHetero,oldErrorHomo,cHetero,cHomo
+
+      ErrorHomo=0.001
+      ProbHetero=0.5
+      oldErrorHomo=0.001
+      oldProbHetero=0.5
+      cHetero=1.
+      cHomo=1.
+      
+      do while ((cHomo.gt.0.00001).or.(cHetero.gt.0.00001))
+
+        nHomo=0
+        nHetero=0
+        
+        oldErrorHomo=ErrorHomo
+        oldProbHetero=ProbHetero
+
+        ErrorHomo=0.001
+        ProbHetero=0.5
+
+        if (currentSnp==1) write(*,'(1i10,2f8.4)') currentSnp,oldErrorHomo, oldProbHetero
+
+        do i=1,nInd
+          call ReadsLikelihood(ReadCounts(i,currentSnp,1),ReadCounts(i,currentSnp,2),oldErrorHomo,oldProbHetero,lPr0,lPr1,lPr2) 
+          
+          prob0=exp(lPr0)/(exp(lPr0)+exp(lPr1)+exp(lPr2))
+          prob1=exp(lPr1)/(exp(lPr0)+exp(lPr1)+exp(lPr2))
+          prob2=exp(lPr2)/(exp(lPr0)+exp(lPr1)+exp(lPr2))
+
+          if ((prob0.gt.prob1).and.(prob0.gt.prob2)) then
+            nHomo=nHomo+1
+            ErrorHomo=ErrorHomo+(prob0*dble(ReadCounts(i,currentSnp,2))/dble(sum(ReadCounts(i,currentSnp,:))))
+!            if (currentSnp==1) write(*,'(1i10,4f10.4)') nHomo,oldErrorHomo,ErrorHomo,prob0,dble(ReadCounts(i,currentSnp,2))/dble(sum(ReadCounts(i,currentSnp,:)))
+          endif
+
+          if ((prob2.gt.prob1).and.(prob2.gt.prob0)) then 
+            nHomo=nHomo+1
+            ErrorHomo=ErrorHomo+(prob2*dble(ReadCounts(i,currentSnp,1))/dble(sum(ReadCounts(i,currentSnp,:))))
+!            if (currentSnp==1) write(*,'(1i10,4f10.4)') nHomo,oldErrorHomo,ErrorHomo,prob0,dble(ReadCounts(i,currentSnp,1))/dble(sum(ReadCounts(i,currentSnp,:)))
+          endif
+
+          ! if ((prob1.gt.prob0).and.(prob1.gt.prob2)) then
+          !   nHetero=nHetero+1
+          !   ProbHetero=ProbHetero+(prob1*ReadCounts(i,currentSnp,2)/sum(ReadCounts(i,currentSnp,:)))
+          ! endif
+        enddo
+
+        if (nHomo.gt.0) ErrorHomo=ErrorHomo/dble(nHomo)
+        !if (nHetero.gt.0) ProbHetero=ProbHetero/dble(nHetero)
+
+        if (nHomo.eq.0) then
+          ErrorHomo=0.001
+          exit
+        endif
+        if (nHetero.eq.0) ProbHetero=0.5
+
+        cHomo=abs(oldErrorHomo-ErrorHomo)
+        cHetero=abs(oldProbHetero-ProbHetero)
+
+      enddo
+
+      if (ErrorHomo.eq.0) ErrorHomo=0.0001
+
+    end subroutine GetVariantErrorRate
+
 
 end module AlphaVarCallFuture
 
