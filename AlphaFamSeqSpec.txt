@@ -2,7 +2,10 @@ NumberOfIndividuals           ,1504
 NumberOfSnps                  ,700000,100000,1
 InternalEdit                  ,0
 EditingParameter              ,0.001
-GenotypeProbability           ,0.999,0.850,0.005
+RemoveOutliersReadsCount      ,4,0.1
+RemoveMarkersLowNrReads       ,3
+RemoveExcessHeteroPvalue      ,0.95
+GenotypeProbability           ,0.999,0.850,0.005,0
 ErrorRate                     ,0.001
 RangeChunkLenght              ,50,100
 SuperConsensus                ,0
@@ -12,3 +15,4 @@ MapFile                       ,None
 SnpChipsInformation           ,None
 GenoFile                      ,Genotype.txt
 PhaseFile                     ,Phase.txt
+MaskedIndividualsFile         ,ReadsABC.txt,VcfTools

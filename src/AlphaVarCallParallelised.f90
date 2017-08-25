@@ -582,8 +582,8 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
         ProbHetero=0.5
 
 
-        call GetVariantErrorRate(nAnis,ReadCounts,ErrorHomo,ProbHetero,currentSnp)
-        if ((currentSnp.ge.35001) .and. (currentSnp.le.36000)) write(*,'(1i0,1x,1f7.4)'),currentSnp,ErrorHomo
+       ! call GetVariantErrorRate(nAnis,ReadCounts,ErrorHomo,ProbHetero,currentSnp)
+       ! if ((currentSnp.ge.35001) .and. (currentSnp.le.36000)) write(*,'(1i0,1x,1f7.4)'),currentSnp,ErrorHomo
 
         do ia=1,nAnis 
 
