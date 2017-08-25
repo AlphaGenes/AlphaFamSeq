@@ -11,16 +11,11 @@ OPTION(USE_HDF5 "Use hdf"
 
 set(CLUSTER 0 CACHE STRING "cluster size")
 # Add our local modlues to the module path
-SET(SRCAHTMP "../alphahouse/src/")
-SET(SRCACMAKE "${CMAKE_SOURCE_DIR}/../alphacmakefiles/cmake/modules")
+SET(SRCAHTMP "./alphahouse/src/")
+SET(SRCACMAKE "${CMAKE_SOURCE_DIR}/alphacmakefiles/cmake/modules")
 
-if (DEFINED ENV{CMAKEPATH})
-	MESSAGE("CMAKEPATH DEFINED IN ENV!")
-  SET(CMAKE_MODULE_PATH $ENV{CMAKEPATH})
-else()
-  SET(CMAKE_MODULE_PATH ${SRCACMAKE})
-	MESSAGE("CMAKEPATH NOT DEFINED IN ENV: USING DEFAULT ${SRCACMAKE}")
-endif()
+
+SET(CMAKE_MODULE_PATH ${SRCACMAKE})
 set(CMAKE_MACOSX_RPATH 0)
 
 if (DEFINED ENV{ALPHAHOUSESRC})

@@ -47,14 +47,13 @@ module GlobalPar
 	integer :: SolutionChanged                  							! Control Parameter - used to finish the program 
 	integer :: StartSnp,EndSnp
 	
-	integer(int64),allocatable,dimension(:,:) 		:: Ped         			! Input File - Pedigree
-	integer(int64),allocatable,dimension(:,:) 		:: RecPed				! Temporary File - Pedigree Recoded
-	integer(int64),allocatable,dimension(:) 		:: Id           		! Read Data - used to read unsorted data
+	! integer(int64),allocatable,dimension(:,:) 		:: Ped         			! Input File - Pedigree
+	type(PedigreeHolder) :: ped
 
-	integer(kind=2),allocatable,dimension(:,:,:) 	:: SequenceData			! Input File - Snp array to add more information to the Reads
-	integer(kind=2),allocatable,dimension(:,:,:) 	:: RawReads				! Input File - Snp array to add more information to the Reads
+	! integer(kind=2),allocatable,dimension(:,:,:) 	:: SequenceData			! Input File - Snp array to add more information to the Reads
+	! integer(kind=2),allocatable,dimension(:,:,:) 	:: RawReads				! Input File - Snp array to add more information to the Reads
 	
-	character(len=100), allocatable, dimension(:) 	:: Ids
+	! character(len=100), allocatable, dimension(:) 	:: Ids
 	integer(int64), dimension(:), allocatable 		:: position
 	real(real64), allocatable, dimension(:) 		:: quality
 
@@ -131,7 +130,8 @@ program FamilyPhase
 	! Read SpecFile and Pedigree. Those files are in common for all the windows
 	!  (if there are multiple Windows)
 	call ReadSpecfile
-	call ReadPedigree
+	
+	ped = PedigreeHolder(pedigreeFile)
 	
 	
 	! If the nSnp is really big and there are problems with memory allocation
@@ -323,170 +323,7 @@ end function score2prob
 
 !###########################################################################################################################################################
 
-! Reads in and initialises specfile parameters 
-subroutine ReadSpecfile
 
-    use GlobalPar
-
-    implicit none
-
-    integer :: FileLength, stat, i
-    !character(len=256) :: Var
-    character(len=30) :: SpecParam
-   	character (len=512) :: TLC
-
-    open(unit=1, file="AlphaFamSeqSpec.txt", status="old")
-
-    FileLength = 0
-
-    do
-        read(1, *, iostat=stat) SpecParam
-        if (stat/=0) exit
-        FileLength = FileLength + 1
-    enddo
-
-    rewind(1)
-
-    do i=1, FileLength
-        read(1,'(a30,A)', advance='NO', iostat=stat) SpecParam 
-        
-        select case(trim(TLC(SpecParam)))
-
-        	case('numberofindividuals')
-                read(1, *, iostat=stat) nIndSeq
-                if (stat /= 0) then
-                    print *, "NumberOfIndividuals not set properly in spec file"
-                    stop 2
-                endif 
-               
-			case('numberofsnps')
-                read(1, *, iostat=stat) LenghtSequenceDataFile,nSnp,fistWindow
-                if (stat /= 0) then
-                    print *, "NumberOfSnps not set properly in spec file"
-                    print *, LenghtSequenceDataFile,nSnp
-                    stop 2
-                endif 
-
-			case('internaledit')
-                read(1, *, iostat=stat) InternalEdit
-                if (stat /= 0) then
-                    print *, "InternalEdit not set properly in spec file"
-                    print *, InternalEdit
-                    stop 2
-                endif 
-
-			case('editingparameter')
-                read(1, *, iostat=stat) EditingParameter
-                if (stat /= 0) then
-                    print *, "EditingParameter not set properly in spec file"
-                    print *, EditingParameter
-                    stop 2
-                endif 
-
-			case('removeoutliersreadscount')
-                read(1, *, iostat=stat) maxStdForReadsCount
-                if (stat /= 0) then
-                    print *, "RemoveOutliersReadsCount not set properly in spec file"
-                    print *, maxStdForReadsCount,ThresholdMaxReadsCount
-                    stop 2
-                endif 
-
-			case('removemarkerslownrreads')
-                read(1, *, iostat=stat) ThresholdReadsCount
-                if (stat /= 0) then
-                    print *, "RemoveMarkersLowNrReads not set properly in spec file"
-                    print *, ThresholdReadsCount
-                    stop 2
-                endif 
-
-			case('removeexcessheteropvalue')
-                read(1, *, iostat=stat) ThresholdExcessHetero
-                if (stat /= 0) then
-                    print *, "RemoveExcessHeteroPvalue not set properly in spec file"
-                    print *, ThresholdExcessHetero
-                    stop 2
-                endif 
-
-
-
-            case('genotypeprobability')
-                read(1, *, iostat=stat) GeneProbThresh,GeneProbThreshMin,ReduceThr,UsePrevGeneProb !nIter 
-                if (stat /= 0) then
-                    print *, "GenotypeProbability not set properly in spec file"
-                    stop 8
-                endif   
-
-            case('errorrate')
-                read(1, *, iostat=stat) ErrorRate
-                if (stat /= 0) then
-                    print *, "ErrorRate not set properly in spec file"
-                    stop 8
-                endif   
-
-            case('rangechunklenght')
-                read(1, *, iostat=stat) ChunkLengthA,ChunkLengthB
-                if (stat /= 0) then
-                    print *, "RangeChunkLenght not set properly in spec file"
-                    stop 8
-                endif   
-
-			case('superconsensus')
-                read(1, *, iostat=stat) SuperC
-                if (stat /= 0) then
-                    print *, "SuperConsensus not set properly in spec file"
-                    stop 8
-                endif   
-                
-			case('pedigreefile')
-                read(1, *, iostat=stat) PedigreeFile
-                if (stat /= 0) then
-                    print *, "PedigreeFile not set properly in spec file"
-                    stop 8
-                endif   
-
-			case('readsfile')
-                read(1, *, iostat=stat) ReadsFile,ReadsType
-                if (stat /= 0) then
-                    print *, "ReadsFile not set properly in spec file"
-                    stop 10
-                endif   
-
-			case('mapfile')
-                read(1, *, iostat=stat) MapFile
-                if (stat /= 0) then
-                    print *, "MapFile not set properly in spec file"
-                    stop 10
-                endif   
-                
-			case('genofile')
-                read(1, *, iostat=stat) GenoFile
-                if (stat /= 0) then
-                    print *, "GenoFile not set properly in spec file"
-                    stop 10 
-                endif   
-            
-            case('snpchipsinformation')
-            	read(1, *, iostat=stat) SnpChipsInformation
-            	if (stat /= 0) then
-                    print *, "SnpChipsInformation not set properly in spec file"
-                    stop 10
-                endif
-                
-			case('phasefile')
-                read(1, *, iostat=stat) PhaseFile
-                if (stat /= 0) then
-                    print *, "PhaseFile not set properly in spec file"
-                    stop 10
-                endif
-                
-			case default
-               print *, "Error in specfile, please check", SpecParam
-                stop 16
-    	end select
-    enddo
-
-    close(1)
-end subroutine ReadSpecfile
 
 !###########################################################################################
 
@@ -1370,6 +1207,7 @@ subroutine SimpleFillInBasedOnProgenyReads
 				IdSir=RecPed(i,2)
 				IdDam=RecPed(i,3)
 				!if (IdDam/=0) then
+				
 					if ((FilledPhase(IdDam,j,1)/=9).and.(FilledPhase(IdDam,j,1)/=FilledPhase(i,j,2))) FilledPhase(IdDam,j,2)=FilledPhase(i,j,2)
 					if ((FilledPhase(IdDam,j,2)/=9).and.(FilledPhase(IdDam,j,2)/=FilledPhase(i,j,2))) FilledPhase(IdDam,j,1)=FilledPhase(i,j,2)
 				!endif
@@ -1827,48 +1665,7 @@ subroutine InternalEdititing
 	deallocate(RefAllele)
 end subroutine InternalEdititing
 
-!################################################################################################
 
-subroutine ReadPedigree
-
-	use GlobalPar
-	use MaraModule
-
-	implicit none
-
-	integer(int64) :: i,DumI,j,stat
-	!integer,allocatable,dimension(:) :: TempImput
-	!integer :: TmpID
-
-	open (unit=2,file=trim(PedigreeFile),status="old")
-	
-	nInd = 0
-	do
-	    read(2, *, iostat=stat) DumI
-	    if (stat/=0) exit
-	    nInd = nInd + 1
-	enddo
-	print*,"PedigreeLenght",nInd	 
-	rewind(2)
-
-	allocate(Ped(0:nInd,3))
-	allocate(RecPed(0:nInd,3))
-	RecPed=0
-	Ped(0,:)=0
-
-	do i=1,nInd
-		read(2,*) Ped(i,:)
-	enddo
-
-	close (2)
-
-
-	do i=1,nInd ! Recode the pedigree in a new array
-		do j=1,3
-			call GetID(Ped(i,j),RecPed(i,j))
-		enddo
-	enddo
-end subroutine ReadPedigree
 
 !###########################################################################################################################################################
 
@@ -1902,7 +1699,7 @@ subroutine ReadData
 	do i=1, nIndSeq
 		PosReads=0
 		read(Ids(i),*) TmpID
-	    call GetID(TmpID, PosReads)
+	    ! call GetID(TmpID, PosReads) 
 	    !print*,i,TmpID,PosReads
 	    if (PosReads/=0) RawReads(PosReads,:,:)= SequenceData(i,:,:)
 	enddo
@@ -2087,33 +1884,7 @@ subroutine MergeResultsFile
 	enddo
 end subroutine MergeResultsFile
 
-!###########################################################################################################################################################
 
-subroutine GetID(InputId, PosId)
-
-    use GlobalPar
-    implicit none
-
-    integer(int64), intent(in) :: InputId
-    integer(int64), intent(out) :: PosId
-
-    integer :: i,check
-
-    PosId = 0
-    check = 0
-
-    do i=1, nInd 
-        if (Ped(i,1) == InputId) then !Ped is in global module
-            PosId = i
-        endif
-    enddo
-
-    !if (PosId == 0) then ! just a check, you don't need this really but may be useful for testing!
-    !    print*, "individual not present, please check file"
-    !   stop
-    !check=check+1
-    !endif
-end subroutine GetID
 
 !###########################################################################################################################################################
 subroutine ReadPrevGeneProb
