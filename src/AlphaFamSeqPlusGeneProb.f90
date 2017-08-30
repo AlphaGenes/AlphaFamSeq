@@ -1453,22 +1453,22 @@ end subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 subroutine RunGeneProb
 	
 	use GlobalPar
-	use AlphaVarCallFuture
+	use AlphaMLPModule
 	!use omp_lib
 	
 	implicit none
 
-	integer(int64),allocatable,dimension(:) :: SeqSire,SeqDam
-	
-    allocate(SeqSire(nInd))
-    allocate(SeqDam(nInd))
 
-    !SeqId=RecPed(1:nInd,1)
-	SeqSire=RecPed(1:nInd,2)
-	SeqDam=RecPed(1:nInd,3)
+	!integer :: i,j
+	real(kind=real64),allocatable,dimension(:,:,:) :: ReadCounts !< in the format (pedigreeId, snpId, prob) prob is Pr00,Pr01,Pr10,Pr11
+    real(kind=real64),allocatable,dimension(:) :: Maf
 	
-	
-	call AlphaVarCall(nInd,nSnp,1,nSnp,ErrorRate,0,SeqSire,SeqDam,RawReads,FilledGenos(1:nInd,nSnp),Pr00,Pr01,Pr10,Pr11)
+  
+	call runAlphaMLPAlphaImpute(1, nSnp, ped, ReadCounts, Maf)
+
+
+
+	! call AlphaVarCall(nInd,nSnp,1,nSnp,ErrorRate,0,SeqSire,SeqDam,RawReads,FilledGenos(1:nInd,nSnp),Pr00,Pr01,Pr10,Pr11)
 
 	deallocate(SeqSire)
 	deallocate(Seqdam)
