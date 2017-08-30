@@ -133,6 +133,13 @@ program FamilyPhase
 	
 	ped = PedigreeHolder(pedigreeFile)
 	
+
+	call ped%sortPedigreeAndOverwrite()
+
+
+	! TODO check type of genotype info - right now this for sequence 
+	! TODO read vcf format
+	call ped%addSequenceFromFile(readsFile,nSnp)
 	
 	! If the nSnp is really big and there are problems with memory allocation
 	!  is possible to split the chromosome in multiple windows
@@ -277,22 +284,7 @@ program FamilyPhase
 end program FamilyPhase
 
 !###########################################################################################################################################################
-! STOLEN FROM ALPHASIM, WRITTEN BY DAVID WILSON 
-! Function returns a character (Of 512 Bytes for compatibility) that is a completely lowercase copy of input str
-function TLC(str)
-    
-    character(*), intent(in) :: str
-    character(len=512) :: TLC
-    integer :: i
-    TLC = trim(str)
-    do i = 1, len(TLC)
-        select case(TLC(i:i))
-            case("A":"Z")
-                TLC(i:i) = achar(iachar(TLC(i:i))+32)
-        end select
-    enddo
-    return
-end function TLC
+
 
 !###########################################################################################################################################################
 
@@ -1199,15 +1191,19 @@ subroutine SimpleFillInBasedOnProgenyReads
 
 	integer :: i,j
 	integer(int64) :: IdSir,IdDam
-
+	type(individual),pointer :: sire,dam
 	!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (FilledPhase,RecPed,nSnp, nInd) !collapse(2)
 	do i=1,nInd
 		do j=1,nSnp
 			if ((MarkersToExclude(j).eq.0).and.(sum(FilledPhase(i,j,:))==0).or.(sum(FilledPhase(i,j,:))==2)) then
 				IdSir=RecPed(i,2)
 				IdDam=RecPed(i,3)
+				sire => ped%pedigree(i)%sirePointer
+				dam => ped%pedigree(i)%damPointer
+
+
+				if (.not. ped%pedigree(i)%Founder) then
 				!if (IdDam/=0) then
-				
 					if ((FilledPhase(IdDam,j,1)/=9).and.(FilledPhase(IdDam,j,1)/=FilledPhase(i,j,2))) FilledPhase(IdDam,j,2)=FilledPhase(i,j,2)
 					if ((FilledPhase(IdDam,j,2)/=9).and.(FilledPhase(IdDam,j,2)/=FilledPhase(i,j,2))) FilledPhase(IdDam,j,1)=FilledPhase(i,j,2)
 				!endif
@@ -1215,6 +1211,7 @@ subroutine SimpleFillInBasedOnProgenyReads
 				!if (IdSir/=0) then				
 					if ((FilledPhase(IdSir,j,1)/=9).and.(FilledPhase(IdSir,j,1)/=FilledPhase(i,j,1))) FilledPhase(IdSir,j,2)=FilledPhase(i,j,1)
 					if ((FilledPhase(IdSir,j,2)/=9).and.(FilledPhase(IdSir,j,2)/=FilledPhase(i,j,1))) FilledPhase(IdSir,j,1)=FilledPhase(i,j,1)
+				endif
 				!endif
 			endif
 		enddo
@@ -1236,6 +1233,8 @@ subroutine SimpleFillInBasedOnParentsReads
 	implicit none
 
 	integer :: i,j,e,k
+	type(Individual) , pointer :: parent
+	integer :: genotype
 
     !$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase,RecPed,nInd,nSnp) !collapse(2)
 	do e=1,2
@@ -1244,12 +1243,19 @@ subroutine SimpleFillInBasedOnParentsReads
 				!if (RecPed(i,e+1)==0) exit
 				if ((MarkersToExclude(j).eq.0).and.(maxval(FilledPhase(i,j,:))==9)) then
 					k=Abs((e-1)-1)+1
-					if (FilledGenos(RecPed(i,e+1),j)==0) then
-						FilledPhase(i,j,e)=0
-					endif
 
-					if (FilledGenos(RecPed(i,e+1),j)==2) then
-						FilledPhase(i,j,e)=1
+					parent => ped%pedigree(i)%getSireDamObjectByIndex(e+1)
+
+					if (associated(parent)) then
+
+						genotype = parent%individualGenotype%getGenotype(j)
+						if (genotype==0) then
+							call ped%pedigree(i)%individualPhase(e)%setPhase(j,0)
+						endif
+
+						if (genotype==2) then
+							call ped%pedigree(i)%individualPhase(e)%setPhase(j,1)
+						endif
 					endif
 				endif
 			enddo
@@ -1405,18 +1411,23 @@ subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 	implicit none
 
     integer :: i,j
+
+	integer(2) :: phase
     !integer(kind=2) :: probscore
 
 	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (Pr00,Pr11,Pr01,Pr10,FilledGenos,FilledPhase,GeneProbThresh,nSnp,nInd) !collapse(2)
 	do i=1,nInd
 		do j=1,nSnp
-
-			if ((Pr00(i,j).ge.GeneProbThresh).and.(sum(FilledPhase(i,j,:))>3).and.(FilledGenos(i,j)==9)) then
-				FilledGenos(i,j)=0
-				FilledPhase(i,j,:)=0
+			phase(1) = ped%pedigree(i)%individualPhase(1)%getPhase(j)
+			phase(2) = ped%pedigree(i)%individualPhase(2)%getPhase(j)
+			if ((Pr00(i,j).ge.GeneProbThresh).and.(sum(phase)>3).and.(ped%pedigree(i)%individualGenotype%isMissing(j))) then
+				! FilledGenos(i,j)=0
+				ped%pedigree(i)%individualGenotype%setGenotype(j,0)
+				ped%pedigree(i)%individualPhase(1)%setPhase(j,0)
+				ped%pedigree(i)%individualPhase(2)%setPhase(j,0)
 			endif
 
-			if (((Pr01(i,j)+Pr10(i,j)).ge.GeneProbThresh).and.(sum(FilledPhase(i,j,:))>3).and.(FilledGenos(i,j)==9)) then
+			if (((Pr01(i,j)+Pr10(i,j)).ge.GeneProbThresh).and.(sum(phase)>3).and.(FilledGenos(i,j)==9)) then
 				FilledGenos(i,j)=1
 				if (Pr01(i,j).ge.GeneProbThresh) then
 					FilledPhase(i,j,1)=0
