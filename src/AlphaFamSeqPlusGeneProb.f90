@@ -47,13 +47,8 @@ module GlobalPar
 	integer :: SolutionChanged                  							! Control Parameter - used to finish the program 
 	integer :: StartSnp,EndSnp
 	
-	! integer(int64),allocatable,dimension(:,:) 		:: Ped         			! Input File - Pedigree
 	type(PedigreeHolder) :: ped
 
-	! integer(kind=2),allocatable,dimension(:,:,:) 	:: SequenceData			! Input File - Snp array to add more information to the Reads
-	! integer(kind=2),allocatable,dimension(:,:,:) 	:: RawReads				! Input File - Snp array to add more information to the Reads
-	
-	! character(len=100), allocatable, dimension(:) 	:: Ids
 	integer(int64), dimension(:), allocatable 		:: position
 	real(real64), allocatable, dimension(:) 		:: quality
 
@@ -73,12 +68,6 @@ module GlobalPar
     real(kind=4),allocatable,dimension(:,:) 		:: Pr10					! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Heterozygote (1 from dad, 0 from mum)
     real(kind=4),allocatable,dimension(:,:) 		:: Pr11					! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Homozygote for Alternative Allele 
     
-	integer(kind=1),allocatable,dimension(:,:) 		:: FilledGenos 			! Output - Imputed Genotypes
-	integer(kind=1),allocatable,dimension(:,:,:) 	:: FilledPhase  		! Output - Imputed Phase
-
-	!												:: StatBySnp            ! Save coverage, nr 
-	!												:: StatByInd            ! 
-
 	type CountPhase
 		integer,allocatable :: old(:)
 		integer,allocatable :: diff(:)    
@@ -127,19 +116,14 @@ program FamilyPhase
 	write(102,'(1a22)') "Window StartSnp EndSnp" 
 	
 
-	! Read SpecFile and Pedigree. Those files are in common for all the windows
-	!  (if there are multiple Windows)
-	call ReadSpecfile
-	
-	ped = PedigreeHolder(pedigreeFile)
-	
-
-	call ped%sortPedigreeAndOverwrite()
+	call ReadSpecfile ! Read inputfile
+	ped = PedigreeHolder(pedigreeFile) ! read pedigree
+	call ped%sortPedigreeAndOverwrite() ! sort pedigree
 
 
 	! TODO check type of genotype info - right now this for sequence 
 	! TODO read vcf format
-	call ped%addSequenceFromFile(readsFile,nSnp)
+	if (trim(ReadsType)=="AlphaSim") call ped%addSequenceFromFile(readsFile,nSnp) ! read sequence file AlphaSimFormat
 	
 	! If the nSnp is really big and there are problems with memory allocation
 	!  is possible to split the chromosome in multiple windows
@@ -167,9 +151,9 @@ program FamilyPhase
 		CurrentCountFilledGenos=0
 		GeneProbThresh=InitialGeneProbThresh
 
-		call ReadData
+		!call ReadData
 		call InitialiseArrays
-		call CleanUpTheRawData
+		!call CleanUpTheRawData
 
 		if (UsePrevGeneProb==0) then
 			call RunGeneProb
@@ -397,154 +381,154 @@ end subroutine UseSnpChipInformation
 
 ! Moreover, the coverage/individual and coverage/marker are calculated in this step
 
-subroutine CleanUpTheRawData
+! subroutine CleanUpTheRawData
 
-	use GlobalPar
-	use omp_lib
-	implicit none
+! 	use GlobalPar
+! 	use omp_lib
+! 	implicit none
 
-	integer :: i,j,nReadsRemoved,nTmpInd,e,pos
-	real 	:: cov(nInd)
-	real 	:: std,covSnp
-	character(len=50) :: filout1,filout2,filout3,filout4,filout5
-	character(len=30) :: nChar
-	character(len=80) :: FmtInt
+! 	integer :: i,j,nReadsRemoved,nTmpInd,e,pos
+! 	real 	:: cov(nInd)
+! 	real 	:: std,covSnp
+! 	character(len=50) :: filout1,filout2,filout3,filout4,filout5
+! 	character(len=30) :: nChar
+! 	character(len=80) :: FmtInt
 
-	integer(kind=2),allocatable,dimension(:) :: ReadsRemoved
-	integer(kind=2),allocatable,dimension(:,:) :: tmpReads
+! 	integer(kind=2),allocatable,dimension(:) :: ReadsRemoved
+! 	integer(kind=2),allocatable,dimension(:,:) :: tmpReads
 
-	real(kind=8)					 				:: pHetExcess
-	integer											:: ObsGenos(3), EstGenos(3) ! observed genotypes
-
-
-	write (filout1,'("AlphaFamSeqEditingIndividualCoverage",i0,".txt")') Windows
-	open (unit=1,file=trim(filout1),status="unknown")
-
-	write (filout2,'("AlphaFamSeqEditingMarkerCoverage",i0,".txt")') Windows
-	open (unit=2,file=trim(filout2),status="unknown")
-
-	write (filout3,'("AlphaFamSeqEditingMarkersRemoved",i0,".txt")') Windows
-	open (unit=3,file=trim(filout3),status="unknown")
-
-	write (filout4,'("AlphaFamSeqEditingIndividualReadsRemoved",i0,".txt")') Windows
-	open (unit=4,file=trim(filout4),status="unknown")
-
-	write (filout5,'("AlphaFamSeqEditingPvalueExcessOfHeterozygotes",i0,".txt")') Windows
-	open (unit=5,file=trim(filout5),status="unknown")
-
-	!write (filout3,'("AlphaFamSeqReads",i0,".txt")') Windows
-	!open (unit=3,file=trim(filout3),status="unknown")
-
-	allocate(ReadsRemoved(nSnp))
-	ReadsRemoved(:)=0
-	MarkersToExclude=0 ! 0=Use The marker ; 1=Don't use the marker
-
-	do j=1,nSnp
-		covSnp=0
-		!e=0
-		covSnp=sum(RawReads(:,j,:))/dble(nTmpInd)
-		!if (cov.lt.EditingParameter) then
-		!	RawReads(:,j,:)=0
-		!	e=1
-		!endif
-		write (2,'(1i0,1x,1f7.3,1x,1i0)') j,covSnp,e
-	enddo
-	close(2)
+! 	real(kind=8)					 				:: pHetExcess
+! 	integer											:: ObsGenos(3), EstGenos(3) ! observed genotypes
 
 
-	nTmpInd=0
-	do i=1,nInd
-		cov(i)=0
-		do j=1,nSnp
-			cov(i)=cov(i)+sum(RawReads(i,j,:))
-		enddo
-		if (cov(i).gt.0) nTmpInd=nTmpInd+1
-		cov(i)=cov(i)/dble(nSnp)
+! 	write (filout1,'("AlphaFamSeqEditingIndividualCoverage",i0,".txt")') Windows
+! 	open (unit=1,file=trim(filout1),status="unknown")
 
-		std=0
-		do j=1,nSnp
-			std=std+((sum(RawReads(i,j,:))-cov(i))**2)
-		enddo
-		std=sqrt(std/(dble(nSnp)-1))
+! 	write (filout2,'("AlphaFamSeqEditingMarkerCoverage",i0,".txt")') Windows
+! 	open (unit=2,file=trim(filout2),status="unknown")
 
-		nReadsRemoved=0
-		if (cov(i).gt.0.0) then
-			do j=1,nSnp
-				if (((sum(RawReads(i,j,:))-cov(i))/std).gt.maxStdForReadsCount) then
-					write(4,'(2i20,1f10.6,2i4)'),Ped(i,1),j,cov(i),RawReads(i,j,:)
-					RawReads(i,j,:)=0
-					nReadsRemoved=nReadsRemoved+1
-					ReadsRemoved(j)=ReadsRemoved(j)+1
-				endif
-			enddo
-		endif
+! 	write (filout3,'("AlphaFamSeqEditingMarkersRemoved",i0,".txt")') Windows
+! 	open (unit=3,file=trim(filout3),status="unknown")
 
-		write (1,'(1i0,1f7.3,1f10.6)') Ped(i,1),cov(i),dble(nReadsRemoved)/dble(nSnp)*100
+! 	write (filout4,'("AlphaFamSeqEditingIndividualReadsRemoved",i0,".txt")') Windows
+! 	open (unit=4,file=trim(filout4),status="unknown")
 
-		!write (3,FmtInt) Ped(i,1), RawReads(i,:,1)
-		!write (3,FmtInt) Ped(i,1), RawReads(i,:,2)
-	enddo
+! 	write (filout5,'("AlphaFamSeqEditingPvalueExcessOfHeterozygotes",i0,".txt")') Windows
+! 	open (unit=5,file=trim(filout5),status="unknown")
 
-	close(1)
-	close(4)
+! 	!write (filout3,'("AlphaFamSeqReads",i0,".txt")') Windows
+! 	!open (unit=3,file=trim(filout3),status="unknown")
+
+! 	allocate(ReadsRemoved(nSnp))
+! 	ReadsRemoved(:)=0
+! 	MarkersToExclude=0 ! 0=Use The marker ; 1=Don't use the marker
+
+! 	do j=1,nSnp
+! 		covSnp=0
+! 		!e=0
+! 		covSnp=sum(RawReads(:,j,:))/dble(nTmpInd)
+! 		!if (cov.lt.EditingParameter) then
+! 		!	RawReads(:,j,:)=0
+! 		!	e=1
+! 		!endif
+! 		write (2,'(1i0,1x,1f7.3,1x,1i0)') j,covSnp,e
+! 	enddo
+! 	close(2)
 
 
-	allocate(tmpReads(nTmpInd,2))
+! 	nTmpInd=0
+! 	do i=1,nInd
+! 		cov(i)=0
+! 		do j=1,nSnp
+! 			cov(i)=cov(i)+sum(RawReads(i,j,:))
+! 		enddo
+! 		if (cov(i).gt.0) nTmpInd=nTmpInd+1
+! 		cov(i)=cov(i)/dble(nSnp)
+
+! 		std=0
+! 		do j=1,nSnp
+! 			std=std+((sum(RawReads(i,j,:))-cov(i))**2)
+! 		enddo
+! 		std=sqrt(std/(dble(nSnp)-1))
+
+! 		nReadsRemoved=0
+! 		if (cov(i).gt.0.0) then
+! 			do j=1,nSnp
+! 				if (((sum(RawReads(i,j,:))-cov(i))/std).gt.maxStdForReadsCount) then
+! 					write(4,'(2i20,1f10.6,2i4)'),Ped(i,1),j,cov(i),RawReads(i,j,:)
+! 					RawReads(i,j,:)=0
+! 					nReadsRemoved=nReadsRemoved+1
+! 					ReadsRemoved(j)=ReadsRemoved(j)+1
+! 				endif
+! 			enddo
+! 		endif
+
+! 		write (1,'(1i0,1f7.3,1f10.6)') Ped(i,1),cov(i),dble(nReadsRemoved)/dble(nSnp)*100
+
+! 		!write (3,FmtInt) Ped(i,1), RawReads(i,:,1)
+! 		!write (3,FmtInt) Ped(i,1), RawReads(i,:,2)
+! 	enddo
+
+! 	close(1)
+! 	close(4)
+
+
+! 	allocate(tmpReads(nTmpInd,2))
 	
-	!!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (RawReads,nSnp)
-	do j=1,nSnp
+! 	!!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (RawReads,nSnp)
+! 	do j=1,nSnp
 		
-		! 1) Markers with zero reads	
-		if ((maxval(RawReads(:,j,:))==0).or.(ReadsRemoved(j).gt.(dble(nInd)*ThresholdMaxReadsCount))) then
-			write (3,'(1i10,1i20,1i4)') j,position(j),0
-			MarkersToExclude(j)=1
-			RawReads(:,j,:)=0
-		endif
+! 		! 1) Markers with zero reads	
+! 		if ((maxval(RawReads(:,j,:))==0).or.(ReadsRemoved(j).gt.(dble(nInd)*ThresholdMaxReadsCount))) then
+! 			write (3,'(1i10,1i20,1i4)') j,position(j),0
+! 			MarkersToExclude(j)=1
+! 			RawReads(:,j,:)=0
+! 		endif
 
-		! 2) Remove single/double-tones and excess heterozygotes
+! 		! 2) Remove single/double-tones and excess heterozygotes
 		
-		tmpReads=9
-		ObsGenos=0
-		EstGenos=0
-		pHetExcess=0.0
+! 		tmpReads=9
+! 		ObsGenos=0
+! 		EstGenos=0
+! 		pHetExcess=0.0
 
-		pos=1
-		do i=1,nInd
-			if (cov(i).gt.0.0) then
-				tmpReads(pos,:)=RawReads(i,j,:)
-				pos=pos+1
-			endif
-		enddo
+! 		pos=1
+! 		do i=1,nInd
+! 			if (cov(i).gt.0.0) then
+! 				tmpReads(pos,:)=RawReads(i,j,:)
+! 				pos=pos+1
+! 			endif
+! 		enddo
 
-		call ExcessHeterozygotes(tmpReads(:,:),nTmpInd,ObsGenos,EstGenos,pHetExcess)
+! 		call ExcessHeterozygotes(tmpReads(:,:),nTmpInd,ObsGenos,EstGenos,pHetExcess)
 
-		if (((ObsGenos(2)+dble(2*ObsGenos(1))).le.ThresholdReadsCount).or.((ObsGenos(2)+dble(2*ObsGenos(3))).le.ThresholdReadsCount)) then
-			if (MarkersToExclude(j).ne.1) then
-				write (3,'(1i10,1i20,1i4)') j,position(j),2
-				MarkersToExclude(j)=1
-			endif
-		endif
+! 		if (((ObsGenos(2)+dble(2*ObsGenos(1))).le.ThresholdReadsCount).or.((ObsGenos(2)+dble(2*ObsGenos(3))).le.ThresholdReadsCount)) then
+! 			if (MarkersToExclude(j).ne.1) then
+! 				write (3,'(1i10,1i20,1i4)') j,position(j),2
+! 				MarkersToExclude(j)=1
+! 			endif
+! 		endif
 
-		if (MarkersToExclude(j).ne.1) then
-			if (pHetExcess.le.ThresholdExcessHetero) then
-				write (3,'(1i10,1i20,1i4)') j,position(j),1
-				write(5,'(1i20,3i4,5x,3i4,1f10.5)') position(j),ObsGenos(:),EstGenos(:),pHetExcess
+! 		if (MarkersToExclude(j).ne.1) then
+! 			if (pHetExcess.le.ThresholdExcessHetero) then
+! 				write (3,'(1i10,1i20,1i4)') j,position(j),1
+! 				write(5,'(1i20,3i4,5x,3i4,1f10.5)') position(j),ObsGenos(:),EstGenos(:),pHetExcess
 
-				MarkersToExclude(j)=1
+! 				MarkersToExclude(j)=1
 		
-			endif
-		endif
+! 			endif
+! 		endif
 
-	enddo
-	!!$OMP END PARALLEL DO
+! 	enddo
+! 	!!$OMP END PARALLEL DO
 
-	write(*,'(1a10,1x,1i0,1a4,1x,1i0,1a10)'),"Exclude",count(MarkersToExclude(:)==1),"on",nSnp,"Markers"
+! 	write(*,'(1a10,1x,1i0,1a4,1x,1i0,1a10)'),"Exclude",count(MarkersToExclude(:)==1),"on",nSnp,"Markers"
 
-	deallocate(tmpReads)
+! 	deallocate(tmpReads)
 	
-	close (3)
-	close (5)
-end subroutine CleanUpTheRawData
+! 	close (3)
+! 	close (5)
+! end subroutine CleanUpTheRawData
 
 
 !###########################################################################################################################################################
@@ -1190,33 +1174,39 @@ subroutine SimpleFillInBasedOnProgenyReads
 	implicit none
 
 	integer :: i,j
-	integer(int64) :: IdSir,IdDam
+	integer(2) :: phase,phaseSire,phaseDam
 	type(individual),pointer :: sire,dam
-	!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (FilledPhase,RecPed,nSnp, nInd) !collapse(2)
+
+	
+	!!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (FilledPhase,RecPed,nSnp, nInd) !collapse(2)
 	do i=1,nInd
-		do j=1,nSnp
-			if ((MarkersToExclude(j).eq.0).and.(sum(FilledPhase(i,j,:))==0).or.(sum(FilledPhase(i,j,:))==2)) then
-				IdSir=RecPed(i,2)
-				IdDam=RecPed(i,3)
-				sire => ped%pedigree(i)%sirePointer
-				dam => ped%pedigree(i)%damPointer
 
+		if (.not. ped%pedigree(i)%Founder) then
+			sire => ped%pedigree(i)%sirePointer
+			dam => ped%pedigree(i)%damPointer
 
-				if (.not. ped%pedigree(i)%Founder) then
-				!if (IdDam/=0) then
-					if ((FilledPhase(IdDam,j,1)/=9).and.(FilledPhase(IdDam,j,1)/=FilledPhase(i,j,2))) FilledPhase(IdDam,j,2)=FilledPhase(i,j,2)
-					if ((FilledPhase(IdDam,j,2)/=9).and.(FilledPhase(IdDam,j,2)/=FilledPhase(i,j,2))) FilledPhase(IdDam,j,1)=FilledPhase(i,j,2)
-				!endif
+			do j=1,nSnp
+				phase(1) = ped%pedigree(i)%individualPhase(1)%getPhase(j)
+				phase(2) = ped%pedigree(i)%individualPhase(2)%getPhase(j)
 
-				!if (IdSir/=0) then				
-					if ((FilledPhase(IdSir,j,1)/=9).and.(FilledPhase(IdSir,j,1)/=FilledPhase(i,j,1))) FilledPhase(IdSir,j,2)=FilledPhase(i,j,1)
-					if ((FilledPhase(IdSir,j,2)/=9).and.(FilledPhase(IdSir,j,2)/=FilledPhase(i,j,1))) FilledPhase(IdSir,j,1)=FilledPhase(i,j,1)
+				phaseSire(1) =sire%individualPhase(1)%getPhase(j)
+				phaseSire(2) =sire%individualPhase(2)%getPhase(j)
+
+				phaseDam(1) = dam%individualPhase(1)%getPhase(j)
+				phaseDam(2) = dam%individualPhase(2)%getPhase(j)
+
+				if ((sum(phase).eq.0).or.(sum(phase).eq.2)) then
+					if (phaseDam(1).ne.9).and.(phaseDam(1).ne.phase(2)) ped%pedigree(dam)%individualPhase(2)%setPhase(j,phase(2))
+					if (phaseDam(2).ne.9).and.(phaseDam(2).ne.phase(2)) ped%pedigree(dam)%individualPhase(1)%setPhase(j,phase(2))
+
+					if (phaseSire(1).ne.9).and.(phaseSire(1).ne.phase(1)) ped%pedigree(sire)%individualPhase(2)%setPhase(j,phase(1))
+					if (phaseSire(2).ne.9).and.(phaseSire(2).ne.phase(1)) ped%pedigree(sire)%individualPhase(1)%setPhase(j,phase(2))
 				endif
-				!endif
-			endif
-		enddo
+
+			enddo
+		endif
 	enddo
-	!$OMP END PARALLEL DO
+	!!$OMP END PARALLEL DO
 
 end subroutine SimpleFillInBasedOnProgenyReads
 
@@ -1232,36 +1222,31 @@ subroutine SimpleFillInBasedOnParentsReads
 	use omp_lib
 	implicit none
 
-	integer :: i,j,e,k
+	integer :: i,j,e
 	type(Individual) , pointer :: parent
 	integer :: genotype
 
-    !$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase,RecPed,nInd,nSnp) !collapse(2)
+    !!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (ped,nInd,nSnp) !collapse(2)
 	do e=1,2
 		do i=1,nInd
-			do j=1,nSnp
-				!if (RecPed(i,e+1)==0) exit
-				if ((MarkersToExclude(j).eq.0).and.(maxval(FilledPhase(i,j,:))==9)) then
-					k=Abs((e-1)-1)+1
+			parent => ped%pedigree(i)%getSireDamObjectByIndex(e+1)
+			if (associated(parent)) then
 
-					parent => ped%pedigree(i)%getSireDamObjectByIndex(e+1)
-
-					if (associated(parent)) then
-
-						genotype = parent%individualGenotype%getGenotype(j)
-						if (genotype==0) then
-							call ped%pedigree(i)%individualPhase(e)%setPhase(j,0)
-						endif
-
-						if (genotype==2) then
-							call ped%pedigree(i)%individualPhase(e)%setPhase(j,1)
-						endif
+				do j=1,nSnp
+					genotype = parent%individualGenotype%getGenotype(j)
+					if (genotype.eq.0) then
+						call ped%pedigree(i)%individualPhase(e)%setPhase(j,0)
 					endif
-				endif
-			enddo
+
+					if (genotype.eq.2) then
+						call ped%pedigree(i)%individualPhase(e)%setPhase(j,1)
+					endif
+				enddo
+
+			endif
 		enddo
 	enddo
-    !$OMP END PARALLEL DO
+    !!$OMP END PARALLEL DO
 
 end subroutine SimpleFillInBasedOnParentsReads
 
@@ -1411,49 +1396,52 @@ subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 	implicit none
 
     integer :: i,j
-
 	integer(2) :: phase
-    !integer(kind=2) :: probscore
 
-	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (Pr00,Pr11,Pr01,Pr10,FilledGenos,FilledPhase,GeneProbThresh,nSnp,nInd) !collapse(2)
+	!!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (Pr00,Pr11,Pr01,Pr10,ped,GeneProbThresh,nSnp,nInd) !collapse(2)
 	do i=1,nInd
 		do j=1,nSnp
+
 			phase(1) = ped%pedigree(i)%individualPhase(1)%getPhase(j)
 			phase(2) = ped%pedigree(i)%individualPhase(2)%getPhase(j)
-			if ((Pr00(i,j).ge.GeneProbThresh).and.(sum(phase)>3).and.(ped%pedigree(i)%individualGenotype%isMissing(j))) then
-				! FilledGenos(i,j)=0
-				ped%pedigree(i)%individualGenotype%setGenotype(j,0)
-				ped%pedigree(i)%individualPhase(1)%setPhase(j,0)
-				ped%pedigree(i)%individualPhase(2)%setPhase(j,0)
-			endif
-
-			if (((Pr01(i,j)+Pr10(i,j)).ge.GeneProbThresh).and.(sum(phase)>3).and.(FilledGenos(i,j)==9)) then
-				FilledGenos(i,j)=1
-				if (Pr01(i,j).ge.GeneProbThresh) then
-					FilledPhase(i,j,1)=0
-					FilledPhase(i,j,2)=1
+			
+			if ((sum(phase).gt.3).and.(ped%pedigree(i)%individualGenotype%isMissing(j))) then
+				if ((Pr00(i,j).ge.GeneProbThresh) then
+					ped%pedigree(i)%individualGenotype%setGenotype(j,0)
+					ped%pedigree(i)%individualPhase(1)%setPhase(j,0)
+					ped%pedigree(i)%individualPhase(2)%setPhase(j,0)
 				endif
-				if (Pr10(i,j).ge.GeneProbThresh) then
-					FilledPhase(i,j,1)=1
-					FilledPhase(i,j,2)=0
+
+				if ((Pr11(i,j).ge.GeneProbThresh) then
+					ped%pedigree(i)%individualGenotype%setGenotype(j,2)
+					ped%pedigree(i)%individualPhase(1)%setPhase(j,1)
+					ped%pedigree(i)%individualPhase(2)%setPhase(j,1)
+				endif
+
+
+				if ((Pr01(i,j)+Pr10(i,j)).ge.GeneProbThresh)) then
+					ped%pedigree(i)%individualGenotype%setGenotype(j,1)
+					if (Pr01(i,j).ge.GeneProbThresh) then
+						ped%pedigree(i)%individualPhase(1)%setPhase(j,0)
+						ped%pedigree(i)%individualPhase(2)%setPhase(j,1)
+					endif
+					if (Pr10(i,j).ge.GeneProbThresh) then
+						ped%pedigree(i)%individualPhase(1)%setPhase(j,1)
+						ped%pedigree(i)%individualPhase(2)%setPhase(j,0)
+					endif
 				endif
 			endif
 
-			if ((Pr11(i,j).ge.GeneProbThresh).and.(sum(FilledPhase(i,j,:))>3).and.(FilledGenos(i,j)==9)) then
-				FilledGenos(i,j)=2
-				FilledPhase(i,j,:)=1
-			endif
+			if (((Pr00(i,j)+Pr01(i,j)).ge.GeneProbThresh).and.(Pr10(i,j).lt.Pr01(i,j)).and.(phase(1).eq.9)) ped%pedigree(i)%individualPhase(1)%setPhase(j,0)
+			if (((Pr11(i,j)+Pr10(i,j)).ge.GeneProbThresh).and.(Pr01(i,j).lt.Pr10(i,j)).and.(phase(1).eq.9)) ped%pedigree(i)%individualPhase(1)%setPhase(j,1)
 
-			if (((Pr00(i,j)+Pr01(i,j)).ge.GeneProbThresh).and.(Pr10(i,j).lt.Pr01(i,j)).and.(FilledPhase(i,j,1)==9)) FilledPhase(i,j,1)=0
-			if (((Pr11(i,j)+Pr10(i,j)).ge.GeneProbThresh).and.(Pr01(i,j).lt.Pr10(i,j)).and.(FilledPhase(i,j,1)==9)) FilledPhase(i,j,1)=1
-
-			if (((Pr00(i,j)+Pr10(i,j)).ge.GeneProbThresh).and.(Pr01(i,j).lt.Pr10(i,j)).and.(FilledPhase(i,j,2)==9)) FilledPhase(i,j,2)=0
-			if (((Pr11(i,j)+Pr01(i,j)).ge.GeneProbThresh).and.(Pr10(i,j).lt.Pr01(i,j)).and.(FilledPhase(i,j,2)==9)) FilledPhase(i,j,2)=1
+			if (((Pr00(i,j)+Pr10(i,j)).ge.GeneProbThresh).and.(Pr01(i,j).lt.Pr10(i,j)).and.(phase(2).eq.9)) ped%pedigree(i)%individualPhase(2)%setPhase(j,0)
+			if (((Pr11(i,j)+Pr01(i,j)).ge.GeneProbThresh).and.(Pr10(i,j).lt.Pr01(i,j)).and.(phase(2).eq.9)) ped%pedigree(i)%individualPhase(2)%setPhase(j,1)
 
 		enddo
 
 	enddo
-	!$OMP END PARALLEL DO
+	!!$OMP END PARALLEL DO
 end subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 
 !################################################################################################
@@ -1470,13 +1458,8 @@ subroutine RunGeneProb
 	
 	implicit none
 
-	integer(int64),allocatable,dimension(:) :: SeqSire,SeqDam !SeqId
+	integer(int64),allocatable,dimension(:) :: SeqSire,SeqDam
 	
-	!integer :: i,j
-	!real(kind=8),allocatable,dimension(:,:,:) :: ReadCounts
-    
-	
-	!allocate(SeqId(nInd))
     allocate(SeqSire(nInd))
     allocate(SeqDam(nInd))
 
@@ -1487,7 +1470,6 @@ subroutine RunGeneProb
 	
 	call AlphaVarCall(nInd,nSnp,1,nSnp,ErrorRate,0,SeqSire,SeqDam,RawReads,FilledGenos(1:nInd,nSnp),Pr00,Pr01,Pr10,Pr11)
 
-	!deallocate(SeqId)
 	deallocate(SeqSire)
 	deallocate(Seqdam)
 end subroutine RunGeneProb
@@ -1621,12 +1603,6 @@ subroutine InitialiseArrays
 	use GlobalPar
 
 	implicit none
-
-	!integer(kind=2) :: probscore
-
-
-	FilledPhase=9
-	FilledGenos=9
 
 	Pr00=0.0
 	Pr01=0.0
