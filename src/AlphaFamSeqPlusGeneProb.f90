@@ -1,18 +1,13 @@
 !################################################################################################
-!include "Ferdosi.f90"
-!include "AlphaVarCallParallelised.f90"
-!include "ReadRogerData.f90"
 
 module GlobalPar
 	
 	use ISO_Fortran_Env
+	use pedigreemodule
 	implicit none
 
-	integer :: nIndSeq                         								! SpecFile - Number of Individuals in the sequence file
 	integer :: LenghtSequenceDataFile,nSnp,fistWindow						! SpecFile - Total number of Snps
 	
-	integer :: InternalEdit                    								! SpecFile - Internal Edit 1==yes or 0==no
-	real(kind=8) :: EditingParameter										! SpecFile - 1st Number is the MAF (excluede SNP with MAF=<EditingParameter)
 	real(kind=8) :: maxStdForReadsCount,ThresholdMaxReadsCount				! SpecFile - Remove Reads that are above this standard deviation
 	real(kind=8) :: ThresholdExcessHetero									! SpecFile - Remove variants with an excess of heterozygotes
 	integer 	 :: ThresholdReadsCount										! SpecFile - Remove single/double/n-tones 
@@ -22,28 +17,29 @@ module GlobalPar
 	real(kind=8) :: GeneProbThresh  										! SpecFile - Threshold to call a genotype from the probabilities First Value
 	real(kind=8) :: GeneProbThreshMin										! SpecFile - Threshold to call a genotype from the probabilities Last Value
 	real(kind=8) :: ReduceThr 												! SpecFile - Reduce Geno Treshold factor
-	integer :: UsePrevGeneProb                      						! SpecFile - Read old results of GeneProb 1==YES, 0==NO
+	integer 	 :: UsePrevGeneProb                      					! SpecFile - Read old results of GeneProb 1==YES, 0==NO
 	
-	integer :: ChunkLengthA                 								! SpecFile - First value to define Haplotypes length
-	integer :: ChunkLengthB                 								! SpecFile - Last value to define Haplotypes length
+	integer 	 :: minWindowSizeHapDefinition      						! SpecFile - First value to define Haplotypes length
+	integer 	 :: maxWindowSizeHapDefinition      						! SpecFile - Last value to define Haplotypes length
 
 	character(len=300) :: PedigreeFile      								! SpecFile - Input File Name - Pedigree
 	character(len=300) :: ReadsFile             							! SpecFile - Input File Name - Reads Count for the Reference and the Alternative Allele
 	character(len=300) :: ReadsType             							! SpecFile - Input File Name - Reads Count for the Reference and the Alternative Allele
 	
-	character(len=300) :: MapFile             								! SpecFile - Input File Name - Map File - position of the Variants
 	character(len=300) :: SnpChipsInformation   							! SpecFile - Input File Name - Snp array to add more information to the Reads
 	
 	character(len=300) :: GenoFile              							! SpecFile - Control Results File Name - TrueGeno Genotypes to check results 
 	character(len=300) :: PhaseFile             							! SpecFile - Control Results File Name - True Phase to check results 
 
 	integer :: IterationNumber                  							! Control Parameter - Define the number of Iterations
-	integer(int64) :: CurrentCountFilledPhase          							! Control Parameter - used to finish the program
-	integer(int64) :: CurrentCountFilledGenos          							! Control Parameter - used to finish the program
-	integer :: SolutionChanged                  							! Control Parameter - used to finish the program 
 	integer :: StartSnp,EndSnp
 	
 	type(PedigreeHolder) :: ped
+
+	! AlphaMPL output
+	real(kind=real64),allocatable,dimension(:,:,:) 	:: ReadCounts !< in the format (pedigreeId, snpId, prob) prob is Pr00,Pr01,Pr10,Pr11
+    real(kind=real64),allocatable,dimension(:) 		:: Maf
+
 
 	integer(int64), dimension(:), allocatable 		:: position
 	real(real64), allocatable, dimension(:) 		:: quality
@@ -59,25 +55,14 @@ module GlobalPar
 	integer,allocatable,dimension(:) 				:: GeneProbYesOrNo		! Temporary Array - use gene prob or not
 	integer,allocatable,dimension(:,:,:) 			:: FounderAssignment   	! Temporary File - Save the IDs of the grandparents
 
-	! AlphaMPL output
-	real(kind=real64),allocatable,dimension(:,:,:) 	:: ReadCounts !< in the format (pedigreeId, snpId, prob) prob is Pr00,Pr01,Pr10,Pr11
-    real(kind=real64),allocatable,dimension(:) 		:: Maf
-    
-	type CountPhase
-		integer,allocatable :: old(:)
-		integer,allocatable :: diff(:)    
-	end type CountPhase
-
-	type(CountPhase) :: CurrentCountID
-
 	integer :: Windows
 end module GlobalPar
 
 !################################################################################################
-! TODO split the chromosome in windows to avoid huge memory allocation
 
 program FamilyPhase
     use ISO_Fortran_Env
+    use specFileModule
     use omp_lib
 
 	use GlobalPar
@@ -86,113 +71,140 @@ program FamilyPhase
 	use CalculateStatisticsForGenoAndPhase
 	implicit none
 
-	integer(kind=8) :: OldCount,NewCount
-	integer(int32) :: Seed1,Seed2
-	real(kind=8) :: InitialGeneProbThresh
-	logical:: fileExists
-	real(kind=8)::tstart,tend
+	integer 		:: i,j
+	integer(int64) 	:: OldCount,NewCount
+	integer(int64)	:: CurrentCountMissingPhase,CurrentCountMissingGenos
+	integer(int32) 	:: Seed1,Seed2
+	real(kind=8) 	:: InitialGeneProbThresh
+	logical			:: fileExists
+	real(kind=8)	:: tstart,tend
 	
 	
+	! Seed Definition --------------------------------------------------------------------------------------------------
 	! Use a seed to sample the Haplotypes length of each window and iteration
-	! Print out the window/iteratin/haplotype length in a file
 	inquire(file="Seed.txt", exist=fileExists)
 	if (fileExists) then
 		open(99,file="Seed.txt",action="read")
 		read(99,*) Seed1
 		close(99)
 		call IntitialiseIntelRNG(Seed1,"SeedOld.txt",Seed2)
-
 	else
 		call IntitialiseIntelRNG(Seedfile="SeedOld.txt",Out=Seed2)
 	end if
 	
+	! Print out the window/iteratin/haplotype length in a file
 	open(101,file="AlphaFamSeqHaplotypeLengths.txt",status="unknown")
 	write(101,'(1a32)') "Window Iter HaplotypesLengthUsed" 
 
+	! User-defined parameters ------------------------------------------------------------------------------------------
+	print*,"ReadSpecfile"
+	call ReadSpecfile(LenghtSequenceDataFile,nSnp,fistWindow,maxStdForReadsCount, &
+                      ThresholdMaxReadsCount,ThresholdReadsCount,ThresholdExcessHetero, &
+         	          GeneProbThresh,GeneProbThreshMin,ReduceThr,UsePrevGeneProb, &
+                      minWindowSizeHapDefinition,maxWindowSizeHapDefinition, &
+                      PedigreeFile,ReadsFile,ReadsType,GenoFile,SnpChipsInformation,PhaseFile)
+ 
+	
+	! Read Pedigree ----------------------------------------------------------------------------------------------------
+	print*,"Read Pedigree"
+	ped = PedigreeHolder(pedigreeFile) 
+	call ped%sortPedigreeAndOverwrite()
+	nInd=ped%pedigreeSize
 
-	call ReadSpecfile ! TODO: the subroutine is not here anymore
-	ped = PedigreeHolder(pedigreeFile) ! read pedigree
-	call ped%sortPedigreeAndOverwrite() ! sort pedigree
-
-
+	! Read Sequence Data -----------------------------------------------------------------------------------------------
+	! TODO split windos to avoid huge memory allocation
 	! TODO check type of genotype info - right now this for sequence 
-	! TODO read vcf format
-	if (trim(ReadsType)=="AlphaSim") call ped%addSequenceFromFile(readsFile,nSnp) ! read sequence file AlphaSimFormat
-									catt ped%addSequenceFromVCFFile(readFile,nSnp)		
+	print*,"Read SequenceData"
+	if (trim(ReadsType)=="AlphaSim") call ped%addSequenceFromFile(ReadsFile,nSnp) ! read sequence file AlphaSimFormat
+	if (trim(ReadsType)=="VcfTools") call ped%addSequenceFromVCFFile(seqFile=ReadsFile,nSnpsIn=nSnp)
+	
+	! Edit The Row Data ------------------------------------------------------------------------------------------------
+	! TODO : Check Mendelian Inconsistencies
+	! TODO : Check Excess of Reads
+	! TODO : Check Single- and Double-tones
+
+	! Run GeneProb -----------------------------------------------------------------------------------------------------
+	print*,"Run GeneProb"
 	InitialGeneProbThresh=GeneProbThresh
+	GeneProbThresh=InitialGeneProbThresh
 
+	allocate(ReadCounts(nInd,nSnp,4))
+	allocate(Maf(nSnp))
+	if (UsePrevGeneProb==0) then
+		call runAlphaMLPAlphaImpute(1,nSnp,ped,ReadCounts,Maf)
+		call SaveGeneProbResults
+	else if (UsePrevGeneProb==1) then
+		tstart = omp_get_wtime()
+		call ReadPrevGeneProb
+		tend = omp_get_wtime()
+		write(*,*) "Total wall time for Importing Probabilities", tend - tstart
+	endif
 
-		CurrentCountFilledPhase=0
-		CurrentCountFilledGenos=0
-		GeneProbThresh=InitialGeneProbThresh
+	! Iterate on the next steps ----------------------------------------------------------------------------------------
+	! print*," "
+	! write (*,'(1a39)') " Window Iter   ProbThr    %Phase   %Geno"
 
-		!call CleanUpTheRawData
+	! CurrentCountMissingGenos=0
+	! CurrentCountMissingPhase=0
+	! NewCount=-1
+	! OldCount=0
 
-		if (UsePrevGeneProb==0) then
-			call runAlphaMLPAlphaImpute(1, nSnp, ped, ReadCounts, Maf)
-			!call SaveGeneProbResults
-		else if (UsePrevGeneProb==1) then
-			tstart = omp_get_wtime()
-			call ReadPrevGeneProb
-			tend = omp_get_wtime()
-  			write(*,*) "Total wall time for Importing Probabilities", tend - tstart
-		endif
-		print*," "
-		write (*,'(1a39)') " Window Iter   ProbThr    %Phase   %Geno"
+	! IterationNumber=0
+	! do while (NewCount.lt.OldCount)
 
-		IterationNumber=0
-		do while (NewCount.gt.OldCount)
+	! 	OldCount=CurrentCountFilledPhase+CurrentCountFilledGenos
+	! 	IterationNumber=IterationNumber+1
+			
+	! 	if ((IterationNumber>1).and.(GeneProbThresh>GeneProbThreshMin)) then 
+	! 		GeneProbThresh=GeneProbThresh-ReduceThr!0.001
+	! 		if (GeneProbThresh.lt.GeneProbThreshMin) GeneProbThresh=GeneProbThreshMin
+	! 	endif
 
-			OldCount=CurrentCountFilledPhase+CurrentCountFilledGenos
-			IterationNumber=IterationNumber+1
-				
-			if ((IterationNumber>1).and.(GeneProbThresh>GeneProbThreshMin)) then 
-				GeneProbThresh=GeneProbThresh-ReduceThr!0.001
-				if (GeneProbThresh.lt.GeneProbThreshMin) GeneProbThresh=GeneProbThreshMin
-			endif
+	! 	call UseGeneProbToSimpleFillInBasedOnOwnReads
+	! 	!if (IterationNumber==1) call ReadSamFile
+	! 	call SimpleCleanUpFillIn
+	! 	!if (IterationNumber==1) call UseSnpChipInformation 
 
-			call UseGeneProbToSimpleFillInBasedOnOwnReads
-			!if (IterationNumber==1) call ReadSamFile
-			call SimpleCleanUpFillIn
-			!if (IterationNumber==1) call UseSnpChipInformation 
+	! 	call SimpleFillInBasedOnParentsReads
+	! 	call SimpleCleanUpFillIn
 
-			call SimpleFillInBasedOnParentsReads
-			call SimpleCleanUpFillIn
+	! 	call SimpleFillInBasedOnProgenyReads
+	! 	call SimpleCleanUpFillIn
 
-			call SimpleFillInBasedOnProgenyReads
-			call SimpleCleanUpFillIn
+	! 	call CalculateFounderAssignment
+	! 	call ChunkDefinition
+	! 	call BuildConsensus
+	! 	call SimpleCleanUpFillIn
 
-			call CalculateFounderAssignment
-			call ChunkDefinition
-			call BuildConsensus
-			call SimpleCleanUpFillIn
+	! 	! Count Missing
+	! 	CurrentCountMissingGenos=ped%CountMissingGenotypesNoDummys()
+	! 	CurrentCountMissingPhase=ped%CountMissingPhaseNoDummys()
 
-			! TODO count missing phase
-			CurrentCountFilledGenos=ped%countmissinggenotypesnodummys()
+	! 	OldCount=NewCount	
+	! 	NewCount=CurrentCountMissingPhase+CurrentCountMissingGenos
+	! 	write (*,'(2i4,1f10.3,2i15)') Windows,IterationNumber,GeneProbThresh,CurrentCountMissingPhase,CurrentCountMissingGenos
 
-			OldCount=NewCount	
-			NewCount=CurrentCountFilledPhase+CurrentCountFilledGenos
-			write (*,'(2i4,1f10.3,2i15)') Windows,IterationNumber,GeneProbThresh,CurrentCountFilledPhase,CurrentCountFilledGenos
+	! enddo
 
-	enddo
-	call WriteResults
-	call DeallocateArrays
+	! ! WriteOut Results -------------------------------------------------------------------------------------------------
 
-	call UnintitialiseIntelRNG
-	close(101)
+	! call WriteResults
+	! call DeallocateArrays
 
-	! ! Compute statistics
-	! if ((trim(GenoFile)/="None").or.(trim(PhaseFile)/="None")) print*," Calculate Results"
-	! if (trim(GenoFile)/="None") 	call GetResultsImputation(LenghtSequenceDataFile,"AlphaFamSeqFinalGenos.txt",GenoFile,"AlphaFamSeqEditingMarkersRemoved.txt",1,"Yes","AlphaFamSeq")
-	! if (trim(PhaseFile)/="None") 	call GetResultsImputation(LenghtSequenceDataFile,"AlphaFamSeqFinalPhase.txt",PhaseFile,"AlphaFamSeqEditingMarkersRemoved.txt",2,"No","AlphaFamSeq")
+	! call UnintitialiseIntelRNG
+	! close(101)
+
+	! ! ! Compute statistics
+	! ! if ((trim(GenoFile)/="None").or.(trim(PhaseFile)/="None")) print*," Calculate Results"
+	! ! if (trim(GenoFile)/="None") 	call GetResultsImputation(LenghtSequenceDataFile,"AlphaFamSeqFinalGenos.txt",GenoFile,"AlphaFamSeqEditingMarkersRemoved.txt",1,"Yes","AlphaFamSeq")
+	! ! if (trim(PhaseFile)/="None") 	call GetResultsImputation(LenghtSequenceDataFile,"AlphaFamSeqFinalPhase.txt",PhaseFile,"AlphaFamSeqEditingMarkersRemoved.txt",2,"No","AlphaFamSeq")
 
 
 end program FamilyPhase
 
 !-------------------------------------------------------------------------------------------------
 !> @brief   Get phase complement and make the genotype
-!> @detail  TODO: count the number of alleles and genotyped filled. Iterate when there are no  
-!>          more information to add
+!> @detail  Do while thre are no more information to add
 !> @date    August 31, 2017
 !--------------------------------------------------------------------------------------------------   
 
@@ -202,20 +214,24 @@ subroutine SimpleCleanUpFillIn
 	use omp_lib
 	implicit none
 
-	integer :: oldMissingGeno,newMissingGeno
+	integer :: oldMissingGeno,newMissingGeno,oldMissingPhase,newMissingPhase
 
-	oldMissingGeno=ped%getnumgenotypesmissing()
-	newMissingGeno=0
+	oldMissingGeno=ped%CountMissingGenotypesNoDummys()
+	oldMissingPhase=ped%CountMissingPhaseNoDummys()
 	
-	do while (newMissingGeno.lt.oldMissingGeno)
+	newMissingGeno=0
+	newMissingPhase=0
+	
+	do while ((newMissingGeno.ne.oldMissingGeno).or.(newMissingPhase.ne.oldMissingPhase))
 
 		oldMissingGeno=newMissingGeno
+		oldMissingGeno=newMissingPhase
 		
 		call ped%phaseComplement()
 		call ped%makeGenotype()
 		
-		newMissingGeno=ped%getnumgenotypesmissing()
-
+		newMissingGeno=ped%CountMissingGenotypesNoDummys()
+		newMissingPhase=ped%CountMissingPhaseNoDummys()
 	enddo
 end subroutine SimpleCleanUpFillIn
 
@@ -223,7 +239,6 @@ end subroutine SimpleCleanUpFillIn
 !> @brief   Build the consensus haplotype for grandparent-parent-proband 
 !> @detail  Here we use the chunks previously define, and we try to fill the missing value of these 
 !>          three individuals if two of the three has information.
-!> 			TODO: fill the complement phase or fill the gentoype
 !> @date    August 30, 2017
 !--------------------------------------------------------------------------------------------------   
 
@@ -232,8 +247,9 @@ subroutine BuildConsensus
 
 	implicit none
 
-	integer :: i,k,e,j,m,a,ConsensusHaplotype
-	integer(2) :: countAllele !0 and 1
+	integer :: i,k,e,j,m,a
+	integer(kind=1) :: ConsensusHaplotype
+	integer,dimension(2) :: countAllele !0 and 1
 	type(individual), pointer :: parent,grandparent
 	
 	do i=1,nInd
@@ -250,14 +266,14 @@ subroutine BuildConsensus
 						ConsensusHaplotype=9
 						countAllele=0
 						do a=0,1 
-							if (grandparent%individualPhase(1)%getPhase+grandparent%individualPhase(2)%getPhase).lt.3) then
+							if ((grandparent%individualPhase(1)%getPhase(j)+grandparent%individualPhase(2)%getPhase(j)).lt.3) then
 								! Avoid to use markers that are not fully phased for the grandparent
 								do m=1,2 
-									if (grandparent%individualPhase(m)%getPhase.eq.a) countAllele(a+1)=countAllele(a+1)+1
+									if (grandparent%individualPhase(m)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
 								enddo
 							endif
-							if (ped%pedigree(i)%individualPhase(k)%getPhase.eq.a) countAllele(a+1)+1
-							if (parent%individualPhase((FounderAssignment(i,j,k)-1))%getPhase.eq.a) countAllele(a+1)+1
+							if (ped%pedigree(i)%individualPhase(k)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
+							if (parent%individualPhase((FounderAssignment(i,j,k)-1))%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
 						enddo
 
 						if ((countAllele(2).gt.1).and.(countAllele(2).gt.countAllele(1))) ConsensusHaplotype=1
@@ -269,10 +285,16 @@ subroutine BuildConsensus
 							call parent%individualPhase((FounderAssignment(i,j,k)-1))%setPhase(j,ConsensusHaplotype)
 						endif	
 						
-						ped%pedigree(i)%makeIndividualGenotypeFromPhase()
-						sire%makeIndividualGenotypeFromPhase()
-						!makeIndividualPhaseCompliment
-						! TODO: fill the complement phase or fill the gentoype
+						!Fill complement phase
+						call ped%pedigree(i)%makeIndividualPhaseCompliment()
+						call parent%makeIndividualPhaseCompliment()
+						call grandparent%makeIndividualPhaseCompliment()
+
+						! Make Genotype
+						call ped%pedigree(i)%makeIndividualGenotypeFromPhase()
+						call parent%makeIndividualGenotypeFromPhase()
+						call grandparent%makeIndividualGenotypeFromPhase()
+
 					endif
 				enddo
 			endif
@@ -302,30 +324,25 @@ subroutine ChunkDefinition
 	use IntelRNGMod
 	implicit none
 
-	integer :: i,j,e,k
-	integer :: f1
-	integer :: fSnp
-	integer :: lSnp
-	integer(int32) :: ChunkLength2(1)
-	real(real32),allocatable,dimension(:) :: Z
-	real(real32) ::	 A,B
-
+	integer 			:: i,j,e,k
+	integer 			:: f1
+	integer 			:: fSnp
+	integer 			:: lSnp
+	integer 			:: ChunkLength
+	real,dimension(1)   :: Z
 	
 	integer,allocatable,dimension(:) :: FounderAssignmentF,FounderAssignmentB
 
 	allocate(FounderAssignmentF(1:nSnp))
 	allocate(FounderAssignmentB(1:nSnp))
+	
+	Z = SampleIntelUniformS(n=1,a=0.0,b=1.0) 
+	ChunkLength=floor((dble(minWindowSizeHapDefinition)-1)+(dble(maxWindowSizeHapDefinition)-(dble(minWindowSizeHapDefinition)-1))*Z(1))+1
 
-	
-	A = ChunkLengthA  
-	B = ChunkLengthB
-	Z = SampleIntelUniformS(1,0.0,1.0) 
-	ChunkLength2(1)=floor((A-1)+(B-(A-1))*Z(1))+1
-
-	write(101,'(3(1x,i0))') Windows,IterationNumber,ChunkLength2(1)
+	write(101,'(3(1x,i0))') Windows,IterationNumber,ChunkLength
 	
 	
-	!!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (nInd,nSnp,FounderAssignment,ChunkLength2)
+	!!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (nInd,nSnp,FounderAssignment,ChunkLength)
 	do i=1,nInd
 		do k=1,2 ! paternal or maternal gamete
 			e=k+1 ! position parents in Pedigree
@@ -336,7 +353,7 @@ subroutine ChunkDefinition
 			if (maxval(FounderAssignment(i,:,k))/=0) then
 				
 				fSnp=1
-				lSnp=ChunkLength2(1)
+				lSnp=ChunkLength
 				
 				
 				!print*,"B",i,k,count(FounderAssignment(i,:,k)/=0),fSnp,lSnp
@@ -344,8 +361,8 @@ subroutine ChunkDefinition
 
 				do while (lSnp<=nSnp)
 
-					if ((lSnp+ChunkLength2(1))>nSnp) lSnp=nSnp
-					if ((fSnp-ChunkLength2(1))<0) fSnp=1
+					if ((lSnp+ChunkLength)>nSnp) lSnp=nSnp
+					if ((fSnp-ChunkLength)<0) fSnp=1
 				
 					FounderAssignmentF(fSnp:lSnp)=FounderAssignment(i,fSnp:lSnp,k)
 					FounderAssignmentB(fSnp:lSnp)=FounderAssignment(i,fSnp:lSnp,k)
@@ -373,7 +390,7 @@ subroutine ChunkDefinition
 					enddo
 
 					fSnp=lSnp+1
-					lSnp=lSnp+ChunkLength2(1)
+					lSnp=lSnp+ChunkLength
 				enddo
 				
 				do j=1,nSnp
@@ -403,9 +420,9 @@ subroutine CalculateFounderAssignment
 	use omp_lib
 	implicit none
 
-	integer :: i,j,e,k
-	integer :: genotype
-	integer(2) :: phaseId,phasePar
+	integer :: i,j,e
+	integer :: geno
+	integer,dimension(2) :: phaseId,phasePar
 	type(individual),pointer :: parent
 
 	FounderAssignment(:,:,:)=0
@@ -414,21 +431,22 @@ subroutine CalculateFounderAssignment
 	do e=2,3 ! Sire and Dam pos in the ped
 		do i=1,nInd
 			if (.not. ped%pedigree(i)%Founder) then
-			parent => ped%pedigree(i)%getSireDamObjectByIndex(e)
-			
-			do j=1,nSnp
-				phase(1) = ped%pedigree(i)%individualPhase(1)%getPhase(j)
-				phase(2) = ped%pedigree(i)%individualPhase(2)%getPhase(j)
+				parent => ped%pedigree(i)%getSireDamObjectByIndex(e)
+				
+				do j=1,nSnp
+					phaseId(1) = ped%pedigree(i)%individualPhase(1)%getPhase(j)
+					phaseId(2) = ped%pedigree(i)%individualPhase(2)%getPhase(j)
 
-				genotype = parent%individualGenotype%getGenotype(j)
-				phasePar(1) =parent%individualPhase(1)%getPhase(j)
-				phasePar(2) =parent%individualPhase(2)%getPhase(j)
+					geno = parent%individualGenotype%getGenotype(j)
+					phasePar(1) =parent%individualPhase(1)%getPhase(j)
+					phasePar(2) =parent%individualPhase(2)%getPhase(j)
 
-				if ((genotype.eq.1).and.(sum(phasePar).lt.3)) then
-					if (phasePar(1).eq.PhasePar(e-1)) FounderAssignment(i,j,e-1)=2 !GrandSire 
-					if (phasePar(2).eq.PhasePar(e-1)) FounderAssignment(i,j,e-1)=3 !GrandDam
-				endif
-			enddo
+					if ((geno.eq.1).and.(sum(phasePar).lt.3)) then
+						if (phasePar(1).eq.phaseId(e-1)) FounderAssignment(i,j,e-1)=2 !GrandSire 
+						if (phasePar(2).eq.phaseId(e-1)) FounderAssignment(i,j,e-1)=3 !GrandDam
+					endif
+				enddo
+			endif
 		enddo
 	enddo
     !$OMP END PARALLEL DO
@@ -452,7 +470,7 @@ subroutine SimpleFillInBasedOnProgenyReads
 	implicit none
 
 	integer :: i,j
-	integer(2) :: phase,phaseSire,phaseDam
+	integer(kind=1),dimension(2) :: phase,phaseSire,phaseDam
 	type(individual),pointer :: sire,dam
 
 	
@@ -474,11 +492,11 @@ subroutine SimpleFillInBasedOnProgenyReads
 				phaseDam(2) = dam%individualPhase(2)%getPhase(j)
 
 				if ((sum(phase).eq.0).or.(sum(phase).eq.2)) then
-					if (phaseDam(1).ne.9).and.(phaseDam(1).ne.phase(2)) call dam%individualPhase(2)%setPhase(j,phase(2))
-					if (phaseDam(2).ne.9).and.(phaseDam(2).ne.phase(2)) call dam%individualPhase(1)%setPhase(j,phase(2))
+					if ((phaseDam(1).ne.9).and.(phaseDam(1).ne.phase(2))) call dam%individualPhase(2)%setPhase(j,phase(2))
+					if ((phaseDam(2).ne.9).and.(phaseDam(2).ne.phase(2))) call dam%individualPhase(1)%setPhase(j,phase(2))
 
-					if (phaseSire(1).ne.9).and.(phaseSire(1).ne.phase(1)) call sire%individualPhase(2)%setPhase(j,phase(1))
-					if (phaseSire(2).ne.9).and.(phaseSire(2).ne.phase(1)) call sire%individualPhase(1)%setPhase(j,phase(2))
+					if ((phaseSire(1).ne.9).and.(phaseSire(1).ne.phase(1))) call sire%individualPhase(2)%setPhase(j,phase(1))
+					if ((phaseSire(2).ne.9).and.(phaseSire(2).ne.phase(1))) call sire%individualPhase(1)%setPhase(j,phase(2))
 				endif
 
 			enddo
@@ -502,7 +520,7 @@ subroutine SimpleFillInBasedOnParentsReads
 
 	integer :: i,j,e
 	type(Individual) , pointer :: parent
-	integer :: genotype
+	integer(kind=1) :: geno
 
     !!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (ped,nInd,nSnp) !collapse(2)
 	do e=1,2
@@ -510,9 +528,9 @@ subroutine SimpleFillInBasedOnParentsReads
 			parent => ped%pedigree(i)%getSireDamObjectByIndex(e+1)
 			if (associated(parent)) then
 				do j=1,nSnp
-					genotype = parent%individualGenotype%getGenotype(j)
-					if (genotype.eq.0) call ped%pedigree(i)%individualPhase(e)%setPhase(j,0)
-					if (genotype.eq.2) call ped%pedigree(i)%individualPhase(e)%setPhase(j,1)
+					geno = parent%individualGenotype%getGenotype(j)
+					if (geno.eq.0) call ped%pedigree(i)%individualPhase(e)%setPhase(j,0)
+					if (geno.eq.2) call ped%pedigree(i)%individualPhase(e)%setPhase(j,1)
 				enddo
 			endif
 		enddo
@@ -535,7 +553,7 @@ subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 	implicit none
 
     integer :: i,j
-	integer(2) :: phase
+	integer(kind=1),dimension(2) :: phase
 	real(kind=real64) :: p00,p01,p10,p11
 
 	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (ReadCounts,ped,GeneProbThresh,nSnp,nInd) !collapse(2)
@@ -552,36 +570,36 @@ subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 			
 			if ((sum(phase).gt.3).and.(ped%pedigree(i)%individualGenotype%isMissing(j))) then
 				if (p00.ge.GeneProbThresh) then
-					ped%pedigree(i)%individualGenotype%setGenotype(j,0)
-					ped%pedigree(i)%individualPhase(1)%setPhase(j,0)
-					ped%pedigree(i)%individualPhase(2)%setPhase(j,0)
+					call ped%pedigree(i)%individualGenotype%setGenotype(j,0)
+					call ped%pedigree(i)%individualPhase(1)%setPhase(j,0)
+					call ped%pedigree(i)%individualPhase(2)%setPhase(j,0)
 				endif
 
 				if (p11.ge.GeneProbThresh) then
-					ped%pedigree(i)%individualGenotype%setGenotype(j,2)
-					ped%pedigree(i)%individualPhase(1)%setPhase(j,1)
-					ped%pedigree(i)%individualPhase(2)%setPhase(j,1)
+					call ped%pedigree(i)%individualGenotype%setGenotype(j,2)
+					call ped%pedigree(i)%individualPhase(1)%setPhase(j,1)
+					call ped%pedigree(i)%individualPhase(2)%setPhase(j,1)
 				endif
 
 
-				if (p01+p10).ge.GeneProbThresh)) then
-					ped%pedigree(i)%individualGenotype%setGenotype(j,1)
+				if ((p01+p10).ge.GeneProbThresh) then
+					call ped%pedigree(i)%individualGenotype%setGenotype(j,1)
 					if (p01.ge.GeneProbThresh) then
-						ped%pedigree(i)%individualPhase(1)%setPhase(j,0)
-						ped%pedigree(i)%individualPhase(2)%setPhase(j,1)
+						call ped%pedigree(i)%individualPhase(1)%setPhase(j,0)
+						call ped%pedigree(i)%individualPhase(2)%setPhase(j,1)
 					endif
 					if (p10.ge.GeneProbThresh) then
-						ped%pedigree(i)%individualPhase(1)%setPhase(j,1)
-						ped%pedigree(i)%individualPhase(2)%setPhase(j,0)
+						call ped%pedigree(i)%individualPhase(1)%setPhase(j,1)
+						call ped%pedigree(i)%individualPhase(2)%setPhase(j,0)
 					endif
 				endif
 			endif
 
-			if (((p00+p01).ge.GeneProbThresh).and.(p10.lt.p01).and.(phase(1).eq.9)) ped%pedigree(i)%individualPhase(1)%setPhase(j,0)
-			if (((p11+p10).ge.GeneProbThresh).and.(p01.lt.p10).and.(phase(1).eq.9)) ped%pedigree(i)%individualPhase(1)%setPhase(j,1)
+			if (((p00+p01).ge.GeneProbThresh).and.(p10.lt.p01).and.(phase(1).eq.9)) call ped%pedigree(i)%individualPhase(1)%setPhase(j,0)
+			if (((p11+p10).ge.GeneProbThresh).and.(p01.lt.p10).and.(phase(1).eq.9)) call ped%pedigree(i)%individualPhase(1)%setPhase(j,1)
 
-			if (((p00+p10).ge.GeneProbThresh).and.(p01.lt.p10).and.(phase(2).eq.9)) ped%pedigree(i)%individualPhase(2)%setPhase(j,0)
-			if (((p11+p01).ge.GeneProbThresh).and.(p10.lt.p01).and.(phase(2).eq.9)) ped%pedigree(i)%individualPhase(2)%setPhase(j,1)
+			if (((p00+p10).ge.GeneProbThresh).and.(p01.lt.p10).and.(phase(2).eq.9)) call ped%pedigree(i)%individualPhase(2)%setPhase(j,0)
+			if (((p11+p01).ge.GeneProbThresh).and.(p10.lt.p01).and.(phase(2).eq.9)) call ped%pedigree(i)%individualPhase(2)%setPhase(j,1)
 
 		enddo
 	enddo
@@ -599,81 +617,9 @@ subroutine AllocateArrays
 	! Founders
 	allocate(FounderAssignment(nInd,nSnp,2))
 
-	! CountPhase
-	allocate(CurrentCountID%old(nInd))
-	allocate(CurrentCountID%diff(nInd))
-
-	! Markers to exclude
-	allocate(MarkersToExclude(nSnp))
 end subroutine AllocateArrays
 
 !################################################################################################
-
-subroutine DeallocateArrays
-
-	use GlobalPar
-
-	implicit none
-
-	deallocate(RawReads)
-	IF( ALLOCATED(position)) DEALLOCATE(position) 
-	IF( ALLOCATED(quality)) DEALLOCATE(quality) 
-
-	! Founders
-	deallocate(FounderAssignment)
-	
-	! CountPhase
-	if (allocated(CurrentCountID%old)) deallocate(CurrentCountID%old)
-	if (allocated(CurrentCountID%diff)) deallocate(CurrentCountID%diff)
-
-	! Markers to exclude
-	deallocate(MarkersToExclude)
-end subroutine DeallocateArrays
-
-!################################################################################################
-
-subroutine ReadData
- 	use ISO_Fortran_Env
-
-  	use GlobalPar
-	use MaraModule
-	use omp_lib
-
-  	implicit none
-  
-	integer :: i
-	integer(int64) :: PosReads
-	integer,allocatable,dimension(:) :: TempImput
-	integer(int64) :: TmpID
-	real(kind=8)::tstart,tend
-
-	!For CurrentCount
-	!open (unit=99,file="AlphaFamSeqSummary.log",status="unknown")
-
-
-	if (trim(ReadsType)=="VcfTools") call readRogerData(ReadsFile, Ids, position, quality, SequenceData,LenghtSequenceDataFile,nSnp,StartSnp,EndSnp,nIndSeq)
-	if (trim(ReadsType)=="AlphaSim") call readAlphaSimReads(ReadsFile, Ids,position,SequenceData,LenghtSequenceDataFile,nSnp,StartSnp,EndSnp,nIndSeq)
-	
-	allocate(RawReads(nInd,nSnp,2))
-	RawReads(:,:,:)=0
-
-    tstart = omp_get_wtime()
-	!$OMP PARALLEL DO DEFAULT(FIRSTPRIVATE) PRIVATE(i) SHARED(nIndSeq,Ids,RawReads,SequenceData)
-	do i=1, nIndSeq
-		PosReads=0
-		read(Ids(i),*) TmpID
-	    ! call GetID(TmpID, PosReads) 
-	    !print*,i,TmpID,PosReads
-	    if (PosReads/=0) RawReads(PosReads,:,:)= SequenceData(i,:,:)
-	enddo
-	!$OMP END PARALLEL DO
-	tend = omp_get_wtime()
-	write(*,*) "Total wall time for Reads sorting ", tend - tstart
-	
-	deallocate(SequenceData)
-	allocate(TempImput(LenghtSequenceDataFile))
-	call AllocateArrays
-end subroutine ReadData
 
 !---------------------------------------------------------------------------
 !> @brief   Read the results of GeneProb if we already run it
@@ -687,35 +633,34 @@ end subroutine ReadData
 
 subroutine ReadPrevGeneProb
 	use GlobalPar
+	use constantModule, only : IDLENGTH
 	implicit none
 
-	integer(int64) 		:: i,p,DumI
-	logical 			:: exist
-	character(len=80) 	:: filout5
-	real(real64),dimension(:), allocatable 			:: temp
+	integer									:: i,p,id
+	logical 								:: exist
+	character(len=IDLENGTH)					:: DumC
+	character(len=80) 						:: filout5
+	real(real64),dimension(:), allocatable 	:: temp
 	
-	filout5="AlphaFamSeqFinalGeneProb1.bin"
-	inquire(file=trim(fileout5),exist=exist)
+	filout5="AlphaFamSeqFinalGeneProb.bin"
+	inquire(file=trim(filout5),exist=exist)
 	
 	if (exist) then
-		allocate(ReadCounts(nInd,nSnp,4))
+		allocate(temp(nSnp))
 		open (unit=5,file=trim(filout5),status="old",form="unformatted")
 		do i=1,nInd
 			do p=1,4 !4 probabilities
-				read(5) DumI,temp
+				read(5) DumC,temp
 				id = ped%dictionary%getValue(DumC)
 				if (id /= DICT_NULL) then
 					ReadCounts(id,:,p) = temp
 				endif
-
-
-
-
-
 			enddo
 		enddo
+		close (5)
+		deallocate(temp)
 	endif
-	close (5)
+
 end subroutine ReadPrevGeneProb
 
 !---------------------------------------------------------------------------
@@ -729,11 +674,12 @@ subroutine SaveGeneProbResults
 
 	implicit none
 
-	integer :: i,p,TmpID
+	integer :: i,p,tmpId
 	character(len=80) :: filout5
 	
 	! Write Out Full file of GeneProb
-	write (filout5,'("AlphaFamSeqFinalGeneProb",i0,".bin")') Windows
+	filout5="AlphaFamSeqFinalGeneProb.bin"
+	!write (filout5,'("AlphaFamSeqFinalGeneProb",i0,".bin")') Windows
 	open (unit=5,file=trim(filout5),status="unknown",form="unformatted")
 
 	do i=1,nInd
@@ -757,9 +703,9 @@ subroutine WriteResults
 
 	implicit none
 
-	integer :: i,j,nRow,stat,DumI,p,tmpId 
+	integer :: i,tmpId 
 	character(len=30) :: nChar
-	character(len=80) :: FmtInt,FmtInt2,FmtCha,FmtReal,filout1,filout2,filout4
+	character(len=80) :: FmtInt2,filout1,filout2,filout4
 		
 
 	! WriteOut Full Output
@@ -792,7 +738,7 @@ end subroutine WriteResults
 
 !################################################################################################
 
-subroutine ReadsLikelihood(nRef,nAlt,ErrorRate,Pr0,Pr1,Pr2)
+subroutine ReadsLikelihood!(nRef,nAlt,ErrorRate,Pr0,Pr1,Pr2)
 	! implicit none
 	
 	! real,intent(in) :: nRef,nAlt
@@ -1017,7 +963,7 @@ end subroutine CleanUpTheRawData
 
 
 !###########################################################################################################################################################
-subroutine ExcessHeterozygotes(ReadsCount,n,ObsGenos,EstGenosInit,pHetExcess)
+subroutine ExcessHeterozygotes!(ReadsCount,n,ObsGenos,EstGenosInit,pHetExcess)
 
 	! implicit none
 
