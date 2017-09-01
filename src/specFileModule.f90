@@ -27,7 +27,7 @@ module specFileModule
     integer,intent(inout)            :: nSnp                                              ! SpecFile - Input - Total number of Snps
 
     character(len=300),intent(inout) :: chr                                               ! SpecFile - Input SequenceFile Option - chromosome ID
-    character(len=300),intent(inout) :: StartPos,EndPos                                   ! SpecFile - Input SequenceFile Option - first and last position
+    integer,intent(inout) :: StartPos,EndPos                                              ! SpecFile - Input SequenceFile Option - first and last position
 
     real(kind=8),intent(inout) :: maxStdForReadsCount,ThresholdMaxReadsCount              ! SpecFile - Editing Parametes - Remove Reads that are above this standard deviation
     real(kind=8),intent(inout) :: ThresholdExcessHetero                                   ! SpecFile - Editing Parametes - Remove variants with an excess of heterozygotes

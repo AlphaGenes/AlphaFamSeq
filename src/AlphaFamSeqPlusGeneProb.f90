@@ -18,7 +18,7 @@ module GlobalPar
 	integer 		   :: nSnp												! SpecFile - Input - Total number of Snps
 
 	character(len=300) :: chr 			  									! SpecFile - Input SequenceFile Option - chromosome ID
-	character(len=300) :: StartPos,EndPos									! SpecFile - Input SequenceFile Option - first and last position
+	integer 		   :: StartPos,EndPos									! SpecFile - Input SequenceFile Option - first and last position
 
 	real(kind=8) :: maxStdForReadsCount,ThresholdMaxReadsCount				! SpecFile - Editing Parametes - Remove Reads that are above this standard deviation
 	real(kind=8) :: ThresholdExcessHetero									! SpecFile - Editing Parametes - Remove variants with an excess of heterozygotes
@@ -121,12 +121,14 @@ program FamilyPhase
 	nInd=ped%pedigreeSize
 
 	! Read Sequence Data -----------------------------------------------------------------------------------------------
-	! TODO split windos to avoid huge memory allocation
+	! TODO split windows to avoid huge memory allocation
 	! TODO check type of genotype info - right now this for sequence 
+	
+
 	print*,"Read SequenceData"
 	if (trim(SequenceDataType)=="RC") then
 		if (trim(SequenceFileFormat)=="AlphaSim") call ped%addSequenceFromFile(SequenceFile,nSnp) ! read sequence file AlphaSimFormat
-		if (trim(SequenceFileFormat)=="VcfTools") call ped%addSequenceFromVCFFile(seqFile=SequenceFile,nSnpsIn=nSnp)
+		if (trim(SequenceFileFormat)=="VcfTools") call ped%addSequenceFromVCFFile(seqFile=SequenceFile,nSnpsIn=nSnp,chr=chr,StartPos=StartPos,EndPos=EndPos)
 	endif
 	! Edit The Row Data ------------------------------------------------------------------------------------------------
 	! TODO : Check Mendelian Inconsistencies
