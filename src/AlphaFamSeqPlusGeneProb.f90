@@ -695,9 +695,11 @@ subroutine SaveGeneProbResults
 	open (unit=5,file=trim(filout5),status="unknown",form="unformatted")
 
 	do i=1,nInd
+
+		if (ped%pedigree(i)%isDummy) cycle
 		tmpId = ped%inputMap(i)
 		do p=1,4 ! 4 probabilities
-			write(5) ped%pedigree(tmpId)%originalID,ReadCounts(tmpId,:,p)
+			write(5) ped%pedigree(tmpId)%originalID,ReadCounts(p,:,tmpId)
 		enddo
 	enddo
 	close (5)
