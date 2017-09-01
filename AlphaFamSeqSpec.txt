@@ -1,18 +1,18 @@
-NumberOfIndividuals           ,1504
-NumberOfSnps                  ,700000,100000,1
-InternalEdit                  ,0
-EditingParameter              ,0.001
-RemoveOutliersReadsCount      ,4,0.1
-RemoveMarkersLowNrReads       ,3
-RemoveExcessHeteroPvalue      ,0.95
-GenotypeProbability           ,0.999,0.850,0.005,0
-ErrorRate                     ,0.001
-RangeChunkLenght              ,50,100
-SuperConsensus                ,0
+= BOX 1: Input Files ==================================================================
 PedigreeFile                  ,Pedigree.txt
-ReadsFile                     ,Reads1x.txt,AlphaSim
-MapFile                       ,None
-SnpChipsInformation           ,None
-GenoFile                      ,Genotype.txt
-PhaseFile                     ,Phase.txt
-MaskedIndividualsFile         ,ReadsABC.txt,VcfTools
+SequenceDataFile              ,variants_chr1.OneFamily,VcfTools,RC
+GenotypeDataFileAndMap        ,None,None
+= BOX 2: SNPs =========================================================================
+NumberOfSnps                  ,2081100
+ChromosomeAndInterval         ,CM000812.5,112,274327071
+= BOX 3: Internal Editing =============================================================
+RemoveOutliersReadsCount      ,100,1
+RemoveMarkersLowNrReads       ,-1
+RemoveExcessHeteroPvalue      ,-1
+= BOX 8: Running options ==============================================================
+RunSingleLocusPeeler          ,0
+AlleleThresholdProbability    ,1.00,0.99,0.01
+WindowSizeHaplotype           ,100000,100000
+= BOX 8: Calculate Accuracy ===========================================================
+TrueGenoFile                  ,None
+TruePhaseFile                 ,None

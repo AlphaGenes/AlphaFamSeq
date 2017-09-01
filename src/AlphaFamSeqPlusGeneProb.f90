@@ -6,51 +6,56 @@ module GlobalPar
 	use pedigreemodule
 	implicit none
 
-	integer :: LenghtSequenceDataFile,nSnp,fistWindow						! SpecFile - Total number of Snps
-	
-	real(kind=8) :: maxStdForReadsCount,ThresholdMaxReadsCount				! SpecFile - Remove Reads that are above this standard deviation
-	real(kind=8) :: ThresholdExcessHetero									! SpecFile - Remove variants with an excess of heterozygotes
-	integer 	 :: ThresholdReadsCount										! SpecFile - Remove single/double/n-tones 
-	
-	integer :: nInd 														! Calculated Internally - Number of Individuals in the Pedigree
-	
-	real(kind=8) :: GeneProbThresh  										! SpecFile - Threshold to call a genotype from the probabilities First Value
-	real(kind=8) :: GeneProbThreshMin										! SpecFile - Threshold to call a genotype from the probabilities Last Value
-	real(kind=8) :: ReduceThr 												! SpecFile - Reduce Geno Treshold factor
-	integer 	 :: UsePrevGeneProb                      					! SpecFile - Read old results of GeneProb 1==YES, 0==NO
-	
-	integer 	 :: minWindowSizeHapDefinition      						! SpecFile - First value to define Haplotypes length
-	integer 	 :: maxWindowSizeHapDefinition      						! SpecFile - Last value to define Haplotypes length
-
+	! SpecFile Parametes --------------------------------------------------------------------------
 	character(len=300) :: PedigreeFile      								! SpecFile - Input File Name - Pedigree
-	character(len=300) :: ReadsFile             							! SpecFile - Input File Name - Reads Count for the Reference and the Alternative Allele
-	character(len=300) :: ReadsType             							! SpecFile - Input File Name - Reads Count for the Reference and the Alternative Allele
+	character(len=300) :: SequenceFile             							! SpecFile - Input File Name - Sequence Data
+	character(len=300) :: SequenceFileFormat             					! SpecFile - Input SequenceFile Option - AlphaSim or VcfTools format
+	character(len=300) :: SequenceDataType									! SpecFile - Input SequenceFile Option - RC = read counts, GL= genotype likelihood, GT= genotype 
+
+	character(len=300) :: SnpChipFile   									! SpecFile - Input File Name - Snp chip array to add more information to the Reads
+	character(len=300) :: MapSnpChipFile   									! SpecFile - Input File Name - Map file for Snp chip array
 	
-	character(len=300) :: SnpChipsInformation   							! SpecFile - Input File Name - Snp array to add more information to the Reads
+	integer 		   :: nSnp												! SpecFile - Input - Total number of Snps
+
+	character(len=300) :: chr 			  									! SpecFile - Input SequenceFile Option - chromosome ID
+	character(len=300) :: StartPos,EndPos									! SpecFile - Input SequenceFile Option - first and last position
+
+	real(kind=8) :: maxStdForReadsCount,ThresholdMaxReadsCount				! SpecFile - Editing Parametes - Remove Reads that are above this standard deviation
+	real(kind=8) :: ThresholdExcessHetero									! SpecFile - Editing Parametes - Remove variants with an excess of heterozygotes
+	integer 	 :: ThresholdReadsCount										! SpecFile - Editing Parametes - Remove single/double/n-tones 
 	
+	integer 	 :: UsePrevGeneProb                      					! SpecFile - Input SingleLocusPeeler - Read old results of GeneProb 1==YES, 0==NO
+	real(kind=8) :: GeneProbThresh  										! SpecFile - Input SingleLocusPeeler - Threshold to call a genotype from the probabilities First Value
+	real(kind=8) :: GeneProbThreshMin										! SpecFile - Input SingleLocusPeeler - Threshold to call a genotype from the probabilities Last Value
+	real(kind=8) :: ReduceThr 												! SpecFile - Input SingleLocusPeeler - Reduce Geno Treshold factor
+	
+	integer 	 :: minWindowSizeHapDefinition      						! SpecFile - Input Build Consensu Haplotype - First value to define Haplotypes length
+	integer 	 :: maxWindowSizeHapDefinition      						! SpecFile - Input Build Consensu Haplotype - Last value to define Haplotypes length
+
 	character(len=300) :: GenoFile              							! SpecFile - Control Results File Name - TrueGeno Genotypes to check results 
 	character(len=300) :: PhaseFile             							! SpecFile - Control Results File Name - True Phase to check results 
 
+
+	! Global Parametes --------------------------------------------------------------------------
+	type(PedigreeHolder) :: ped
+	integer :: nInd 														! Calculated Internally - Number of Individuals in the Pedigree
+
 	integer :: IterationNumber                  							! Control Parameter - Define the number of Iterations
 	integer :: StartSnp,EndSnp
-	
-	type(PedigreeHolder) :: ped
+
+	! Sequence Data VcfTools Info
+	integer(int64), dimension(:), allocatable 		:: position
+	real(real64), allocatable, dimension(:) 		:: quality
 
 	! AlphaMPL output
 	real(kind=real64),allocatable,dimension(:,:,:) 	:: ReadCounts !< in the format (pedigreeId, snpId, prob) prob is Pr00,Pr01,Pr10,Pr11
     real(kind=real64),allocatable,dimension(:) 		:: Maf
 
 
-	integer(int64), dimension(:), allocatable 		:: position
-	real(real64), allocatable, dimension(:) 		:: quality
-
 	integer(kind=1),allocatable,dimension(:,:) 		:: TrueGenos			! Control Results - True Genotypes to check results 
 	integer(kind=1),allocatable,dimension(:,:,:) 	:: TruePhase			! Control Results - True Phase to check results 
 
 	integer(kind=1),allocatable,dimension(:)		:: MarkersToExclude		! CleanUpTheRawData - 0=use the variant; 1= don't use the variant
-	
-	character(len=1),allocatable,dimension(:,:) 	:: CheckGenos   		! Control Results - Use character to check True vs Imputed Genotypes
-	character(len=1),allocatable,dimension(:,:,:) 	:: CheckPhase 			! Control Results - Use character to check True vs Imputed PhaseFile
 	
 	integer,allocatable,dimension(:) 				:: GeneProbYesOrNo		! Temporary Array - use gene prob or not
 	integer,allocatable,dimension(:,:,:) 			:: FounderAssignment   	! Temporary File - Save the IDs of the grandparents
@@ -98,11 +103,15 @@ program FamilyPhase
 
 	! User-defined parameters ------------------------------------------------------------------------------------------
 	print*,"ReadSpecfile"
-	call ReadSpecfile(LenghtSequenceDataFile,nSnp,fistWindow,maxStdForReadsCount, &
-                      ThresholdMaxReadsCount,ThresholdReadsCount,ThresholdExcessHetero, &
-         	          GeneProbThresh,GeneProbThreshMin,ReduceThr,UsePrevGeneProb, &
+	call ReadSpecfile(PedigreeFile, &
+                      SequenceFile,SequenceFileFormat,SequenceDataType, &
+                      SnpChipFile,MapSnpChipFile, &
+                      nSnp,chr, StartPos,EndPos, & 
+                      maxStdForReadsCount,ThresholdMaxReadsCount, &
+                      ThresholdReadsCount,ThresholdExcessHetero, &
+                      UsePrevGeneProb,GeneProbThresh,GeneProbThreshMin,ReduceThr, &
                       minWindowSizeHapDefinition,maxWindowSizeHapDefinition, &
-                      PedigreeFile,ReadsFile,ReadsType,GenoFile,SnpChipsInformation,PhaseFile)
+                      GenoFile,PhaseFile)
  
 	
 	! Read Pedigree ----------------------------------------------------------------------------------------------------
@@ -115,9 +124,10 @@ program FamilyPhase
 	! TODO split windos to avoid huge memory allocation
 	! TODO check type of genotype info - right now this for sequence 
 	print*,"Read SequenceData"
-	if (trim(ReadsType)=="AlphaSim") call ped%addSequenceFromFile(ReadsFile,nSnp) ! read sequence file AlphaSimFormat
-	if (trim(ReadsType)=="VcfTools") call ped%addSequenceFromVCFFile(seqFile=ReadsFile,nSnpsIn=nSnp)
-	
+	if (trim(SequenceDataType)=="RC") then
+		if (trim(SequenceFileFormat)=="AlphaSim") call ped%addSequenceFromFile(SequenceFile,nSnp) ! read sequence file AlphaSimFormat
+		if (trim(SequenceFileFormat)=="VcfTools") call ped%addSequenceFromVCFFile(seqFile=SequenceFile,nSnpsIn=nSnp)
+	endif
 	! Edit The Row Data ------------------------------------------------------------------------------------------------
 	! TODO : Check Mendelian Inconsistencies
 	! TODO : Check Excess of Reads
