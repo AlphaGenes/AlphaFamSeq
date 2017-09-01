@@ -29,14 +29,14 @@ module specFileModule
     character(len=300),intent(inout) :: chr                                               ! SpecFile - Input SequenceFile Option - chromosome ID
     integer,intent(inout) :: StartPos,EndPos                                              ! SpecFile - Input SequenceFile Option - first and last position
 
-    real(kind=8),intent(inout) :: maxStdForReadsCount,ThresholdMaxReadsCount              ! SpecFile - Editing Parametes - Remove Reads that are above this standard deviation
-    real(kind=8),intent(inout) :: ThresholdExcessHetero                                   ! SpecFile - Editing Parametes - Remove variants with an excess of heterozygotes
-    integer,intent(inout)      :: ThresholdReadsCount                                     ! SpecFile - Editing Parametes - Remove single/double/n-tones 
+    real,intent(inout)          :: maxStdForReadsCount,ThresholdMaxReadsCount              ! SpecFile - Editing Parametes - Remove Reads that are above this standard deviation
+    integer,intent(inout)       :: ThresholdReadsCount                                     ! SpecFile - Editing Parametes - Remove single/double/n-tones 
+    real,intent(inout)          :: ThresholdExcessHetero                                   ! SpecFile - Editing Parametes - Remove variants with an excess of heterozygotes
     
-    integer,intent(inout)      :: UsePrevGeneProb                                         ! SpecFile - Input SingleLocusPeeler - Read old results of GeneProb 1==YES, 0==NO
-    real(kind=8),intent(inout) :: GeneProbThresh                                          ! SpecFile - Input SingleLocusPeeler - Threshold to call a genotype from the probabilities First Value
-    real(kind=8),intent(inout) :: GeneProbThreshMin                                       ! SpecFile - Input SingleLocusPeeler - Threshold to call a genotype from the probabilities Last Value
-    real(kind=8),intent(inout) :: ReduceThr                                               ! SpecFile - Input SingleLocusPeeler - Reduce Geno Treshold factor
+    integer(kind=1),intent(inout)   :: UsePrevGeneProb                                         ! SpecFile - Input SingleLocusPeeler - Read old results of GeneProb 1==YES, 0==NO
+    real,intent(inout)              :: GeneProbThresh                                          ! SpecFile - Input SingleLocusPeeler - Threshold to call a genotype from the probabilities First Value
+    real,intent(inout)              :: GeneProbThreshMin                                       ! SpecFile - Input SingleLocusPeeler - Threshold to call a genotype from the probabilities Last Value
+    real,intent(inout)              :: ReduceThr                                               ! SpecFile - Input SingleLocusPeeler - Reduce Geno Treshold factor
     
     integer,intent(inout)      :: minWindowSizeHapDefinition                              ! SpecFile - Input Build Consensu Haplotype - First value to define Haplotypes length
     integer,intent(inout)      :: maxWindowSizeHapDefinition                              ! SpecFile - Input Build Consensu Haplotype - Last value to define Haplotypes length
@@ -47,18 +47,18 @@ module specFileModule
 
 
     integer :: stat, i
-    character(len=30) :: SpecParam
+    character(len=90) :: SpecParam
    	character (len=512) :: TLC
 
     open(unit=1, file="AlphaFamSeqSpec.txt", status="old")
 
-
     do i=1, countLines("AlphaFamSeqSpec.txt")
         read(1,'(a30,A)', advance='NO', iostat=stat) SpecParam 
         
-        if (SpecParam(1:1)=="=" .or. len(trim(SpecParam))==0) then
-            cycle
-        else
+        ! if (SpecParam(1:1)=="=" .or. len(trim(SpecParam))==0) then
+        !     print*,SpecParam(1:9)
+        !     cycle
+        ! else
         
             select case(trim(TLC(SpecParam)))
 
@@ -132,7 +132,7 @@ module specFileModule
                         stop 8
                     endif   
 
-                case('WindowSizeHaplotype')
+                case('windowsizehaplotype')
                     read(1, *, iostat=stat) minWindowSizeHapDefinition,maxWindowSizeHapDefinition
                     if (stat /= 0) then
                         print *, "windowsizehaplotype not set properly in spec file"
@@ -157,7 +157,7 @@ module specFileModule
                    print *, "Error in specfile, please check", SpecParam
                     stop 16
         	end select
-        endif
+        !endif
     enddo
 
     close(1)

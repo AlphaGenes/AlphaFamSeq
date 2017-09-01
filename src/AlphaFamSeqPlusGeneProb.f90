@@ -20,14 +20,14 @@ module GlobalPar
 	character(len=300) :: chr 			  									! SpecFile - Input SequenceFile Option - chromosome ID
 	integer 		   :: StartPos,EndPos									! SpecFile - Input SequenceFile Option - first and last position
 
-	real(kind=8) :: maxStdForReadsCount,ThresholdMaxReadsCount				! SpecFile - Editing Parametes - Remove Reads that are above this standard deviation
-	real(kind=8) :: ThresholdExcessHetero									! SpecFile - Editing Parametes - Remove variants with an excess of heterozygotes
-	integer 	 :: ThresholdReadsCount										! SpecFile - Editing Parametes - Remove single/double/n-tones 
+	real 			:: maxStdForReadsCount,ThresholdMaxReadsCount				! SpecFile - Editing Parametes - Remove Reads that are above this standard deviation
+	integer 	 	:: ThresholdReadsCount										! SpecFile - Editing Parametes - Remove single/double/n-tones 
+	real			:: ThresholdExcessHetero									! SpecFile - Editing Parametes - Remove variants with an excess of heterozygotes
 	
-	integer 	 :: UsePrevGeneProb                      					! SpecFile - Input SingleLocusPeeler - Read old results of GeneProb 1==YES, 0==NO
-	real(kind=8) :: GeneProbThresh  										! SpecFile - Input SingleLocusPeeler - Threshold to call a genotype from the probabilities First Value
-	real(kind=8) :: GeneProbThreshMin										! SpecFile - Input SingleLocusPeeler - Threshold to call a genotype from the probabilities Last Value
-	real(kind=8) :: ReduceThr 												! SpecFile - Input SingleLocusPeeler - Reduce Geno Treshold factor
+	integer(kind=1)	:: UsePrevGeneProb                      					! SpecFile - Input SingleLocusPeeler - Read old results of GeneProb 1==YES, 0==NO
+	real 		 	:: GeneProbThresh  											! SpecFile - Input SingleLocusPeeler - Threshold to call a genotype from the probabilities First Value
+	real 			:: GeneProbThreshMin										! SpecFile - Input SingleLocusPeeler - Threshold to call a genotype from the probabilities Last Value
+	real 			:: ReduceThr 												! SpecFile - Input SingleLocusPeeler - Reduce Geno Treshold factor
 	
 	integer 	 :: minWindowSizeHapDefinition      						! SpecFile - Input Build Consensu Haplotype - First value to define Haplotypes length
 	integer 	 :: maxWindowSizeHapDefinition      						! SpecFile - Input Build Consensu Haplotype - Last value to define Haplotypes length
@@ -113,7 +113,6 @@ program FamilyPhase
                       minWindowSizeHapDefinition,maxWindowSizeHapDefinition, &
                       GenoFile,PhaseFile)
  
-	
 	! Read Pedigree ----------------------------------------------------------------------------------------------------
 	print*,"Read Pedigree"
 	ped = PedigreeHolder(pedigreeFile) 
@@ -140,10 +139,13 @@ program FamilyPhase
 	InitialGeneProbThresh=GeneProbThresh
 	GeneProbThresh=InitialGeneProbThresh
 
-	allocate(ReadCounts(nInd,nSnp,4))
+	allocate(ReadCounts(4,nSnp,nInd))
 	allocate(Maf(nSnp))
 	if (UsePrevGeneProb==0) then
+		tstart = omp_get_wtime()
 		call runAlphaMLPAlphaImpute(1,nSnp,ped,ReadCounts,Maf)
+		tend = omp_get_wtime()
+		write(*,*) "Total wall time for Running SingleLP", tend - tstart
 		call SaveGeneProbResults
 	else if (UsePrevGeneProb==1) then
 		tstart = omp_get_wtime()
@@ -687,7 +689,8 @@ subroutine SaveGeneProbResults
 	implicit none
 
 	integer :: i,p,tmpId
-	character(len=80) :: filout5
+	character(len=30) :: nChar
+	character(len=80) :: filout5,FmtInt2,filout6
 	
 	! Write Out Full file of GeneProb
 	filout5="AlphaFamSeqFinalGeneProb.bin"
@@ -703,6 +706,24 @@ subroutine SaveGeneProbResults
 		enddo
 	enddo
 	close (5)
+	
+	! Write Out Full file of GeneProb
+	write(nChar,*) nSnp
+	FmtInt2='(1a20,'//trim(adjustl(nChar))//'f7.4)'
+	filout6="AlphaFamSeqFinalGeneProb.txt"
+	open (unit=6,file=trim(filout6),status="unknown")
+
+	do i=1,nInd
+
+		if (ped%pedigree(i)%isDummy) cycle
+		tmpId = ped%inputMap(i)
+		do p=1,4 ! 4 probabilities
+			write(6,FmtInt2) ped%pedigree(tmpId)%originalID,ReadCounts(p,:,tmpId)
+		enddo
+	enddo
+	close (6)
+
+
 end subroutine SaveGeneProbResults
 
 !---------------------------------------------------------------------------
@@ -714,7 +735,6 @@ end subroutine SaveGeneProbResults
 subroutine WriteResults
 
 	use GlobalPar
-
 	implicit none
 
 	integer :: i,tmpId 
