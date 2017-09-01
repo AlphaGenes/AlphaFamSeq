@@ -13,16 +13,12 @@ set(CLUSTER 0 CACHE STRING "cluster size")
 # Add our local modlues to the module path
 SET(SRCAHTMP "./alphahouse/src/")
 SET(SRCACMAKE "${CMAKE_SOURCE_DIR}/alphacmakefiles/cmake/modules")
-
+SET(SRCGP "./alphamlp/src/")
 
 SET(CMAKE_MODULE_PATH ${SRCACMAKE})
 set(CMAKE_MACOSX_RPATH 0)
 
-if (DEFINED ENV{ALPHAHOUSESRC})
-  SET(SRCAH $ENV{ALPHAHOUSESRC})
-else()
-  SET(SRCAH ${SRCAHTMP})
-endif()
+SET(SRCAH ${SRCAHTMP})
 
 #INCLUDE(${CMAKE_MODULE_PATH}/setVersion.cmake)
 find_package(Doxygen)
@@ -38,7 +34,7 @@ MESSAGE("Prog name ${PROGRAMEXE}")
 
 # Define the library name
 SET(AHLIB alphahouse)
-
+SET(GPLIB alphamlp)
 # Define some directories
 SET(SRC ${CMAKE_SOURCE_DIR}/src)
 SET(OBJ ${CMAKE_SOURCE_DIR}/objs)
@@ -89,6 +85,7 @@ SET(CMAKE_Fortran_MODULE_DIRECTORY ${OBJ})
 
 
 ADD_SUBDIRECTORY(${SRCAH} ${OBJ}/AH)
+ADD_SUBDIRECTORY(${SRCGP} ${OBJ}/GP)
 
 
 # TODO add tests to correct location
