@@ -66,25 +66,25 @@ end module GlobalPar
 !################################################################################################
 
 program FamilyPhase
+    
     use ISO_Fortran_Env
     use specFileModule
     use omp_lib
-
 	use GlobalPar
 	use IntelRNGMod
 	use AlphaMLPModule
 	use CalculateStatisticsForGenoAndPhase
+	
 	implicit none
 
-	integer 		:: i,j
+	!integer 		:: i,j
 	integer(int64) 	:: OldCount,NewCount
 	integer(int64)	:: CurrentCountMissingPhase,CurrentCountMissingGenos
 	integer(int32) 	:: Seed1,Seed2
 	real(kind=8) 	:: InitialGeneProbThresh
 	logical			:: fileExists
 	real(kind=8)	:: tstart,tend
-	
-	
+
 	! Seed Definition --------------------------------------------------------------------------------------------------
 	! Use a seed to sample the Haplotypes length of each window and iteration
 	inquire(file="Seed.txt", exist=fileExists)
@@ -115,8 +115,8 @@ program FamilyPhase
  
 	! Read Pedigree ----------------------------------------------------------------------------------------------------
 	print*,"Read Pedigree"
-	ped = PedigreeHolder(pedigreeFile) 
-	call ped%sortPedigreeAndOverwrite()
+	ped = PedigreeHolder(pedigreeFile,nsnps=nSnp) 
+	!call ped%sortPedigreeAndOverwrite()
 	nInd=ped%pedigreeSize
 
 	! Read Sequence Data -----------------------------------------------------------------------------------------------
@@ -154,55 +154,57 @@ program FamilyPhase
 		write(*,*) "Total wall time for Importing Probabilities", tend - tstart
 	endif
 
+	allocate(FounderAssignment(nInd,nSnp,2))
+
+
 	! Iterate on the next steps ----------------------------------------------------------------------------------------
-	! print*," "
-	! write (*,'(1a39)') " Window Iter   ProbThr    %Phase   %Geno"
+	 print*," "
+	 write (*,'(1a39)') " Window Iter   ProbThr    %Phase   %Geno"
 
-	! CurrentCountMissingGenos=0
-	! CurrentCountMissingPhase=0
-	! NewCount=-1
-	! OldCount=0
+	 CurrentCountMissingGenos=0
+	 CurrentCountMissingPhase=0
+	 NewCount=-1
+	 OldCount=0
 
-	! IterationNumber=0
-	! do while (NewCount.lt.OldCount)
-
-	! 	OldCount=CurrentCountFilledPhase+CurrentCountFilledGenos
-	! 	IterationNumber=IterationNumber+1
+	 IterationNumber=0
+	 do while (NewCount.ne.OldCount)
+	 	OldCount=NewCount
+	 	IterationNumber=IterationNumber+1
 			
-	! 	if ((IterationNumber>1).and.(GeneProbThresh>GeneProbThreshMin)) then 
-	! 		GeneProbThresh=GeneProbThresh-ReduceThr!0.001
-	! 		if (GeneProbThresh.lt.GeneProbThreshMin) GeneProbThresh=GeneProbThreshMin
-	! 	endif
+	 	if ((IterationNumber>1).and.(GeneProbThresh>GeneProbThreshMin)) then 
+	 		GeneProbThresh=GeneProbThresh-ReduceThr
+	 		if (GeneProbThresh.lt.GeneProbThreshMin) GeneProbThresh=GeneProbThreshMin
+	 	endif
+	 	call UseGeneProbToSimpleFillInBasedOnOwnReads
+	! 	call SimpleCleanUpFillIn ! count Geno is not working
 
-	! 	call UseGeneProbToSimpleFillInBasedOnOwnReads
 	! 	!if (IterationNumber==1) call ReadSamFile
 	! 	call SimpleCleanUpFillIn
 	! 	!if (IterationNumber==1) call UseSnpChipInformation 
 
-	! 	call SimpleFillInBasedOnParentsReads
-	! 	call SimpleCleanUpFillIn
+	 	call SimpleFillInBasedOnParentsReads
+	 	call SimpleCleanUpFillIn
 
-	! 	call SimpleFillInBasedOnProgenyReads
-	! 	call SimpleCleanUpFillIn
+	 	call SimpleFillInBasedOnProgenyReads
+	 	call SimpleCleanUpFillIn
 
-	! 	call CalculateFounderAssignment
-	! 	call ChunkDefinition
-	! 	call BuildConsensus
-	! 	call SimpleCleanUpFillIn
+	 	call CalculateFounderAssignment
+	 	call ChunkDefinition
+	 	call BuildConsensus
+	 	call SimpleCleanUpFillIn
 
 	! 	! Count Missing
-	! 	CurrentCountMissingGenos=ped%CountMissingGenotypesNoDummys()
-	! 	CurrentCountMissingPhase=ped%CountMissingPhaseNoDummys()
+	 	CurrentCountMissingGenos=ped%CountMissingGenotypesNoDummys()
+	 	CurrentCountMissingPhase=ped%CountMissingPhaseNoDummys()
 
-	! 	OldCount=NewCount	
-	! 	NewCount=CurrentCountMissingPhase+CurrentCountMissingGenos
-	! 	write (*,'(2i4,1f10.3,2i15)') Windows,IterationNumber,GeneProbThresh,CurrentCountMissingPhase,CurrentCountMissingGenos
+	 	NewCount=CurrentCountMissingPhase + CurrentCountMissingGenos
+		write (*,'(2i4,1f10.3,2i15)') Windows,IterationNumber,GeneProbThresh,CurrentCountMissingPhase,CurrentCountMissingGenos
 
-	! enddo
+	 enddo
 
 	! ! WriteOut Results -------------------------------------------------------------------------------------------------
 
-	! call WriteResults
+	 call WriteResults
 	! call DeallocateArrays
 
 	! call UnintitialiseIntelRNG
@@ -235,12 +237,12 @@ subroutine SimpleCleanUpFillIn
 	
 	newMissingGeno=0
 	newMissingPhase=0
-	
-	do while ((newMissingGeno.ne.oldMissingGeno).or.(newMissingPhase.ne.oldMissingPhase))
 
+	!do while ((newMissingGeno.ne.oldMissingGeno).or.(newMissingPhase.ne.oldMissingPhase))
+	do while ((newMissingPhase.ne.oldMissingPhase))
 		oldMissingGeno=newMissingGeno
-		oldMissingGeno=newMissingPhase
-		
+		oldMissingPhase=newMissingPhase
+
 		call ped%phaseComplement()
 		call ped%makeGenotype()
 		
@@ -295,7 +297,7 @@ subroutine BuildConsensus
 
 
 						if (ConsensusHaplotype.ne.9) then
-							call ped%pedigree(i)%individualPhase(e)%setPhase(j,ConsensusHaplotype)
+							call ped%pedigree(i)%individualPhase(k)%setPhase(j,ConsensusHaplotype)
 							call parent%individualPhase((FounderAssignment(i,j,k)-1))%setPhase(j,ConsensusHaplotype)
 						endif	
 						
@@ -459,6 +461,7 @@ subroutine CalculateFounderAssignment
 						if (phasePar(1).eq.phaseId(e-1)) FounderAssignment(i,j,e-1)=2 !GrandSire 
 						if (phasePar(2).eq.phaseId(e-1)) FounderAssignment(i,j,e-1)=3 !GrandDam
 					endif
+					!if (FounderAssignment(i,j,e-1).ne.0) print*,i,j,e,FounderAssignment(i,j,e-1)
 				enddo
 			endif
 		enddo
@@ -536,9 +539,9 @@ subroutine SimpleFillInBasedOnParentsReads
 	type(Individual) , pointer :: parent
 	integer(kind=1) :: geno
 
-    !!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (ped,nInd,nSnp) !collapse(2)
+    !$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (ped,nInd,nSnp) !collapse(2)
 	do e=1,2
-		do i=1,nInd
+		do i=1,ped%pedigreeSize-ped%nDummys
 			parent => ped%pedigree(i)%getSireDamObjectByIndex(e+1)
 			if (associated(parent)) then
 				do j=1,nSnp
@@ -549,7 +552,7 @@ subroutine SimpleFillInBasedOnParentsReads
 			endif
 		enddo
 	enddo
-    !!$OMP END PARALLEL DO
+    !$OMP END PARALLEL DO
 end subroutine SimpleFillInBasedOnParentsReads
 
 !---------------------------------------------------------------------------
@@ -571,16 +574,15 @@ subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 	real(kind=real64) :: p00,p01,p10,p11
 
 	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (ReadCounts,ped,GeneProbThresh,nSnp,nInd) !collapse(2)
-	do i=1,nInd
+	do i=1,ped%pedigreeSize-ped%nDummys
 		do j=1,nSnp
-
 			phase(1) = ped%pedigree(i)%individualPhase(1)%getPhase(j)
 			phase(2) = ped%pedigree(i)%individualPhase(2)%getPhase(j)
-
-			p00=ReadCounts(i,j,1)
-			p01=ReadCounts(i,j,2)
-			p10=ReadCounts(i,j,3)
-			p11=ReadCounts(i,j,4)
+			
+			p00=ReadCounts(1,j,i)
+			p01=ReadCounts(2,j,i)
+			p10=ReadCounts(3,j,i)
+			p11=ReadCounts(4,j,i)
 			
 			if ((sum(phase).gt.3).and.(ped%pedigree(i)%individualGenotype%isMissing(j))) then
 				if (p00.ge.GeneProbThresh) then
@@ -622,18 +624,6 @@ end subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 
 !################################################################################################
 
-subroutine AllocateArrays
-
-	use GlobalPar
-
-	implicit none
-
-	! Founders
-	allocate(FounderAssignment(nInd,nSnp,2))
-
-end subroutine AllocateArrays
-
-!################################################################################################
 
 !---------------------------------------------------------------------------
 !> @brief   Read the results of GeneProb if we already run it
@@ -662,12 +652,12 @@ subroutine ReadPrevGeneProb
 	if (exist) then
 		allocate(temp(nSnp))
 		open (unit=5,file=trim(filout5),status="old",form="unformatted")
-		do i=1,nInd
+		do i=1,ped%pedigreeSize-ped%nDummys
 			do p=1,4 !4 probabilities
 				read(5) DumC,temp
 				id = ped%dictionary%getValue(DumC)
 				if (id /= DICT_NULL) then
-					ReadCounts(id,:,p) = temp
+					ReadCounts(p,:,id) = temp
 				endif
 			enddo
 		enddo
@@ -745,21 +735,24 @@ subroutine WriteResults
 	! WriteOut Full Output
 
 	write(nChar,*) nSnp
-	FmtInt2='(i0,'//trim(adjustl(nChar))//'(1x,i0))'
+	FmtInt2='(a20,'//trim(adjustl(nChar))//'(1x,i0))'
 	
-	write (filout1,'("AlphaFamSeqFinalPhase",i0,".txt")') Windows
-	write (filout2,'("AlphaFamSeqFinalGenos",i0,".txt")') Windows
-	write (filout4,'("AlphaFamSeqFounderAssignment",i0,".txt")') Windows
+	write (filout1,'("AlphaFamSeqFinalPhase.txt")')
+	write (filout2,'("AlphaFamSeqFinalGenos.txt")')
+	write (filout4,'("AlphaFamSeqFounderAssignment.txt")')
+
+	!write (filout1,'("AlphaFamSeqFinalPhase",i0,".txt")') Windows
+	!write (filout2,'("AlphaFamSeqFinalGenos",i0,".txt")') Windows
+	!write (filout4,'("AlphaFamSeqFounderAssignment",i0,".txt")') Windows
 	
 	call ped%writeoutphase(trim(filout1))
 	call ped%writeoutgenotypes(trim(filout2))
 
 	open (unit=4,file=trim(filout4),status="unknown")
-	
-
-	do i=1,nInd
+	do i=1,ped%pedigreeSize-ped%nDummys
 		tmpId = ped%inputMap(i)
 		if (maxval(FounderAssignment(i,:,:))/=0) then 
+			!print*,i,tmpId," ",ped%pedigree(i)," ",ped%pedigree(tmpId)%originalID
 			write (4,FmtInt2) ped%pedigree(tmpId)%originalID,FounderAssignment(i,:,1)
 			write (4,FmtInt2) ped%pedigree(tmpId)%originalID,FounderAssignment(i,:,2)
 		endif
