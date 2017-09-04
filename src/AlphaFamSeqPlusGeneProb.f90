@@ -122,13 +122,12 @@ program FamilyPhase
 	! Read Sequence Data -----------------------------------------------------------------------------------------------
 	! TODO split windows to avoid huge memory allocation
 	! TODO check type of genotype info - right now this for sequence 
-	
-
 	print*,"Read SequenceData"
 	if (trim(SequenceDataType)=="RC") then
 		if (trim(SequenceFileFormat)=="AlphaSim") call ped%addSequenceFromFile(SequenceFile,nSnp) ! read sequence file AlphaSimFormat
 		if (trim(SequenceFileFormat)=="VcfTools") call ped%addSequenceFromVCFFile(seqFile=SequenceFile,nSnpsIn=nSnp,chr=chr,StartPos=StartPos,EndPos=EndPos)
 	endif
+	
 	! Edit The Row Data ------------------------------------------------------------------------------------------------
 	! TODO : Check Mendelian Inconsistencies
 	! TODO : Check Excess of Reads
@@ -154,7 +153,7 @@ program FamilyPhase
 		write(*,*) "Total wall time for Importing Probabilities", tend - tstart
 	endif
 
-	allocate(FounderAssignment(nInd,nSnp,2))
+	if (maxWindowSizeHapDefinition.gt.1) allocate(FounderAssignment(nInd,nSnp,2))
 
 
 	! Iterate on the next steps ----------------------------------------------------------------------------------------
@@ -176,7 +175,7 @@ program FamilyPhase
 	 		if (GeneProbThresh.lt.GeneProbThreshMin) GeneProbThresh=GeneProbThreshMin
 	 	endif
 	 	call UseGeneProbToSimpleFillInBasedOnOwnReads
-	! 	call SimpleCleanUpFillIn ! count Geno is not working
+	 	call SimpleCleanUpFillIn ! count Geno is not working
 
 	! 	!if (IterationNumber==1) call ReadSamFile
 	! 	call SimpleCleanUpFillIn
@@ -188,10 +187,12 @@ program FamilyPhase
 	 	call SimpleFillInBasedOnProgenyReads
 	 	call SimpleCleanUpFillIn
 
-	 	call CalculateFounderAssignment
-	 	call ChunkDefinition
-	 	call BuildConsensus
-	 	call SimpleCleanUpFillIn
+	 	if (maxWindowSizeHapDefinition.gt.1) then
+	 		call CalculateFounderAssignment
+	 		call ChunkDefinition
+	 		call BuildConsensus
+	 		call SimpleCleanUpFillIn
+	 	endif
 
 	! 	! Count Missing
 	 	CurrentCountMissingGenos=ped%CountMissingGenotypesNoDummys()
@@ -358,7 +359,7 @@ subroutine ChunkDefinition
 	write(101,'(3(1x,i0))') Windows,IterationNumber,ChunkLength
 	
 	
-	!!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (nInd,nSnp,FounderAssignment,ChunkLength)
+	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (nInd,nSnp,FounderAssignment,ChunkLength)
 	do i=1,nInd
 		do k=1,2 ! paternal or maternal gamete
 			e=k+1 ! position parents in Pedigree
@@ -417,7 +418,7 @@ subroutine ChunkDefinition
 			endif
 		enddo
 	enddo
-	!!$OMP END PARALLEL DO
+	!$OMP END PARALLEL DO
 
 	deallocate(FounderAssignmentF)
 	deallocate(FounderAssignmentB)
