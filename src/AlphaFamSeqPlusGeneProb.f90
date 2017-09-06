@@ -148,6 +148,7 @@ program FamilyPhase
 		write(*,*) "Total wall time for Running SingleLP", tend - tstart
 		call SaveGeneProbResults
 	else if (UsePrevGeneProb==1) then
+		print*,"Read old results of SingleLP"
 		tstart = omp_get_wtime()
 		call ReadPrevGeneProb
 		tend = omp_get_wtime()
