@@ -646,17 +646,22 @@ subroutine ReadPrevGeneProb
 	character(len=IDLENGTH)					:: DumC
 	character(len=80) 						:: filout5
 	real(real64),dimension(:), allocatable 	:: temp
-	integer 								:: unit
+	integer 								:: unit, count,stat
 	filout5="AlphaFamSeqFinalGeneProb.bin"
+	
 	inquire(file=trim(filout5),exist=exist)
 	
+	count = 0
 	if (exist) then
-		print *, nSnp
 		allocate(temp(nSnp))
-		open (newunit=unit,file=trim(filout5),status="old",form="unformatted")
-		do i=1,ped%pedigreeSize-ped%nDummys
+		open (newunit=unit,file=trim(filout5),status="old", FORM='UNFORMATTED')
+		print *, nInd
+		do i=1,nInd
+
+			if (ped%pedigree(i)%isDummy) cycle
 			do p=1,4 !4 probabilities
-				read(unit) DumC,temp
+				
+				read(unit, iostat=stat) DumC, temp
 				id = ped%dictionary%getValue(DumC)
 				if (id /= DICT_NULL) then
 					ReadCounts(p,:,id) = temp
@@ -680,21 +685,26 @@ subroutine SaveGeneProbResults
 
 	implicit none
 
-	integer :: i,p,tmpId, unit
+	integer :: i,p,tmpId, unit, count
 	character(len=30) :: nChar
 	character(len=80) :: filout5,FmtInt2,filout6
+	real(real64),dimension(:), allocatable 	:: temp
 	
 	! Write Out Full file of GeneProb
 	filout5="AlphaFamSeqFinalGeneProb.bin"
 	!write (filout5,'("AlphaFamSeqFinalGeneProb",i0,".bin")') Windows
-	open (newunit=unit,file=trim(filout5),status="new",form="unformatted")
+	open (newunit=unit,file=trim(filout5),status="unknown", FORM='UNFORMATTED')
 
+	count =  0
+	print *, nInd
 	do i=1,nInd
 
 		if (ped%pedigree(i)%isDummy) cycle
 		tmpId = ped%inputMap(i)
 		do p=1,4 ! 4 probabilities
-			write(unit) ped%pedigree(tmpId)%originalID,ReadCounts(p,:,tmpId)
+			temp = ReadCounts(p,:,tmpId)
+			count = count +1
+			write(unit) ped%pedigree(tmpId)%originalID,temp
 		enddo
 	enddo
 	close (unit)
