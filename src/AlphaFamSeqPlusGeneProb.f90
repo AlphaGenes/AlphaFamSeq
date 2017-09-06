@@ -122,12 +122,13 @@ program FamilyPhase
 	! Read Sequence Data -----------------------------------------------------------------------------------------------
 	! TODO split windows to avoid huge memory allocation
 	! TODO check type of genotype info - right now this for sequence 
-	print*,"Read SequenceData"
-	if (trim(SequenceDataType)=="RC") then
-		if (trim(SequenceFileFormat)=="AlphaSim") call ped%addSequenceFromFile(SequenceFile,nSnp) ! read sequence file AlphaSimFormat
-		if (trim(SequenceFileFormat)=="VcfTools") call ped%addSequenceFromVCFFile(seqFile=SequenceFile,nSnpsIn=nSnp,chr=chr,StartPos=StartPos,EndPos=EndPos)
-	endif
-	
+	if (UsePrevGeneProb==0) then
+		print*,"Read SequenceData"
+		if (trim(SequenceDataType)=="RC") then
+			if (trim(SequenceFileFormat)=="AlphaSim") call ped%addSequenceFromFile(SequenceFile,nSnp) ! read sequence file AlphaSimFormat
+			if (trim(SequenceFileFormat)=="VcfTools") call ped%addSequenceFromVCFFile(seqFile=SequenceFile,nSnpsIn=nSnp,chr=chr,StartPos=StartPos,EndPos=EndPos)
+		endif
+	endif	
 	! Edit The Row Data ------------------------------------------------------------------------------------------------
 	! TODO : Check Mendelian Inconsistencies
 	! TODO : Check Excess of Reads
