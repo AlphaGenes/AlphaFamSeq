@@ -122,31 +122,33 @@ program FamilyPhase
 	! Read Sequence Data -----------------------------------------------------------------------------------------------
 	! TODO split windows to avoid huge memory allocation
 	! TODO check type of genotype info - right now this for sequence 
-	print*,"Read SequenceData"
-	if (trim(SequenceDataType)=="RC") then
-		if (trim(SequenceFileFormat)=="AlphaSim") call ped%addSequenceFromFile(SequenceFile,nSnp) ! read sequence file AlphaSimFormat
-		if (trim(SequenceFileFormat)=="VcfTools") call ped%addSequenceFromVCFFile(seqFile=SequenceFile,nSnpsIn=nSnp,chr=chr,StartPos=StartPos,EndPos=EndPos)
-	endif
-	
+	if (UsePrevGeneProb==0) then
+		print*,"Read SequenceData"
+		if (trim(SequenceDataType)=="RC") then
+			if (trim(SequenceFileFormat)=="AlphaSim") call ped%addSequenceFromFile(SequenceFile,nSnp) ! read sequence file AlphaSimFormat
+			if (trim(SequenceFileFormat)=="VcfTools") call ped%addSequenceFromVCFFile(seqFile=SequenceFile,nSnpsIn=nSnp,chr=chr,StartPos=StartPos,EndPos=EndPos)
+		endif
+	endif	
 	! Edit The Row Data ------------------------------------------------------------------------------------------------
 	! TODO : Check Mendelian Inconsistencies
 	! TODO : Check Excess of Reads
 	! TODO : Check Single- and Double-tones
 
 	! Run GeneProb -----------------------------------------------------------------------------------------------------
-	print*,"Run GeneProb"
 	InitialGeneProbThresh=GeneProbThresh
 	GeneProbThresh=InitialGeneProbThresh
 
 	allocate(ReadCounts(4,nSnp,nInd))
-	allocate(Maf(nSnp))
 	if (UsePrevGeneProb==0) then
+		print*,"Run GeneProb"
+		allocate(Maf(nSnp))
 		tstart = omp_get_wtime()
 		call runAlphaMLPAlphaImpute(1,nSnp,ped,ReadCounts,Maf)
 		tend = omp_get_wtime()
 		write(*,*) "Total wall time for Running SingleLP", tend - tstart
 		call SaveGeneProbResults
 	else if (UsePrevGeneProb==1) then
+		print*,"Read old results of SingleLP"
 		tstart = omp_get_wtime()
 		call ReadPrevGeneProb
 		tend = omp_get_wtime()
