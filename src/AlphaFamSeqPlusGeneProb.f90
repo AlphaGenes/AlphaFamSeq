@@ -646,23 +646,24 @@ subroutine ReadPrevGeneProb
 	character(len=IDLENGTH)					:: DumC
 	character(len=80) 						:: filout5
 	real(real64),dimension(:), allocatable 	:: temp
-	
+	integer 								:: unit
 	filout5="AlphaFamSeqFinalGeneProb.bin"
 	inquire(file=trim(filout5),exist=exist)
 	
 	if (exist) then
+		print *, nSnp
 		allocate(temp(nSnp))
-		open (unit=5,file=trim(filout5),status="old",form="unformatted")
+		open (newunit=unit,file=trim(filout5),status="old",form="unformatted")
 		do i=1,ped%pedigreeSize-ped%nDummys
 			do p=1,4 !4 probabilities
-				read(5) DumC,temp
+				read(unit) DumC,temp
 				id = ped%dictionary%getValue(DumC)
 				if (id /= DICT_NULL) then
 					ReadCounts(p,:,id) = temp
 				endif
 			enddo
 		enddo
-		close (5)
+		close (unit)
 		deallocate(temp)
 	endif
 
@@ -679,40 +680,40 @@ subroutine SaveGeneProbResults
 
 	implicit none
 
-	integer :: i,p,tmpId
+	integer :: i,p,tmpId, unit
 	character(len=30) :: nChar
 	character(len=80) :: filout5,FmtInt2,filout6
 	
 	! Write Out Full file of GeneProb
 	filout5="AlphaFamSeqFinalGeneProb.bin"
 	!write (filout5,'("AlphaFamSeqFinalGeneProb",i0,".bin")') Windows
-	open (unit=5,file=trim(filout5),status="unknown",form="unformatted")
+	open (newunit=unit,file=trim(filout5),status="new",form="unformatted")
 
 	do i=1,nInd
 
 		if (ped%pedigree(i)%isDummy) cycle
 		tmpId = ped%inputMap(i)
 		do p=1,4 ! 4 probabilities
-			write(5) ped%pedigree(tmpId)%originalID,ReadCounts(p,:,tmpId)
+			write(unit) ped%pedigree(tmpId)%originalID,ReadCounts(p,:,tmpId)
 		enddo
 	enddo
-	close (5)
+	close (unit)
 	
 	! Write Out Full file of GeneProb
 	write(nChar,*) nSnp
 	FmtInt2='(1a20,'//trim(adjustl(nChar))//'f7.4)'
 	filout6="AlphaFamSeqFinalGeneProb.txt"
-	open (unit=6,file=trim(filout6),status="unknown")
+	open (newunit=unit,file=trim(filout6),status="unknown")
 
 	do i=1,nInd
 
 		if (ped%pedigree(i)%isDummy) cycle
 		tmpId = ped%inputMap(i)
 		do p=1,4 ! 4 probabilities
-			write(6,FmtInt2) ped%pedigree(tmpId)%originalID,ReadCounts(p,:,tmpId)
+			write(unit,FmtInt2) ped%pedigree(tmpId)%originalID,ReadCounts(p,:,tmpId)
 		enddo
 	enddo
-	close (6)
+	close (unit)
 
 
 end subroutine SaveGeneProbResults
