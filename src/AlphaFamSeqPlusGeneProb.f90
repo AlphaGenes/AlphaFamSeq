@@ -135,13 +135,13 @@ program FamilyPhase
 	! TODO : Check Single- and Double-tones
 
 	! Run GeneProb -----------------------------------------------------------------------------------------------------
-	print*,"Run GeneProb"
 	InitialGeneProbThresh=GeneProbThresh
 	GeneProbThresh=InitialGeneProbThresh
 
 	allocate(ReadCounts(4,nSnp,nInd))
-	allocate(Maf(nSnp))
 	if (UsePrevGeneProb==0) then
+		print*,"Run GeneProb"
+		allocate(Maf(nSnp))
 		tstart = omp_get_wtime()
 		call runAlphaMLPAlphaImpute(1,nSnp,ped,ReadCounts,Maf)
 		tend = omp_get_wtime()
