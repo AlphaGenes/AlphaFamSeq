@@ -58,7 +58,7 @@ module GlobalPar
 	integer(kind=1),allocatable,dimension(:)		:: MarkersToExclude		! CleanUpTheRawData - 0=use the variant; 1= don't use the variant
 	
 	integer,allocatable,dimension(:) 				:: GeneProbYesOrNo		! Temporary Array - use gene prob or not
-	integer,allocatable,dimension(:,:,:) 			:: FounderAssignment   	! Temporary File - Save the IDs of the grandparents
+	integer(kind=1),allocatable,dimension(:,:,:) 			:: FounderAssignment   	! Temporary File - Save the IDs of the grandparents
 
 	integer :: Windows
 end module GlobalPar
@@ -266,59 +266,85 @@ subroutine BuildConsensus
 
 	implicit none
 
-	integer :: i,k,e,j,m,a
+	integer :: i,k,e,j,m,a,nOffs,o,nFounders
 	integer(kind=1) :: ConsensusHaplotype
 	integer,dimension(2) :: countAllele !0 and 1
 	type(individual), pointer :: parent,grandparent
-	
-	do i=1,nInd
-		do k=1,2 ! paternal or maternal gamete
-			e=k+1 ! position parents in Pedigree
+	integer,allocatable :: posOffs(:),founderOffspring(:)
 
-			if (maxval(FounderAssignment(i,:,k)).ne.0) then
+	do i=1,nInd ! Parents
+		nOffs=ped%pedigree(i)%nOffs ! store nr of Offsprings
+		nFounders=0 ! Store number of offsprings with informative positions to build the consensus
+		k=ped%pedigree(i)%gender ! store the gender of the sire
+		if ((nOffs.gt.0).and.(.not.ped%pedigree(i)%isDummy)) then ! Build the consensus haplotypes using all the progeny informations
+			allocate(posOffs(nOffs))
+			allocate(founderOffspring(nOffs))
+
+			do o=1,nOffs
+				posOffs(o)=ped%pedigree(i)%offsprings(o)%p%id
+				if (maxval(FounderAssignment(posOffs(o),:,k)).ne.0) nFounders=nFounders+1 !Get the value for the parents phase
+			enddo
+			
+			if (nFounders.gt.0) then ! Start to build the consensus
+				founderOffspring=0
 				do j=1,nSnp
-					if (FounderAssignment(i,j,k).ne.0) then
+					founderOffspring=FounderAssignment(posOffs,j,k)
+					if (minval(founderOffspring(:)).gt.0) then ! The snps have a founder, build it's consensus
+						do e=2,3
+							grandparent => ped%pedigree(i)%getSireDamObjectbyIndex(e)
+							ConsensusHaplotype=9
+							countAllele=0
+	
+							do a=0,1 
+								if ((grandparent%individualPhase(1)%getPhase(j)+grandparent%individualPhase(2)%getPhase(j)).lt.3) then
+									! Avoid to use markers that are not fully phased for the grandparent
+									do m=1,2 
+										if (grandparent%individualPhase(m)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
+									enddo
+								endif
+	
+								if (ped%pedigree(i)%individualPhase(e-1)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
 
-						parent => ped%pedigree(i)%getSireDamObjectbyIndex(e)												
-						grandparent => parent%getSireDamObjectbyIndex(FounderAssignment(i,j,k))
-
-						ConsensusHaplotype=9
-						countAllele=0
-						do a=0,1 
-							if ((grandparent%individualPhase(1)%getPhase(j)+grandparent%individualPhase(2)%getPhase(j)).lt.3) then
-								! Avoid to use markers that are not fully phased for the grandparent
-								do m=1,2 
-									if (grandparent%individualPhase(m)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
+								do o=1,nOffs
+									if (founderOffspring(o).eq.e) then
+										if (ped%pedigree(posOffs(o))%individualPhase(k)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
+									endif
 								enddo
-							endif
-							if (ped%pedigree(i)%individualPhase(k)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
-							if (parent%individualPhase((FounderAssignment(i,j,k)-1))%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
+							enddo
+	
+							! Fill the phases
+	 						if ((countAllele(2).gt.1).and.(countAllele(2).gt.countAllele(1))) ConsensusHaplotype=1
+	 						if ((countAllele(1).gt.1).and.(countAllele(1).gt.countAllele(2))) ConsensusHaplotype=0
+	 						!if ((i==19).and.(minval(countAllele(:)).gt.1)) print*,i,e,j,countAllele(:)
+
+	 						if (ConsensusHaplotype.ne.9) then
+								call ped%pedigree(i)%individualPhase(e-1)%setPhase(j,ConsensusHaplotype)
+								do o=1,nOffs
+	 								if (founderOffspring(o).eq.e) then
+			 							call ped%pedigree(posOffs(o))%individualPhase(k)%setPhase(j,ConsensusHaplotype)
+									endif
+	 							enddo
+	 						endif	
+	
 						enddo
-
-						if ((countAllele(2).gt.1).and.(countAllele(2).gt.countAllele(1))) ConsensusHaplotype=1
-						if ((countAllele(1).gt.1).and.(countAllele(1).gt.countAllele(2))) ConsensusHaplotype=0
-
-
-						if (ConsensusHaplotype.ne.9) then
-							call ped%pedigree(i)%individualPhase(k)%setPhase(j,ConsensusHaplotype)
-							call parent%individualPhase((FounderAssignment(i,j,k)-1))%setPhase(j,ConsensusHaplotype)
-						endif	
-						
-						!Fill complement phase
-						call ped%pedigree(i)%makeIndividualPhaseCompliment()
-						call parent%makeIndividualPhaseCompliment()
-						call grandparent%makeIndividualPhaseCompliment()
-
-						! Make Genotype
-						call ped%pedigree(i)%makeIndividualGenotypeFromPhase()
-						call parent%makeIndividualGenotypeFromPhase()
-						call grandparent%makeIndividualGenotypeFromPhase()
-
 					endif
 				enddo
-			endif
-		enddo
+				
+				call ped%pedigree(i)%makeIndividualPhaseCompliment()
+				call ped%pedigree(i)%makeIndividualGenotypeFromPhase()
+				do o=1,nOffs
+					call ped%pedigree(posOffs(o))%makeIndividualPhaseCompliment()
+					call ped%pedigree(posOffs(o))%makeIndividualGenotypeFromPhase()
+
+				enddo
+
+			endif	
+			deallocate(posOffs)
+			deallocate(founderOffspring)
+
+		endif
 	enddo
+
 end subroutine BuildConsensus 
 
 !-------------------------------------------------------------------------------------------------
@@ -451,7 +477,7 @@ subroutine CalculateFounderAssignment
 		do i=1,nInd
 			if (.not. ped%pedigree(i)%Founder) then
 				parent => ped%pedigree(i)%getSireDamObjectByIndex(e)
-				
+
 				do j=1,nSnp
 					phaseId(1) = ped%pedigree(i)%individualPhase(1)%getPhase(j)
 					phaseId(2) = ped%pedigree(i)%individualPhase(2)%getPhase(j)
