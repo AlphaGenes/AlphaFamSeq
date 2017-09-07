@@ -269,24 +269,25 @@ subroutine BuildConsensus
 	type(individual), pointer :: grandparent
 	integer,allocatable :: posOffs(:),founderOffspring(:)
 
-	do i=1,nInd ! Parents
+	do i=1,nInd ! Parent
 		nOffs=ped%pedigree(i)%nOffs ! store nr of Offsprings
 		nFounders=0 ! Store number of offsprings with informative positions to build the consensus
-		k=ped%pedigree(i)%gender ! store the gender of the sire
+		k=ped%pedigree(i)%gender ! store the gender of the parent
 		if ((nOffs.gt.0).and.(.not.ped%pedigree(i)%isDummy)) then ! Build the consensus haplotypes using all the progeny informations
 			allocate(posOffs(nOffs))
 			allocate(founderOffspring(nOffs))
 
 			do o=1,nOffs
 				posOffs(o)=ped%pedigree(i)%offsprings(o)%p%id
-				if (maxval(FounderAssignment(posOffs(o),:,k)).ne.0) nFounders=nFounders+1 !Get the value for the parents phase
+				if (maxval(FounderAssignment(posOffs(o),:,k)).ne.0) nFounders=nFounders+1 !Count how many individuals have informative snps
 			enddo
 			if (nFounders.gt.0) then ! Start to build the consensus
-				print*,i,nOffs,nFounders
 				founderOffspring=0
 				do j=1,nSnp
 					founderOffspring=FounderAssignment(posOffs,j,k)
 					if (minval(founderOffspring(:)).gt.0) then ! The snps have a founder, build it's consensus
+						write(*,'(2i10,100i1)'),i,nFounders,founderOffspring(:)
+				
 						do e=2,3
 							grandparent => ped%pedigree(i)%getSireDamObjectbyIndex(e)
 							ConsensusHaplotype=9
