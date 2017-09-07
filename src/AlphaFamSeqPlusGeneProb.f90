@@ -390,7 +390,7 @@ subroutine ChunkDefinition
 	write(101,'(3(1x,i0))') Windows,IterationNumber,ChunkLength
 	
 	
-	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (nInd,nSnp,FounderAssignment,ChunkLength)
+	!!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (nInd,nSnp,FounderAssignment,ChunkLength)
 	do i=1,nInd
 		do k=1,2 ! paternal or maternal gamete
 			e=k+1 ! position parents in Pedigree
@@ -449,7 +449,7 @@ subroutine ChunkDefinition
 			endif
 		enddo
 	enddo
-	!$OMP END PARALLEL DO
+	!!$OMP END PARALLEL DO
 
 	deallocate(FounderAssignmentF)
 	deallocate(FounderAssignmentB)
