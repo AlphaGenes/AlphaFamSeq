@@ -649,6 +649,7 @@ subroutine ReadPrevGeneProb
 	character(len=80) 						:: filout5
 	real(real64),dimension(:), allocatable 	:: temp
 	integer 								:: unit, count,stat
+	integer(4) recl_at_start, recl_at_end
 	filout5="AlphaFamSeqFinalGeneProb.bin"
 	
 	inquire(file=trim(filout5),exist=exist)
@@ -656,14 +657,18 @@ subroutine ReadPrevGeneProb
 	count = 0
 	if (exist) then
 		allocate(temp(nSnp))
-		open (newunit=unit,file=trim(filout5),status="old", FORM='UNFORMATTED')
-		print *, nInd
+		open (newunit=unit,file=trim(filout5),status="old", FORM='binary')
 		do i=1,nInd
 
 			if (ped%pedigree(i)%isDummy) cycle
 			do p=1,4 !4 probabilities
-				
-				read(unit, iostat=stat) DumC, temp
+				DUMC = ""
+				read(unit) recl_at_start
+				read(unit) DumC(1:recl_at_start)
+				read(unit) recl_at_end
+				read(unit) recl_at_start
+				read(unit) temp
+				read(unit) recl_at_end
 				id = ped%dictionary%getValue(DumC)
 				if (id /= DICT_NULL) then
 					ReadCounts(p,:,id) = temp
@@ -706,7 +711,8 @@ subroutine SaveGeneProbResults
 		do p=1,4 ! 4 probabilities
 			temp = ReadCounts(p,:,tmpId)
 			count = count +1
-			write(unit) ped%pedigree(tmpId)%originalID,temp
+			write(unit) ped%pedigree(tmpId)%originalID
+			write(unit) temp
 		enddo
 	enddo
 	close (unit)
