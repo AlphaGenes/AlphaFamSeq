@@ -176,31 +176,23 @@ program FamilyPhase
 	 		GeneProbThresh=GeneProbThresh-ReduceThr
 	 		if (GeneProbThresh.lt.GeneProbThreshMin) GeneProbThresh=GeneProbThreshMin
 	 	endif
-	 	print*,"A"
 	 	call UseGeneProbToSimpleFillInBasedOnOwnReads
-	 	print*,"B"
 	 	call SimpleCleanUpFillIn ! count Geno is not working
 
 	! 	!if (IterationNumber==1) call ReadSamFile
 	! 	call SimpleCleanUpFillIn
 	! 	!if (IterationNumber==1) call UseSnpChipInformation 
-		print*,"C"
 	 	call SimpleFillInBasedOnParentsReads
 	 	call SimpleCleanUpFillIn
-		print*,"D"
 	 	call SimpleFillInBasedOnProgenyReads
 	 	call SimpleCleanUpFillIn
 
 	 	if (maxWindowSizeHapDefinition.gt.1) then
-	 		print*,"E"
 	 		call CalculateFounderAssignment
-	 		print*,"F"
 	 		call ChunkDefinition
-	 		print*,"G"
 	 		call BuildConsensus
 	 		call SimpleCleanUpFillIn
 	 	endif
-	 	print*,"H"
 	! 	! Count Missing
 	 	CurrentCountMissingGenos=ped%CountMissingGenotypesNoDummys()
 	 	CurrentCountMissingPhase=ped%CountMissingPhaseNoDummys()
@@ -289,8 +281,8 @@ subroutine BuildConsensus
 				posOffs(o)=ped%pedigree(i)%offsprings(o)%p%id
 				if (maxval(FounderAssignment(posOffs(o),:,k)).ne.0) nFounders=nFounders+1 !Get the value for the parents phase
 			enddo
-			print*,i,nOffs,nFounders
 			if (nFounders.gt.0) then ! Start to build the consensus
+				print*,i,nOffs,nFounders
 				founderOffspring=0
 				do j=1,nSnp
 					founderOffspring=FounderAssignment(posOffs,j,k)
