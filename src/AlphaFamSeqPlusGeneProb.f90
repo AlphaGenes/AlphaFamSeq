@@ -274,7 +274,7 @@ subroutine BuildConsensus
 	integer :: i,k,e,j,m,a,nOffs,o,nFounders
 	integer(kind=1) :: ConsensusHaplotype
 	integer,dimension(2) :: countAllele !0 and 1
-	type(individual), pointer :: parent,grandparent
+	type(individual), pointer :: grandparent
 	integer,allocatable :: posOffs(:),founderOffspring(:)
 
 	do i=1,nInd ! Parents
@@ -289,7 +289,7 @@ subroutine BuildConsensus
 				posOffs(o)=ped%pedigree(i)%offsprings(o)%p%id
 				if (maxval(FounderAssignment(posOffs(o),:,k)).ne.0) nFounders=nFounders+1 !Get the value for the parents phase
 			enddo
-			
+			print*,i,nOffs,nFounders
 			if (nFounders.gt.0) then ! Start to build the consensus
 				founderOffspring=0
 				do j=1,nSnp
@@ -320,8 +320,6 @@ subroutine BuildConsensus
 							! Fill the phases
 	 						if ((countAllele(2).gt.1).and.(countAllele(2).gt.countAllele(1))) ConsensusHaplotype=1
 	 						if ((countAllele(1).gt.1).and.(countAllele(1).gt.countAllele(2))) ConsensusHaplotype=0
-	 						!if ((i==19).and.(minval(countAllele(:)).gt.1)) print*,i,e,j,countAllele(:)
-
 	 						if (ConsensusHaplotype.ne.9) then
 								call ped%pedigree(i)%individualPhase(e-1)%setPhase(j,ConsensusHaplotype)
 								do o=1,nOffs
