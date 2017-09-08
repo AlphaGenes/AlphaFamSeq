@@ -269,7 +269,7 @@ subroutine BuildConsensus
 	type(individual), pointer :: grandparent
 	integer,allocatable :: posOffs(:),founderOffspring(:)
 
-	do i=1,nInd ! Parent
+	do i=1,ped%pedigreeSize-ped%nDummys ! Parent
 		nOffs=ped%pedigree(i)%nOffs ! store nr of Offsprings
 		nFounders=0 ! Store number of offsprings with informative positions to build the consensus
 		k=ped%pedigree(i)%gender ! store the gender of the parent
@@ -382,7 +382,7 @@ subroutine ChunkDefinition
 	
 	
 	!!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (nInd,nSnp,FounderAssignment,ChunkLength)
-	do i=1,nInd
+	do i=1,ped%pedigreeSize-ped%nDummys
 		do k=1,2 ! paternal or maternal gamete
 			e=k+1 ! position parents in Pedigree
 			
@@ -468,7 +468,7 @@ subroutine CalculateFounderAssignment
 	
    	!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (ped,FounderAssignment,nSnp,nInd) !collapse(2)	
 	do e=2,3 ! Sire and Dam pos in the ped
-		do i=1,nInd
+		do i=1,ped%pedigreeSize-ped%nDummys
 			if (.not. ped%pedigree(i)%Founder) then
 				parent => ped%pedigree(i)%getSireDamObjectByIndex(e)
 
@@ -515,7 +515,7 @@ subroutine SimpleFillInBasedOnProgenyReads
 
 	
 	!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (ped,nSnp,nInd) !collapse(2)
-	do i=1,nInd
+	do i=1,ped%pedigreeSize-ped%nDummys
 
 		if (.not. ped%pedigree(i)%Founder) then
 			sire => ped%pedigree(i)%sirePointer
