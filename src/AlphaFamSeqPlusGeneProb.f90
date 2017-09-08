@@ -290,9 +290,9 @@ subroutine BuildConsensus
 							grandparent => ped%pedigree(i)%getSireDamObjectbyIndex(e)
 							ConsensusHaplotype=9
 							countAllele=0
-							print*,i,j,grandparent%originalID
+							if ((ped%pedigree(i)%individualGenotype%getGenotype(j).eq.1)) print*,i,j,grandparent%originalID
 							do a=0,1 
-								if ((grandparent%individualPhase(1)%getPhase(j)+grandparent%individualPhase(2)%getPhase(j)).lt.3) then
+								if (((grandparent%individualPhase(1)%getPhase(j)+grandparent%individualPhase(2)%getPhase(j)).lt.3).and.(.not. grandparent%isDummy)) then
 									! Avoid to use markers that are not fully phased for the grandparent
 									do m=1,2 
 										if (grandparent%individualPhase(m)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
