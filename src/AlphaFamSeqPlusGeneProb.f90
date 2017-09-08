@@ -285,12 +285,12 @@ subroutine BuildConsensus
 				founderOffspring=0
 				do j=1,nSnp
 					founderOffspring=FounderAssignment(posOffs,j,k)
+					write(*,'(2i8,1x,1000i1)')i,j,founderOffspring(:)
 					if (maxval(founderOffspring(:)).gt.0) then ! The snps have a founder, build it's consensus
 						do e=2,3
 							grandparent => ped%pedigree(i)%getSireDamObjectbyIndex(e)
 							ConsensusHaplotype=9
 							countAllele=0
-							if ((ped%pedigree(i)%individualGenotype%getGenotype(j).eq.1)) print*,i,j,grandparent%originalID
 							do a=0,1 
 								if (((grandparent%individualPhase(1)%getPhase(j)+grandparent%individualPhase(2)%getPhase(j)).lt.3).and.(.not. grandparent%isDummy)) then
 									! Avoid to use markers that are not fully phased for the grandparent
