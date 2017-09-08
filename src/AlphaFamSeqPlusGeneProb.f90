@@ -285,8 +285,8 @@ subroutine BuildConsensus
 				founderOffspring=0
 				do j=1,nSnp
 					founderOffspring=FounderAssignment(posOffs,j,k)
-					write(*,'(2i8,1x,1000i1)')i,j,founderOffspring(:)
 					if (maxval(founderOffspring(:)).gt.0) then ! The snps have a founder, build it's consensus
+						if (i.eq.1) write(*,'(2i8,1x,1000i1)')i,j,founderOffspring(:)
 						do e=2,3
 							grandparent => ped%pedigree(i)%getSireDamObjectbyIndex(e)
 							ConsensusHaplotype=9
