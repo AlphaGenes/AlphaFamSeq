@@ -116,7 +116,7 @@ program FamilyPhase
 	! Read Pedigree ----------------------------------------------------------------------------------------------------
 	print*,"Read Pedigree"
 	ped = PedigreeHolder(pedigreeFile,nsnps=nSnp) 
-	!call ped%sortPedigreeAndOverwrite()
+	call ped%sortPedigreeAndOverwrite()
 	nInd=ped%pedigreeSize
 
 	! Read Sequence Data -----------------------------------------------------------------------------------------------
