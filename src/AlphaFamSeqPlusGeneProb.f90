@@ -116,7 +116,7 @@ program FamilyPhase
 	! Read Pedigree ----------------------------------------------------------------------------------------------------
 	print*,"Read Pedigree"
 	ped = PedigreeHolder(pedigreeFile,nsnps=nSnp) 
-	call ped%sortPedigreeAndOverwrite()
+	!call ped%sortPedigreeAndOverwrite()
 	nInd=ped%pedigreeSize
 
 	! Read Sequence Data -----------------------------------------------------------------------------------------------
@@ -273,7 +273,9 @@ subroutine BuildConsensus
 		nOffs=ped%pedigree(i)%nOffs ! store nr of Offsprings
 		nFounders=0 ! Store number of offsprings with informative positions to build the consensus
 		k=ped%pedigree(i)%gender ! store the gender of the parent
-		if ((nOffs.gt.0).and.(.not.ped%pedigree(i)%isDummy)) then ! Build the consensus haplotypes using all the progeny informations
+		if (i==357) write(*,'(2i8)')i,nOffs
+				
+		if ((nOffs.gt.0).and.(.not.ped%pedigree(i)%isDummy).and.(.not.ped%pedigree(i)%Founder)) then ! Build the consensus haplotypes using all the progeny informations
 			allocate(posOffs(nOffs))
 			allocate(founderOffspring(nOffs))
 
@@ -286,9 +288,9 @@ subroutine BuildConsensus
 				do j=1,nSnp
 					founderOffspring=FounderAssignment(posOffs,j,k)
 					if (maxval(founderOffspring(:)).gt.0) then ! The snps have a founder, build it's consensus
-						if (i.eq.1) write(*,'(2i8,1x,1000i1)')i,j,founderOffspring(:)
 						do e=2,3
 							grandparent => ped%pedigree(i)%getSireDamObjectbyIndex(e)
+						
 							ConsensusHaplotype=9
 							countAllele=0
 							do a=0,1 
@@ -307,10 +309,10 @@ subroutine BuildConsensus
 									endif
 								enddo
 							enddo
-	
 							! Fill the phases
 	 						if ((countAllele(2).gt.1).and.(countAllele(2).gt.countAllele(1))) ConsensusHaplotype=1
 	 						if ((countAllele(1).gt.1).and.(countAllele(1).gt.countAllele(2))) ConsensusHaplotype=0
+	 						
 	 						if (ConsensusHaplotype.ne.9) then
 								call ped%pedigree(i)%individualPhase(e-1)%setPhase(j,ConsensusHaplotype)
 								do o=1,nOffs
@@ -323,13 +325,11 @@ subroutine BuildConsensus
 						enddo
 					endif
 				enddo
-				
 				call ped%pedigree(i)%makeIndividualPhaseCompliment()
 				call ped%pedigree(i)%makeIndividualGenotypeFromPhase()
 				do o=1,nOffs
 					call ped%pedigree(posOffs(o))%makeIndividualPhaseCompliment()
 					call ped%pedigree(posOffs(o))%makeIndividualGenotypeFromPhase()
-
 				enddo
 
 			endif	
