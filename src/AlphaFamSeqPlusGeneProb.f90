@@ -273,7 +273,6 @@ subroutine BuildConsensus
 		nOffs=ped%pedigree(i)%nOffs ! store nr of Offsprings
 		nFounders=0 ! Store number of offsprings with informative positions to build the consensus
 		k=ped%pedigree(i)%gender ! store the gender of the parent
-		if (i==357) write(*,'(2i8)')i,nOffs
 				
 		if ((nOffs.gt.0).and.(.not.ped%pedigree(i)%isDummy).and.(.not.ped%pedigree(i)%Founder)) then ! Build the consensus haplotypes using all the progeny informations
 			allocate(posOffs(nOffs))
