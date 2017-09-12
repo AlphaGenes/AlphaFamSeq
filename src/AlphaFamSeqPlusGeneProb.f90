@@ -184,7 +184,8 @@ program FamilyPhase
 	! 	!if (IterationNumber==1) call UseSnpChipInformation 
 	 	call SimpleFillInBasedOnParentsReads
 	 	call SimpleCleanUpFillIn
-	 	call SimpleFillInBasedOnProgenyReads
+
+	! 	call SimpleFillInBasedOnProgenyReads
 	 	call SimpleCleanUpFillIn
 
 	 	if (maxWindowSizeHapDefinition.gt.1) then
@@ -252,10 +253,14 @@ subroutine SimpleCleanUpFillIn
 end subroutine SimpleCleanUpFillIn
 
 !-------------------------------------------------------------------------------------------------
-!> @brief   Build the consensus haplotype for grandparent-parent-proband 
+!> @brief   Build the consensus haplotype for grandparent-parent-probands 
 !> @detail  Here we use the chunks previously define, and we try to fill the missing value of these 
-!>          three individuals if two of the three has information.
-!> @date    August 30, 2017
+!>          three (or more, if there are sibs) individuals if two of these individuals have information.
+!> @date    September 08, 2017
+!
+!  REVISION HISTORY:
+!  2017.08.30  mbattagin - Initial Version: Build the consensus haplotype for grandparent-parent-proband  
+!  2017.09.08  mbattagin - Use all the progenies at the same time to build the consensus
 !--------------------------------------------------------------------------------------------------   
 
 subroutine BuildConsensus 
@@ -313,6 +318,7 @@ subroutine BuildConsensus
 	 						if ((countAllele(1).gt.1).and.(countAllele(1).gt.countAllele(2))) ConsensusHaplotype=0
 	 						
 	 						if (ConsensusHaplotype.ne.9) then
+	 							!if ((minval(countAllele).gt.0).and.(nFounders.gt.1)) write(*,'(1a10,7(1x,i0),10x,100i1)'),ped%pedigree(i)%originalID,i,j,e,nOffs,nFounders,countAllele, founderOffspring
 								call ped%pedigree(i)%individualPhase(e-1)%setPhase(j,ConsensusHaplotype)
 								do o=1,nOffs
 	 								if (founderOffspring(o).eq.e) then
@@ -325,10 +331,12 @@ subroutine BuildConsensus
 					endif
 				enddo
 				call ped%pedigree(i)%makeIndividualPhaseCompliment()
-				call ped%pedigree(i)%makeIndividualGenotypeFromPhase()
+				!call ped%pedigree(i)%makeIndividualGenotypeFromPhase()
+				call ped%pedigree(i)%cleanGenotypesBasedOnHaplotypes()
 				do o=1,nOffs
 					call ped%pedigree(posOffs(o))%makeIndividualPhaseCompliment()
-					call ped%pedigree(posOffs(o))%makeIndividualGenotypeFromPhase()
+					!call ped%pedigree(posOffs(o))%makeIndividualGenotypeFromPhase()
+					call ped%pedigree(i)%cleanGenotypesBasedOnHaplotypes()
 				enddo
 
 			endif	
