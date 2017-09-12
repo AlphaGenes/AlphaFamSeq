@@ -99,7 +99,7 @@ program FamilyPhase
 	
 	! Print out the window/iteratin/haplotype length in a file
 	open(101,file="AlphaFamSeqHaplotypeLengths.txt",status="unknown")
-	write(101,'(1a32)') "Window Iter HaplotypesLengthUsed" 
+	write(101,'(1a32)') "Window Iter Core StartSnp EndSnp" 
 
 	! User-defined parameters ------------------------------------------------------------------------------------------
 	print*,"ReadSpecfile"
@@ -362,60 +362,72 @@ end subroutine BuildConsensus
 !>        the recombination happen in the middle of some of them.
 !>        Be carefull that we can have scenarios with females parents not sequenced.
 !> @date    August 31, 2017
+
+!  REVISION HISTORY:
+!  2017.08.31  mbattagin - Initial Version: Work Left/Work Rigth to find chunks of haplotypes using the Founder Assignement array  
+!  2017.09.12  mbattagin - Use core index to have windows with uniform numbers of snps (i.e., avoid few snps in the tail)
+! 
 !--------------------------------------------------------------------------------------------------   
 
 subroutine ChunkDefinition
 
 	use GlobalPar
 	use IntelRNGMod
+	use coreutils
 	implicit none
 
-	integer 			:: i,j,e,k
+	integer 			:: i,j,e,k,c,nCores
 	integer 			:: f1
 	integer 			:: fSnp
 	integer 			:: lSnp
 	integer 			:: ChunkLength
 	real,dimension(1)   :: Z
+	integer,allocatable,dimension (:,:) :: CoreIndex
 	
 	integer,allocatable,dimension(:) :: FounderAssignmentF,FounderAssignmentB
 
-	allocate(FounderAssignmentF(1:nSnp))
-	allocate(FounderAssignmentB(1:nSnp))
-	
 	Z = SampleIntelUniformS(n=1,a=0.0,b=1.0) 
 	ChunkLength=floor((dble(minWindowSizeHapDefinition)-1)+(dble(maxWindowSizeHapDefinition)-(dble(minWindowSizeHapDefinition)-1))*Z(1))+1
-
-	write(101,'(3(1x,i0))') Windows,IterationNumber,ChunkLength
+	nCores=nSnp/ChunkLength
+	allocate(CoreIndex(nCores,2))
 	
+	CoreIndex=calculatecores(nSnp,ChunkLength,.false.)
+	nCores=size(CoreIndex)/2
+
+	do i=1,nCores
+		write(101,'(6(1x,i0))') Windows,IterationNumber,i,CoreIndex(i,:)
+	enddo
+
 	
-	!!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (nInd,nSnp,FounderAssignment,ChunkLength)
-	do i=1,ped%pedigreeSize-ped%nDummys
-		do k=1,2 ! paternal or maternal gamete
-			e=k+1 ! position parents in Pedigree
-			
-			FounderAssignmentF=0
-			FounderAssignmentB=0
+	!$OMP PARALLEL DO DEFAULT(SHARED)  PRIVATE(c,i,k,e,j,f1,ChunkLength,fSnp,lSnp,FounderAssignmentF,FounderAssignmentB)
+	do c=1,nCores
+		ChunkLength=CoreIndex(c,2)-CoreIndex(c,1)+1
+		do i=1,ped%pedigreeSize-ped%nDummys
+			do k=1,2 ! paternal or maternal gamete
+				e=k+1 ! position parents in Pedigree
+				
+				
+				fSnp=CoreIndex(c,1)
+				lSnp=CoreIndex(c,2)
+				
+				!if (count(FounderAssignment(i,fSnp:lSnp,k).ne.0).gt.1) then
+				if (dble(count(FounderAssignment(i,fSnp:lSnp,k).ne.0))/dble(ChunkLength).gt.0.1) then
 
-			if (maxval(FounderAssignment(i,:,k))/=0) then
-				
-				fSnp=1
-				lSnp=ChunkLength
-				
-				
-				!print*,"B",i,k,count(FounderAssignment(i,:,k)/=0),fSnp,lSnp
-					
+					allocate(FounderAssignmentF(ChunkLength))
+					allocate(FounderAssignmentB(ChunkLength))
 
-				do while (lSnp<=nSnp)
+					FounderAssignmentF=0
+					FounderAssignmentB=0
 
-					if ((lSnp+ChunkLength)>nSnp) lSnp=nSnp
-					if ((fSnp-ChunkLength)<0) fSnp=1
-				
-					FounderAssignmentF(fSnp:lSnp)=FounderAssignment(i,fSnp:lSnp,k)
-					FounderAssignmentB(fSnp:lSnp)=FounderAssignment(i,fSnp:lSnp,k)
+					FounderAssignmentF(:)=FounderAssignment(i,fSnp:lSnp,k)
+					FounderAssignmentB(:)=FounderAssignment(i,fSnp:lSnp,k)
+
+					!write(*,'(1i0,3(1x,i0))') ,i,ChunkLength,count(FounderAssignmentF(:).eq.2),count(FounderAssignmentF(:).eq.3)
+						!dble(count(FounderAssignmentF(:).eq.2))/dble(ChunkLength)*100.0,dble(count(FounderAssignmentF(:).eq.3))/dble(ChunkLength)*100.0
 
 					f1=0
 					!!! Forward founder assignment 
-					do j=fSnp,lSnp
+					do j=1,ChunkLength
 						if (FounderAssignmentF(j)/=0)then
 							f1=FounderAssignmentF(j)
 						endif
@@ -426,7 +438,7 @@ subroutine ChunkDefinition
 
 					f1=0
 					!!! Backward founder assignment 
-					do j=lSnp,fSnp,-1
+					do j=ChunkLength,1,-1
 						if (FounderAssignmentB(j)/=0)then
 							f1=FounderAssignmentB(j)
 						endif
@@ -434,23 +446,19 @@ subroutine ChunkDefinition
 							FounderAssignmentB(j)=f1
 						endif 
 					enddo
-
-					fSnp=lSnp+1
-					lSnp=lSnp+ChunkLength
-				enddo
-				
-				do j=1,nSnp
-					if (FounderAssignmentF(j)==FounderAssignmentB(j)) FounderAssignment(i,j,k)=FounderAssignmentF(j)
-					if (FounderAssignmentF(j)/=FounderAssignmentB(j)) FounderAssignment(i,j,k)=0
-				enddo	
-
-			endif
+					
+					do j=1,ChunkLength
+						if (FounderAssignmentF(j)==FounderAssignmentB(j)) FounderAssignment(i,(fSnp+j-1),k)=FounderAssignmentF(j)
+						if (FounderAssignmentF(j)/=FounderAssignmentB(j)) FounderAssignment(i,(fSnp+j-1),k)=0
+					enddo	
+					deallocate(FounderAssignmentF)
+					deallocate(FounderAssignmentB)
+				endif
+			enddo
 		enddo
 	enddo
-	!!$OMP END PARALLEL DO
+	!$OMP END PARALLEL DO
 
-	deallocate(FounderAssignmentF)
-	deallocate(FounderAssignmentB)
 end subroutine ChunkDefinition
 
 !-------------------------------------------------------------------------------------------------
