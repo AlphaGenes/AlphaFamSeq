@@ -344,6 +344,8 @@ subroutine BuildConsensus
 		endif
 	enddo
 
+	call ped%cleangenotypesbasedonhaplotypes()
+
 end subroutine BuildConsensus 
 
 !-------------------------------------------------------------------------------------------------
