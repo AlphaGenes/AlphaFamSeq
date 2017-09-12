@@ -331,12 +331,10 @@ subroutine BuildConsensus
 					endif
 				enddo
 				call ped%pedigree(i)%makeIndividualPhaseCompliment()
-				!call ped%pedigree(i)%makeIndividualGenotypeFromPhase()
-				call ped%pedigree(i)%cleanGenotypesBasedOnHaplotypes()
+				call ped%pedigree(i)%makeIndividualGenotypeFromPhase()
 				do o=1,nOffs
 					call ped%pedigree(posOffs(o))%makeIndividualPhaseCompliment()
-					!call ped%pedigree(posOffs(o))%makeIndividualGenotypeFromPhase()
-					call ped%pedigree(i)%cleanGenotypesBasedOnHaplotypes()
+					call ped%pedigree(posOffs(o))%makeIndividualGenotypeFromPhase()
 				enddo
 
 			endif	
