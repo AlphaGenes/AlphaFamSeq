@@ -49,6 +49,8 @@ module GlobalPar
 
 	! AlphaMPL output
 	real(kind=real64),allocatable,dimension(:,:,:) 	:: ReadCounts !< in the format (pedigreeId, snpId, prob) prob is Pr00,Pr01,Pr10,Pr11
+    real(kind=real64),allocatable,dimension(:,:,:,:) 	:: HapProb 
+    
     real(kind=real64),allocatable,dimension(:) 		:: Maf
 
 
@@ -156,6 +158,8 @@ program FamilyPhase
 	endif
 
 	if (maxWindowSizeHapDefinition.gt.1) allocate(FounderAssignment(ped%pedigreeSize-ped%nDummys,nSnp,2))
+	if (maxWindowSizeHapDefinition.gt.1) allocate(HapProb(ped%pedigreeSize-ped%nDummys,nSnp,2,2))
+	call CalculateFounderAssignment
 
 
 	! Iterate on the next steps ----------------------------------------------------------------------------------------
@@ -189,7 +193,6 @@ program FamilyPhase
 	 	call SimpleCleanUpFillIn
 	 		
 	 	if (maxWindowSizeHapDefinition.gt.1) then
-			call CalculateFounderAssignment
 		 	call ChunkDefinition
 	 		call BuildConsensus
 	 		call SimpleCleanUpFillIn
@@ -387,7 +390,7 @@ subroutine ChunkDefinition
 	integer,allocatable,dimension(:) :: FounderAssignmentF,FounderAssignmentB
 
 
-	integer,dimension(2) :: f
+	real,dimension(2) :: f
 
 	Z = SampleIntelUniformS(n=1,a=0.0,b=1.0) 
 	ChunkLength=floor((dble(minWindowSizeHapDefinition)-1)+(dble(maxWindowSizeHapDefinition)-(dble(minWindowSizeHapDefinition)-1))*Z(1))+1
@@ -401,7 +404,7 @@ subroutine ChunkDefinition
 		write(101,'(6(1x,i0))') Windows,IterationNumber,i,CoreIndex(i,:)
 	enddo
 
-	!$OMP PARALLEL DO DEFAULT(SHARED)  PRIVATE(c,i,k,j,f,p1,p2,founder,ChunkLength,fSnp,lSnp)
+	!$OMP PARALLEL DO DEFAULT(SHARED)  PRIVATE(c,i,k,j,f,p1,p2,ChunkLength,fSnp,lSnp)
 	do c=1,nCores
 		ChunkLength=CoreIndex(c,2)-CoreIndex(c,1)+1
 		do i=1,ped%pedigreeSize-ped%nDummys
@@ -410,31 +413,13 @@ subroutine ChunkDefinition
 				fSnp=CoreIndex(c,1)
 				lSnp=CoreIndex(c,2)
 
-				f(1)=count(FounderAssignment(i,fSnp:lSnp,k).eq.2)
-				f(2)=count(FounderAssignment(i,fSnp:lSnp,k).eq.3)
-
-				! If there are multiple grandparents check where they are located
-				if ((minval(f).le.ChunkLength*.01).and.(maxval(f).ge.ChunkLength*.1)) then
-					if (f(1).gt.f(2)) founder=2
-					if (f(2).gt.f(1)) founder=3
-					do j=fSnp,lSnp
-						if (FounderAssignment(i,j,k).eq.founder) then
-							p1=j
-							exit
-						endif
-	 				enddo
-
-					do j=lSnp,fSnp,-1
-						if (FounderAssignment(i,j,k).eq.founder) then
-							p2=j
-							exit
-						endif
-	 				enddo
-		 			!write(*,'(1a10,1i2,3i5,2i5,1x,250i0)'),ped%pedigree(i)%originalID,k,ChunkLength,p1,p2,f,FounderAssignment(i,fSnp:lSnp,k)
-		 			FounderAssignment(i,p1:p2,k)=founder
-		 			!write(*,'(1a10,1i2,3i5,2i5,1x,250i0)'),ped%pedigree(i)%originalID,k,ChunkLength,p1,p2,f,FounderAssignment(i,fSnp:lSnp,k)
+				f(1)=sum(HapProb(i,fSnp:lSnp,k,1))
+				f(2)=sum(HapProb(i,fSnp:lSnp,k,2))
+	 			!write(*,'(1a10,1i2,3i5,2i5,1x,250i0)'),ped%pedigree(i)%originalID,k,ChunkLength,p1,p2,f,FounderAssignment(i,fSnp:lSnp,k)
+	 			if (f(1).gt.f(2)) FounderAssignment(i,fSnp:lSnp,k)=2
+	 			if (f(2).gt.f(1)) FounderAssignment(i,fSnp:lSnp,k)=3
+	 			!write(*,'(1a10,1i2,3i5,2i5,1x,250i0)'),ped%pedigree(i)%originalID,k,ChunkLength,p1,p2,f,FounderAssignment(i,fSnp:lSnp,k)
 		 			
-	 			endif
 	 			
 			enddo
 		enddo
@@ -515,34 +500,52 @@ subroutine CalculateFounderAssignment
 	use omp_lib
 	implicit none
 
-	integer :: i,j,e,phaseId,geno
+	integer :: i,j,e,phaseId,geno,parent
 	integer,dimension(2) :: phasePar
-	type(individual),pointer :: parent
-
-	FounderAssignment(:,:,:)=0
+	real :: idGam,patGam,matGam,f1,f2
+	!type(individual),pointer :: parent
 	
-   	!!$OMP PARALLEL DO ORDERED DEFAULT(SHARED)  PRIVATE(e,i,j,parent,phaseId,geno,phasePar) !collapse(2)	
-	do e=2,3 ! Sire and Dam pos in the ped
+	FounderAssignment(:,:,:)=0
+	HapProb(:,:,:,:)=0
+	do e=1,2 ! paternal or maternal gamete
 		do i=1,ped%pedigreeSize-ped%nDummys
 			if (.not. ped%pedigree(i)%Founder) then
-				parent => ped%pedigree(i)%getSireDamObjectByIndex(e)
-
+				if (e.eq.1) parent = ped%pedigree(i)%sirePointer%id
+				if (e.eq.2) parent = ped%pedigree(i)%damPointer%id
 				do j=1,nSnp
-					phaseId = ped%pedigree(i)%individualPhase(e-1)%getPhase(j)
-					
-					geno = parent%individualGenotype%getGenotype(j)
-					phasePar(1) =parent%individualPhase(1)%getPhase(j)
-					phasePar(2) =parent%individualPhase(2)%getPhase(j)
-
-					if ((geno.eq.1).and.(sum(phasePar).lt.3)) then
-						if (phasePar(1).eq.phaseId) FounderAssignment(i,j,(e-1))=2 !GrandSire 
-						if (phasePar(2).eq.phaseId) FounderAssignment(i,j,(e-1))=3 !GrandDam
-					endif
+					idGam=ReadCounts(1,j,i)+ReadCounts(e+1,j,i)
+					HapProb(i,j,e,1)=idGam*(ReadCounts(1,j,parent)+ReadCounts(2,j,parent))
+					HapProb(i,j,e,2)=idGam*(ReadCounts(1,j,parent)+ReadCounts(3,j,parent))
 				enddo
 			endif
 		enddo
 	enddo
-    !!$OMP END PARALLEL DO
+
+
+
+ !   	!!$OMP PARALLEL DO ORDERED DEFAULT(SHARED)  PRIVATE(e,i,j,parent,phaseId,geno,phasePar) !collapse(2)	
+	! do e=2,3 ! Sire and Dam pos in the ped
+	! 	do i=1,ped%pedigreeSize-ped%nDummys
+	! 		if (.not. ped%pedigree(i)%Founder) then
+	! 			parent => ped%pedigree(i)%getSireDamObjectByIndex(e)
+	!			if (associated(parent)) then
+	!	 			do j=1,nSnp
+	! 					phaseId = ped%pedigree(i)%individualPhase(e-1)%getPhase(j)
+						
+	! 					geno = parent%individualGenotype%getGenotype(j)
+	! 					phasePar(1) =parent%individualPhase(1)%getPhase(j)
+	!	 				phasePar(2) =parent%individualPhase(2)%getPhase(j)
+
+	! 					if ((geno.eq.1).and.(sum(phasePar).lt.3)) then
+	! 						if (phasePar(1).eq.phaseId) FounderAssignment(i,j,(e-1))=2 !GrandSire 
+	! 						if (phasePar(2).eq.phaseId) FounderAssignment(i,j,(e-1))=3 !GrandDam
+	! 					endif
+	! 				enddo
+	!			endif
+	! 		endif
+	! 	enddo
+	! enddo
+ !    !!$OMP END PARALLEL DO
 end subroutine CalculateFounderAssignment
 
 !-------------------------------------------------------------------------------------------------
