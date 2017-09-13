@@ -155,7 +155,7 @@ program FamilyPhase
 		write(*,*) "Total wall time for Importing Probabilities", tend - tstart
 	endif
 
-	if (maxWindowSizeHapDefinition.gt.1) allocate(FounderAssignment(nInd,nSnp,2))
+	if (maxWindowSizeHapDefinition.gt.1) allocate(FounderAssignment(ped%pedigreeSize-ped%nDummys,nSnp,2))
 
 
 	! Iterate on the next steps ----------------------------------------------------------------------------------------
@@ -185,12 +185,12 @@ program FamilyPhase
 	 	call SimpleFillInBasedOnParentsReads
 	 	call SimpleCleanUpFillIn
 
-	! 	call SimpleFillInBasedOnProgenyReads
+	 	call SimpleFillInBasedOnProgenyReads
 	 	call SimpleCleanUpFillIn
-
+	 		
 	 	if (maxWindowSizeHapDefinition.gt.1) then
-	 		call CalculateFounderAssignment
-	 		call ChunkDefinition
+			call CalculateFounderAssignment
+		 	call ChunkDefinition
 	 		call BuildConsensus
 	 		call SimpleCleanUpFillIn
 	 	endif
@@ -297,44 +297,32 @@ subroutine BuildConsensus
 						
 							ConsensusHaplotype=9
 							countAllele=0
-							!if (((grandparent%individualPhase(1)%getPhase(j)+grandparent%individualPhase(2)%getPhase(j)).lt.3).and.(.not. grandparent%isDummy)) then
-								do m=1,2 
-									if (grandparent%individualPhase(m)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
-								enddo
-								!endif
-
-								if (grandparent%individualGenotype%getGenotype(j).eq.0) countAllele(1)=countAllele(1)+2
-								if (grandparent%individualGenotype%getGenotype(j).eq.2) countAllele(2)=countAllele(2)+2
-								! Avoid to use markers that are not fully phased for the grandparent
 							do a=0,1 
-								if (ped%pedigree(i)%individualPhase(e-1)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
-							enddo
-							do o=1,nOffs
-								if (founderOffspring(o).eq.e) then
-									!if (ped%pedigree(posOffs(o))%individualPhase(k)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
-									if (e.eq.2) then
-										if ((ReadCounts(1,j,posOffs(o))+ReadCounts(2,j,posOffs(o))).gt.(ReadCounts(3,j,posOffs(o))+ReadCounts(4,j,posOffs(o)))) countAllele(1)=countAllele(1)+1
-										if ((ReadCounts(3,j,posOffs(o))+ReadCounts(4,j,posOffs(o))).gt.(ReadCounts(1,j,posOffs(o))+ReadCounts(2,j,posOffs(o)))) countAllele(2)=countAllele(2)+1
-									else if (e.eq.3) then
-										if ((ReadCounts(1,j,posOffs(o))+ReadCounts(3,j,posOffs(o))).gt.(ReadCounts(2,j,posOffs(o))+ReadCounts(4,j,posOffs(o)))) countAllele(1)=countAllele(1)+1
-										if ((ReadCounts(2,j,posOffs(o))+ReadCounts(4,j,posOffs(o))).gt.(ReadCounts(1,j,posOffs(o))+ReadCounts(3,j,posOffs(o)))) countAllele(2)=countAllele(2)+1
-									endif
-
+								if (((grandparent%individualPhase(1)%getPhase(j)+grandparent%individualPhase(2)%getPhase(j)).lt.3).and.(.not. grandparent%isDummy)) then
+									! Avoid to use markers that are not fully phased for the grandparent
+									do m=1,2 
+										if (grandparent%individualPhase(m)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
+									enddo
 								endif
-							enddo
-							!enddo
-							! Fill the phases
-	 						! if ((countAllele(2).gt.1).and.(countAllele(2).gt.countAllele(1))) ConsensusHaplotype=1
-	 						! if ((countAllele(1).gt.1).and.(countAllele(1).gt.countAllele(2))) ConsensusHaplotype=0
+	
+								if (ped%pedigree(i)%individualPhase(e-1)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
 
-	 						if ((countAllele(1).eq.0).and.(countAllele(2).gt.countAllele(1))) ConsensusHaplotype=1
-	 						if ((countAllele(2).eq.0).and.(countAllele(1).gt.countAllele(2))) ConsensusHaplotype=0
+								do o=1,nOffs
+									if (founderOffspring(o).eq.e) then
+										if (ped%pedigree(posOffs(o))%individualPhase(k)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
+									endif
+								enddo
+							enddo
+							! Fill the phases
+	 						if ((countAllele(2).gt.1).and.(countAllele(2).gt.countAllele(1))) ConsensusHaplotype=1
+	 						if ((countAllele(1).gt.1).and.(countAllele(1).gt.countAllele(2))) ConsensusHaplotype=0
 	 						
 	 						if (ConsensusHaplotype.ne.9) then
-	 							call ped%pedigree(i)%individualPhase(e-1)%setPhase(j,ConsensusHaplotype)
+	 							!if ((minval(countAllele).gt.0).and.(nFounders.gt.1)) write(*,'(1a10,7(1x,i0),10x,100i1)'),ped%pedigree(i)%originalID,i,j,e,nOffs,nFounders,countAllele, founderOffspring
+								call ped%pedigree(i)%individualPhase(e-1)%setPhase(j,ConsensusHaplotype)
 								do o=1,nOffs
 	 								if (founderOffspring(o).eq.e) then
-	 									call ped%pedigree(posOffs(o))%individualPhase(k)%setPhase(j,ConsensusHaplotype)
+			 							call ped%pedigree(posOffs(o))%individualPhase(k)%setPhase(j,ConsensusHaplotype)
 									endif
 	 							enddo
 	 						endif	
@@ -389,7 +377,7 @@ subroutine ChunkDefinition
 	implicit none
 
 	integer 			:: i,j,e,k,c,nCores
-	integer 			:: f1
+	integer 			:: f1,p1,p2,founder
 	integer 			:: fSnp
 	integer 			:: lSnp
 	integer 			:: ChunkLength
@@ -397,6 +385,9 @@ subroutine ChunkDefinition
 	integer,allocatable,dimension (:,:) :: CoreIndex
 	
 	integer,allocatable,dimension(:) :: FounderAssignmentF,FounderAssignmentB
+
+
+	integer,dimension(2) :: f
 
 	Z = SampleIntelUniformS(n=1,a=0.0,b=1.0) 
 	ChunkLength=floor((dble(minWindowSizeHapDefinition)-1)+(dble(maxWindowSizeHapDefinition)-(dble(minWindowSizeHapDefinition)-1))*Z(1))+1
@@ -410,66 +401,105 @@ subroutine ChunkDefinition
 		write(101,'(6(1x,i0))') Windows,IterationNumber,i,CoreIndex(i,:)
 	enddo
 
-	
-	!$OMP PARALLEL DO DEFAULT(SHARED)  PRIVATE(c,i,k,e,j,f1,ChunkLength,fSnp,lSnp,FounderAssignmentF,FounderAssignmentB)
+	!$OMP PARALLEL DO DEFAULT(SHARED)  PRIVATE(c,i,k,j,f,p1,p2,founder,ChunkLength,fSnp,lSnp)
 	do c=1,nCores
 		ChunkLength=CoreIndex(c,2)-CoreIndex(c,1)+1
 		do i=1,ped%pedigreeSize-ped%nDummys
 			do k=1,2 ! paternal or maternal gamete
-				e=k+1 ! position parents in Pedigree
-				
 				
 				fSnp=CoreIndex(c,1)
 				lSnp=CoreIndex(c,2)
-				
-				if (count(FounderAssignment(i,fSnp:lSnp,k).ne.0).gt.1) then
-				!if (dble(count(FounderAssignment(i,fSnp:lSnp,k).ne.0))/dble(ChunkLength).gt.0.05) then
 
-					allocate(FounderAssignmentF(ChunkLength))
-					allocate(FounderAssignmentB(ChunkLength))
+				f(1)=count(FounderAssignment(i,fSnp:lSnp,k).eq.2)
+				f(2)=count(FounderAssignment(i,fSnp:lSnp,k).eq.3)
 
-					FounderAssignmentF=0
-					FounderAssignmentB=0
-
-					FounderAssignmentF(:)=FounderAssignment(i,fSnp:lSnp,k)
-					FounderAssignmentB(:)=FounderAssignment(i,fSnp:lSnp,k)
-
-					!write(*,'(1a20,3(1x,i0))') ,ped%pedigree(i)%originalID,ChunkLength,count(FounderAssignmentF(:).eq.2),count(FounderAssignmentF(:).eq.3)
-						!dble(count(FounderAssignmentF(:).eq.2))/dble(ChunkLength)*100.0,dble(count(FounderAssignmentF(:).eq.3))/dble(ChunkLength)*100.0
-
-					f1=0
-					!!! Forward founder assignment 
-					do j=1,ChunkLength
-						if (FounderAssignmentF(j)/=0)then
-							f1=FounderAssignmentF(j)
+				! If there are multiple grandparents check where they are located
+				if ((minval(f).le.ChunkLength*.01).and.(maxval(f).ge.ChunkLength*.1)) then
+					if (f(1).gt.f(2)) founder=2
+					if (f(2).gt.f(1)) founder=3
+					do j=fSnp,lSnp
+						if (FounderAssignment(i,j,k).eq.founder) then
+							p1=j
+							exit
 						endif
-						if ((FounderAssignmentF(j)==0)) then
-							FounderAssignmentF(j)=f1
-						endif 
-					enddo
+	 				enddo
 
-					f1=0
-					!!! Backward founder assignment 
-					do j=ChunkLength,1,-1
-						if (FounderAssignmentB(j)/=0)then
-							f1=FounderAssignmentB(j)
+					do j=lSnp,fSnp,-1
+						if (FounderAssignment(i,j,k).eq.founder) then
+							p2=j
+							exit
 						endif
-						if ((FounderAssignmentB(j)==0)) then
-							FounderAssignmentB(j)=f1
-						endif 
-					enddo
-					
-					do j=1,ChunkLength
-						if (FounderAssignmentF(j)==FounderAssignmentB(j)) FounderAssignment(i,(fSnp+j-1),k)=FounderAssignmentF(j)
-						if (FounderAssignmentF(j)/=FounderAssignmentB(j)) FounderAssignment(i,(fSnp+j-1),k)=0
-					enddo	
-					deallocate(FounderAssignmentF)
-					deallocate(FounderAssignmentB)
-				endif
+	 				enddo
+		 			!write(*,'(1a10,1i2,3i5,2i5,1x,250i0)'),ped%pedigree(i)%originalID,k,ChunkLength,p1,p2,f,FounderAssignment(i,fSnp:lSnp,k)
+		 			FounderAssignment(i,p1:p2,k)=founder
+		 			!write(*,'(1a10,1i2,3i5,2i5,1x,250i0)'),ped%pedigree(i)%originalID,k,ChunkLength,p1,p2,f,FounderAssignment(i,fSnp:lSnp,k)
+		 			
+	 			endif
+	 			
 			enddo
 		enddo
 	enddo
 	!$OMP END PARALLEL DO
+
+	! OLD CHUNK DEFINITION	
+	! !$OMP PARALLEL DO DEFAULT(SHARED)  PRIVATE(c,i,k,e,j,f1,ChunkLength,fSnp,lSnp,FounderAssignmentF,FounderAssignmentB)
+	! do c=1,nCores
+	! 	ChunkLength=CoreIndex(c,2)-CoreIndex(c,1)+1
+	! 	do i=1,ped%pedigreeSize-ped%nDummys
+	! 		do k=1,2 ! paternal or maternal gamete
+	! 			e=k+1 ! position parents in Pedigree
+				
+				
+	! 			fSnp=CoreIndex(c,1)
+	! 			lSnp=CoreIndex(c,2)
+				
+	! 			!if (count(FounderAssignment(i,fSnp:lSnp,k).ne.0).gt.1) then
+	! 			if (dble(count(FounderAssignment(i,fSnp:lSnp,k).ne.0))/dble(ChunkLength).gt.0.05) then
+
+	! 				allocate(FounderAssignmentF(ChunkLength))
+	! 				allocate(FounderAssignmentB(ChunkLength))
+
+	! 				FounderAssignmentF=0
+	! 				FounderAssignmentB=0
+
+	! 				FounderAssignmentF(:)=FounderAssignment(i,fSnp:lSnp,k)
+	! 				FounderAssignmentB(:)=FounderAssignment(i,fSnp:lSnp,k)
+
+					
+	! 				f1=0
+	! 				!!! Forward founder assignment 
+	! 				do j=1,ChunkLength
+	! 					if (FounderAssignmentF(j)/=0)then
+	! 						f1=FounderAssignmentF(j)
+	! 					endif
+	! 					if ((FounderAssignmentF(j)==0)) then
+	! 						FounderAssignmentF(j)=f1
+	! 					endif 
+	! 				enddo
+
+	! 				f1=0
+	! 				!!! Backward founder assignment 
+	! 				do j=ChunkLength,1,-1
+	! 					if (FounderAssignmentB(j)/=0)then
+	! 						f1=FounderAssignmentB(j)
+	! 					endif
+	! 					if ((FounderAssignmentB(j)==0)) then
+	! 						FounderAssignmentB(j)=f1
+	! 					endif 
+	! 				enddo
+					
+	! 				do j=1,ChunkLength
+	! 					if (FounderAssignmentF(j)==FounderAssignmentB(j)) FounderAssignment(i,(fSnp+j-1),k)=FounderAssignmentF(j)
+	! 					if (FounderAssignmentF(j)/=FounderAssignmentB(j)) FounderAssignment(i,(fSnp+j-1),k)=0
+	! 				enddo	
+	! 				deallocate(FounderAssignmentF)
+	! 				deallocate(FounderAssignmentB)
+	! 			endif
+	! 		enddo
+	! 	enddo
+	! enddo
+	! !$OMP END PARALLEL DO
+
 end subroutine ChunkDefinition
 
 !-------------------------------------------------------------------------------------------------
@@ -485,46 +515,34 @@ subroutine CalculateFounderAssignment
 	use omp_lib
 	implicit none
 
-	integer :: i,j,e
-	integer :: geno
-	integer,dimension(2) :: phaseId,phasePar
+	integer :: i,j,e,phaseId,geno
+	integer,dimension(2) :: phasePar
 	type(individual),pointer :: parent
 
 	FounderAssignment(:,:,:)=0
 	
-   	!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (ped,FounderAssignment,nSnp,nInd,ReadCounts) !collapse(2)	
+   	!!$OMP PARALLEL DO ORDERED DEFAULT(SHARED)  PRIVATE(e,i,j,parent,phaseId,geno,phasePar) !collapse(2)	
 	do e=2,3 ! Sire and Dam pos in the ped
 		do i=1,ped%pedigreeSize-ped%nDummys
 			if (.not. ped%pedigree(i)%Founder) then
 				parent => ped%pedigree(i)%getSireDamObjectByIndex(e)
 
 				do j=1,nSnp
-					!phaseId(1) = ped%pedigree(i)%individualPhase(1)%getPhase(j)
-					!phaseId(2) = ped%pedigree(i)%individualPhase(2)%getPhase(j)
-
-					phaseId=9
-					if (e.eq.2) then
-						if ((ReadCounts(1,j,i)+ReadCounts(2,j,i)).gt.(ReadCounts(3,j,i)+ReadCounts(4,j,i))) phaseId(1)=0
-						if ((ReadCounts(3,j,i)+ReadCounts(4,j,i)).gt.(ReadCounts(1,j,i)+ReadCounts(2,j,i))) phaseId(1)=1
-					else if (e.eq.3) then
-						if ((ReadCounts(1,j,i)+ReadCounts(3,j,i)).gt.(ReadCounts(2,j,i)+ReadCounts(4,j,i))) phaseId(1)=0
-						if ((ReadCounts(2,j,i)+ReadCounts(4,j,i)).gt.(ReadCounts(1,j,i)+ReadCounts(3,j,i))) phaseId(1)=1
-					endif
-
+					phaseId = ped%pedigree(i)%individualPhase(e-1)%getPhase(j)
+					
 					geno = parent%individualGenotype%getGenotype(j)
 					phasePar(1) =parent%individualPhase(1)%getPhase(j)
 					phasePar(2) =parent%individualPhase(2)%getPhase(j)
 
 					if ((geno.eq.1).and.(sum(phasePar).lt.3)) then
-						if (phasePar(1).eq.phaseId(e-1)) FounderAssignment(i,j,e-1)=2 !GrandSire 
-						if (phasePar(2).eq.phaseId(e-1)) FounderAssignment(i,j,e-1)=3 !GrandDam
+						if (phasePar(1).eq.phaseId) FounderAssignment(i,j,(e-1))=2 !GrandSire 
+						if (phasePar(2).eq.phaseId) FounderAssignment(i,j,(e-1))=3 !GrandDam
 					endif
-					!if (FounderAssignment(i,j,e-1).ne.0) print*,i,j,e,FounderAssignment(i,j,e-1)
 				enddo
 			endif
 		enddo
 	enddo
-    !$OMP END PARALLEL DO
+    !!$OMP END PARALLEL DO
 end subroutine CalculateFounderAssignment
 
 !-------------------------------------------------------------------------------------------------
@@ -825,11 +843,11 @@ subroutine WriteResults
 
 	open (unit=4,file=trim(filout4),status="unknown")
 	do i=1,ped%pedigreeSize-ped%nDummys
-		tmpId = ped%inputMap(i)
+		!tmpId = ped%inputMap(i)
 		if (maxval(FounderAssignment(i,:,:))/=0) then 
 			!print*,i,tmpId," ",ped%pedigree(i)," ",ped%pedigree(tmpId)%originalID
-			write (4,FmtInt2) ped%pedigree(tmpId)%originalID,FounderAssignment(i,:,1)
-			write (4,FmtInt2) ped%pedigree(tmpId)%originalID,FounderAssignment(i,:,2)
+			write (4,FmtInt2) ped%pedigree(i)%originalID,FounderAssignment(i,:,1)
+			write (4,FmtInt2) ped%pedigree(i)%originalID,FounderAssignment(i,:,2)
 		endif
 	enddo
 
