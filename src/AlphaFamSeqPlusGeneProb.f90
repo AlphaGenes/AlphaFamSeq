@@ -297,32 +297,44 @@ subroutine BuildConsensus
 						
 							ConsensusHaplotype=9
 							countAllele=0
-							do a=0,1 
-								if (((grandparent%individualPhase(1)%getPhase(j)+grandparent%individualPhase(2)%getPhase(j)).lt.3).and.(.not. grandparent%isDummy)) then
-									! Avoid to use markers that are not fully phased for the grandparent
-									do m=1,2 
-										if (grandparent%individualPhase(m)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
-									enddo
-								endif
-	
-								if (ped%pedigree(i)%individualPhase(e-1)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
-
-								do o=1,nOffs
-									if (founderOffspring(o).eq.e) then
-										if (ped%pedigree(posOffs(o))%individualPhase(k)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
-									endif
+							!if (((grandparent%individualPhase(1)%getPhase(j)+grandparent%individualPhase(2)%getPhase(j)).lt.3).and.(.not. grandparent%isDummy)) then
+								do m=1,2 
+									if (grandparent%individualPhase(m)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
 								enddo
+								!endif
+
+								if (grandparent%individualGenotype%getGenotype(j).eq.0) countAllele(1)=countAllele(1)+2
+								if (grandparent%individualGenotype%getGenotype(j).eq.2) countAllele(2)=countAllele(2)+2
+								! Avoid to use markers that are not fully phased for the grandparent
+							do a=0,1 
+								if (ped%pedigree(i)%individualPhase(e-1)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
 							enddo
+							do o=1,nOffs
+								if (founderOffspring(o).eq.e) then
+									!if (ped%pedigree(posOffs(o))%individualPhase(k)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
+									if (e.eq.2) then
+										if ((ReadCounts(1,j,posOffs(o))+ReadCounts(2,j,posOffs(o))).gt.(ReadCounts(3,j,posOffs(o))+ReadCounts(4,j,posOffs(o)))) countAllele(1)=countAllele(1)+1
+										if ((ReadCounts(3,j,posOffs(o))+ReadCounts(4,j,posOffs(o))).gt.(ReadCounts(1,j,posOffs(o))+ReadCounts(2,j,posOffs(o)))) countAllele(2)=countAllele(2)+1
+									else if (e.eq.3) then
+										if ((ReadCounts(1,j,posOffs(o))+ReadCounts(3,j,posOffs(o))).gt.(ReadCounts(2,j,posOffs(o))+ReadCounts(4,j,posOffs(o)))) countAllele(1)=countAllele(1)+1
+										if ((ReadCounts(2,j,posOffs(o))+ReadCounts(4,j,posOffs(o))).gt.(ReadCounts(1,j,posOffs(o))+ReadCounts(3,j,posOffs(o)))) countAllele(2)=countAllele(2)+1
+									endif
+
+								endif
+							enddo
+							!enddo
 							! Fill the phases
-	 						if ((countAllele(2).gt.1).and.(countAllele(2).gt.countAllele(1))) ConsensusHaplotype=1
-	 						if ((countAllele(1).gt.1).and.(countAllele(1).gt.countAllele(2))) ConsensusHaplotype=0
+	 						! if ((countAllele(2).gt.1).and.(countAllele(2).gt.countAllele(1))) ConsensusHaplotype=1
+	 						! if ((countAllele(1).gt.1).and.(countAllele(1).gt.countAllele(2))) ConsensusHaplotype=0
+
+	 						if ((countAllele(1).eq.0).and.(countAllele(2).gt.countAllele(1))) ConsensusHaplotype=1
+	 						if ((countAllele(2).eq.0).and.(countAllele(1).gt.countAllele(2))) ConsensusHaplotype=0
 	 						
 	 						if (ConsensusHaplotype.ne.9) then
-	 							!if ((minval(countAllele).gt.0).and.(nFounders.gt.1)) write(*,'(1a10,7(1x,i0),10x,100i1)'),ped%pedigree(i)%originalID,i,j,e,nOffs,nFounders,countAllele, founderOffspring
-								call ped%pedigree(i)%individualPhase(e-1)%setPhase(j,ConsensusHaplotype)
+	 							call ped%pedigree(i)%individualPhase(e-1)%setPhase(j,ConsensusHaplotype)
 								do o=1,nOffs
 	 								if (founderOffspring(o).eq.e) then
-			 							call ped%pedigree(posOffs(o))%individualPhase(k)%setPhase(j,ConsensusHaplotype)
+	 									call ped%pedigree(posOffs(o))%individualPhase(k)%setPhase(j,ConsensusHaplotype)
 									endif
 	 							enddo
 	 						endif	
@@ -410,8 +422,8 @@ subroutine ChunkDefinition
 				fSnp=CoreIndex(c,1)
 				lSnp=CoreIndex(c,2)
 				
-				!if (count(FounderAssignment(i,fSnp:lSnp,k).ne.0).gt.1) then
-				if (dble(count(FounderAssignment(i,fSnp:lSnp,k).ne.0))/dble(ChunkLength).gt.0.1) then
+				if (count(FounderAssignment(i,fSnp:lSnp,k).ne.0).gt.1) then
+				!if (dble(count(FounderAssignment(i,fSnp:lSnp,k).ne.0))/dble(ChunkLength).gt.0.05) then
 
 					allocate(FounderAssignmentF(ChunkLength))
 					allocate(FounderAssignmentB(ChunkLength))
@@ -422,7 +434,7 @@ subroutine ChunkDefinition
 					FounderAssignmentF(:)=FounderAssignment(i,fSnp:lSnp,k)
 					FounderAssignmentB(:)=FounderAssignment(i,fSnp:lSnp,k)
 
-					!write(*,'(1i0,3(1x,i0))') ,i,ChunkLength,count(FounderAssignmentF(:).eq.2),count(FounderAssignmentF(:).eq.3)
+					!write(*,'(1a20,3(1x,i0))') ,ped%pedigree(i)%originalID,ChunkLength,count(FounderAssignmentF(:).eq.2),count(FounderAssignmentF(:).eq.3)
 						!dble(count(FounderAssignmentF(:).eq.2))/dble(ChunkLength)*100.0,dble(count(FounderAssignmentF(:).eq.3))/dble(ChunkLength)*100.0
 
 					f1=0
@@ -458,7 +470,6 @@ subroutine ChunkDefinition
 		enddo
 	enddo
 	!$OMP END PARALLEL DO
-
 end subroutine ChunkDefinition
 
 !-------------------------------------------------------------------------------------------------
@@ -481,15 +492,24 @@ subroutine CalculateFounderAssignment
 
 	FounderAssignment(:,:,:)=0
 	
-   	!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (ped,FounderAssignment,nSnp,nInd) !collapse(2)	
+   	!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (ped,FounderAssignment,nSnp,nInd,ReadCounts) !collapse(2)	
 	do e=2,3 ! Sire and Dam pos in the ped
 		do i=1,ped%pedigreeSize-ped%nDummys
 			if (.not. ped%pedigree(i)%Founder) then
 				parent => ped%pedigree(i)%getSireDamObjectByIndex(e)
 
 				do j=1,nSnp
-					phaseId(1) = ped%pedigree(i)%individualPhase(1)%getPhase(j)
-					phaseId(2) = ped%pedigree(i)%individualPhase(2)%getPhase(j)
+					!phaseId(1) = ped%pedigree(i)%individualPhase(1)%getPhase(j)
+					!phaseId(2) = ped%pedigree(i)%individualPhase(2)%getPhase(j)
+
+					phaseId=9
+					if (e.eq.2) then
+						if ((ReadCounts(1,j,i)+ReadCounts(2,j,i)).gt.(ReadCounts(3,j,i)+ReadCounts(4,j,i))) phaseId(1)=0
+						if ((ReadCounts(3,j,i)+ReadCounts(4,j,i)).gt.(ReadCounts(1,j,i)+ReadCounts(2,j,i))) phaseId(1)=1
+					else if (e.eq.3) then
+						if ((ReadCounts(1,j,i)+ReadCounts(3,j,i)).gt.(ReadCounts(2,j,i)+ReadCounts(4,j,i))) phaseId(1)=0
+						if ((ReadCounts(2,j,i)+ReadCounts(4,j,i)).gt.(ReadCounts(1,j,i)+ReadCounts(3,j,i))) phaseId(1)=1
+					endif
 
 					geno = parent%individualGenotype%getGenotype(j)
 					phasePar(1) =parent%individualPhase(1)%getPhase(j)
