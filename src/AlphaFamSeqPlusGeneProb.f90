@@ -127,7 +127,7 @@ program FamilyPhase
 	if (UsePrevGeneProb==0) then
 		print*,"Read SequenceData"
 		if (trim(SequenceDataType)=="RC") then
-			if (trim(SequenceFileFormat)=="AlphaSim") call ped%addSequenceFromFile(SequenceFile,nSnp) ! read sequence file AlphaSimFormat
+			if (trim(SequenceFileFormat)=="AlphaSim") call ped%addSequenceFromFile(SequenceFile,nSnp,startSnp=StartPos,endSnp=EndPos) ! read sequence file AlphaSimFormat
 			if (trim(SequenceFileFormat)=="VcfTools") call ped%addSequenceFromVCFFile(seqFile=SequenceFile,nSnpsIn=nSnp,chr=chr,StartPos=StartPos,EndPos=EndPos)
 		endif
 	endif	
@@ -736,16 +736,18 @@ end subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 subroutine ReadPrevGeneProb
 	use GlobalPar
 	use constantModule, only : IDLENGTH
+	use alphahousemod, only : int2char
 	implicit none
 
 	integer									:: i,p,id
 	logical 								:: exist
 	character(len=IDLENGTH)					:: DumC
-	character(len=80) 						:: filout5
+	character(len=:), allocatable			:: filout5
 	real(real64),dimension(:), allocatable 	:: temp
 	integer 								:: unit, count,stat
 	integer(4) recl_at_start, recl_at_end
-	filout5="AlphaFamSeqFinalGeneProb.bin"
+	
+	filout5 ="AlphaFamSeqFinalGeneProb_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".bin"
 	
 	inquire(file=trim(filout5),exist=exist)
 	
@@ -784,17 +786,21 @@ end subroutine ReadPrevGeneProb
 
 subroutine SaveGeneProbResults
 	use GlobalPar
-
+	use alphahousemod, only : int2char
 	implicit none
 
 	integer :: i,p,tmpId, unit, count
 	character(len=30) :: nChar
-	character(len=80) :: filout5,FmtInt2,filout6
+	character(len=80) :: FmtInt2
+	character(len=:), allocatable:: filout5,filout6
 	real(real64),dimension(:), allocatable 	:: temp
 	
 	! Write Out Full file of GeneProb
-	filout5="AlphaFamSeqFinalGeneProb.bin"
-	!write (filout5,'("AlphaFamSeqFinalGeneProb",i0,".bin")') Windows
+	
+
+	filout5 ="AlphaFamSeqFinalGeneProb_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".bin"
+	filout6 ="AlphaFamSeqFinalGeneProb_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".txt"
+	
 	open (newunit=unit,file=trim(filout5),status="unknown", FORM='UNFORMATTED')
 
 	count =  0
@@ -815,7 +821,7 @@ subroutine SaveGeneProbResults
 	! Write Out Full file of GeneProb
 	write(nChar,*) nSnp
 	FmtInt2='(1a20,'//trim(adjustl(nChar))//'f7.4)'
-	filout6="AlphaFamSeqFinalGeneProb.txt"
+
 	open (newunit=unit,file=trim(filout6),status="unknown")
 
 	do i=1,nInd
@@ -840,25 +846,23 @@ end subroutine SaveGeneProbResults
 subroutine WriteResults
 
 	use GlobalPar
+	use alphahousemod, only : int2char
 	implicit none
 
 	integer :: i,tmpId 
 	character(len=30) :: nChar
-	character(len=80) :: FmtInt2,filout1,filout2,filout4
-		
+	character(len=80) :: FmtInt2
+	character(len=:), allocatable:: filout1,filout2,filout4
 
 	! WriteOut Full Output
 
 	write(nChar,*) nSnp
 	FmtInt2='(a20,'//trim(adjustl(nChar))//'(1x,i0))'
 	
-	write (filout1,'("AlphaFamSeqFinalPhase.txt")')
-	write (filout2,'("AlphaFamSeqFinalGenos.txt")')
-	write (filout4,'("AlphaFamSeqFounderAssignment.txt")')
+	filout1 ="AlphaFamSeqFinalPhase_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".txt"
+	filout2 ="AlphaFamSeqFinalGenos_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".txt"
+	filout4 ="AlphaFamSeqFounderAssignment_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".txt"
 
-	!write (filout1,'("AlphaFamSeqFinalPhase",i0,".txt")') Windows
-	!write (filout2,'("AlphaFamSeqFinalGenos",i0,".txt")') Windows
-	!write (filout4,'("AlphaFamSeqFounderAssignment",i0,".txt")') Windows
 	
 	call ped%writeoutphase(trim(filout1))
 	call ped%writeoutgenotypes(trim(filout2))
