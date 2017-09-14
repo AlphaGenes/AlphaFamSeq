@@ -98,6 +98,8 @@ program FamilyPhase
 	else
 		call IntitialiseIntelRNG(Seedfile="SeedOld.txt",Out=Seed2)
 	end if
+
+	!call MakeDirectories
 	
 	! Print out the window/iteratin/haplotype length in a file
 	open(101,file="AlphaFamSeqHaplotypeLengths.txt",status="unknown")
@@ -221,6 +223,68 @@ program FamilyPhase
 
 
 end program FamilyPhase
+
+
+subroutine MakeDirectories
+	#ifdef OS_UNIX
+
+	#DEFINE DASH "/"
+	#DEFINE MD "mkdir -p"
+
+	#else
+	#DEFINE DASH "\"
+	#DEFINE MD "md"
+	#endif
+
+
+	use GlobalPar
+	use ifport
+	implicit none
+
+	integer :: CSTAT,ESTAT
+	character(len=100) :: CMSG
+	logical :: dirExists
+
+	#ifdef OS_UNIX
+		inquire(directory="Output", exist=dirExists)
+		if (.not. dirExists) then
+			CALL EXECUTE_COMMAND_LINE ("mkdir -p Output",EXITSTAT=ESTAT, CMDSTAT=CSTAT, CMDMSG=CMSG)
+			if (CSTAT.gt.0) then
+				print*,"ERROR : Command execution failed",trim(CMSG)
+			else if (CSTAT.lt.0) then
+				print*,"ERROR : Command execution not supported"
+			else
+				print*,"Command completed with status",ESTAT
+			endif
+		endif
+
+		inquire(directory="Temporary", exist=dirExists)
+		if (.not. dirExists) then
+			CALL EXECUTE_COMMAND_LINE ("mkdir -p Output",EXITSTAT=ESTAT, CMDSTAT=CSTAT, CMDMSG=CMSG)
+			if (CSTAT.gt.0) then
+				print*,"ERROR : Command execution failed",trim(CMSG)
+			else if (CSTAT.lt.0) then
+				print*,"ERROR : Command execution not supported"
+			else
+				print*,"Command completed with status",ESTAT
+			endif
+		endif
+
+		inquire(directory="Stats", exist=dirExists)
+		if (.not. dirExists) then
+			CALL EXECUTE_COMMAND_LINE ("mkdir -p Output",EXITSTAT=ESTAT, CMDSTAT=CSTAT, CMDMSG=CMSG)
+			if (CSTAT.gt.0) then
+				print*,"ERROR : Command execution failed",trim(CMSG)
+			else if (CSTAT.lt.0) then
+				print*,"ERROR : Command execution not supported"
+			else
+				print*,"Command completed with status",ESTAT
+			endif
+		endif
+
+	#endif
+	
+end subroutine MakeDirectories
 
 !-------------------------------------------------------------------------------------------------
 !> @brief   Get phase complement and make the genotype
@@ -747,7 +811,7 @@ subroutine ReadPrevGeneProb
 	integer 								:: unit, count,stat
 	integer(4) recl_at_start, recl_at_end
 	
-	filout5 ="AlphaFamSeqFinalGeneProb_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".bin"
+	filout5 ="AlphaFamSeqFinalSLP_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".bin"
 	
 	inquire(file=trim(filout5),exist=exist)
 	
@@ -774,6 +838,10 @@ subroutine ReadPrevGeneProb
 		enddo
 		close (unit)
 		deallocate(temp)
+	else if (.not. exist) then
+		print*,"ERROR : ",trim(filout5)," doesn't exist"
+		print*,"        use RunSingleLocusPeeler = 0 to run Single Locus Peeler"
+		stop
 	endif
 
 end subroutine ReadPrevGeneProb
@@ -798,8 +866,8 @@ subroutine SaveGeneProbResults
 	! Write Out Full file of GeneProb
 	
 
-	filout5 ="AlphaFamSeqFinalGeneProb_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".bin"
-	filout6 ="AlphaFamSeqFinalGeneProb_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".txt"
+	filout5 ="AlphaFamSeqFinalSLP_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".bin"
+	filout6 ="AlphaFamSeqFinalSLP_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".txt"
 	
 	open (newunit=unit,file=trim(filout5),status="unknown", FORM='UNFORMATTED')
 
