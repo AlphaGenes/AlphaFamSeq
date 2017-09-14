@@ -392,6 +392,25 @@ subroutine ChunkDefinition
 
 	real,dimension(2) :: f
 
+	! Check window size
+	if (minWindowSizeHapDefinition.gt.nSnp) then
+		print*,"WARNING: min window size > nSnp"
+		print*,"         use nSnp as min window size"
+		minWindowSizeHapDefinition=nSnp
+	endif
+
+	if (maxWindowSizeHapDefinition.gt.nSnp) then
+		print*,"WARNING: max window size > nSnp"
+		print*,"         use nSnp as max window size"
+		maxWindowSizeHapDefinition=nSnp
+	endif
+
+	if (minWindowSizeHapDefinition.gt.maxWindowSizeHapDefinition) then
+		print*,"WARNING: min window size > max window size"
+		print*,"         use max window size as min window size"
+		minWindowSizeHapDefinition=maxWindowSizeHapDefinition
+	endif
+
 	Z = SampleIntelUniformS(n=1,a=0.0,b=1.0) 
 	ChunkLength=floor((dble(minWindowSizeHapDefinition)-1)+(dble(maxWindowSizeHapDefinition)-(dble(minWindowSizeHapDefinition)-1))*Z(1))+1
 	nCores=nSnp/ChunkLength
