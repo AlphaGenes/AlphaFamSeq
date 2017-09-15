@@ -600,8 +600,8 @@ subroutine CalculateFounderAssignment
 		    					HapProb(2)=HapProb(2)+(ProgenyProb*ParentProb)
 		    				endif
 		    			enddo
-		    			if (HapProb(1)/HapProb(2).ge.1.5) write(4,'(1a20,2f7.4,1i2)') ped%pedigree(i)%originalID,HapProb(:),2
-		    			if (HapProb(1)/HapProb(2).le.0.5) write(4,'(1a20,2f7.4,1i2)') ped%pedigree(i)%originalID,HapProb(:),3
+		    			if (HapProb(1)/HapProb(2).ge.1.5) write(4,'(1a20,2f15.4,1i2)') ped%pedigree(i)%originalID,HapProb(:),2
+		    			if (HapProb(1)/HapProb(2).le.0.5) write(4,'(1a20,2f15.4,1i2)') ped%pedigree(i)%originalID,HapProb(:),3
 	    				
 	    			endif
 	    		enddo
