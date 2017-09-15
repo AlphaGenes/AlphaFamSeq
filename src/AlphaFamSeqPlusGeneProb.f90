@@ -494,6 +494,11 @@ subroutine ChunkDefinition
 		lSnp=CoreIndex(c,2)
 
 		call CalculateFounderAssignment(fSnp,lSnp)
+		if (c.gt.1) then
+			fSnp=fSnp/2
+			call CalculateFounderAssignment(fSnp,lSnp)
+		endif
+
 	enddo
 
 ! 	!$OMP PARALLEL DO DEFAULT(SHARED)  PRIVATE(c,i,k,e,j,f1,ChunkLength,fSnp,lSnp,FounderAssignmentF,FounderAssignmentB)
