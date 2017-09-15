@@ -496,6 +496,7 @@ subroutine ChunkDefinition
 		call CalculateFounderAssignment(fSnp,lSnp)
 		if (c.gt.1) then
 			fSnp=fSnp/2
+			lSnp=lSnp/2
 			call CalculateFounderAssignment(fSnp,lSnp)
 		endif
 
