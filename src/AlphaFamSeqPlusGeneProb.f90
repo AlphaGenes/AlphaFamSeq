@@ -1,3 +1,13 @@
+! #ifdef OS_UNIX
+
+! #DEFINE DASH "/"
+! #DEFINE MD "mkdir -p"
+! #else
+! #DEFINE DASH "\"
+! #DEFINE MD "md"
+! #endif
+
+
 !################################################################################################
 
 module GlobalPar
@@ -49,7 +59,6 @@ module GlobalPar
 
 	! AlphaMPL output
 	real(kind=real64),allocatable,dimension(:,:,:) 	:: ReadCounts !< in the format (pedigreeId, snpId, prob) prob is Pr00,Pr01,Pr10,Pr11
-    real(kind=real64),allocatable,dimension(:,:,:,:) 	:: HapProb 
     
     real(kind=real64),allocatable,dimension(:) 		:: Maf
 
@@ -60,7 +69,7 @@ module GlobalPar
 	integer(kind=1),allocatable,dimension(:)		:: MarkersToExclude		! CleanUpTheRawData - 0=use the variant; 1= don't use the variant
 	
 	integer,allocatable,dimension(:) 				:: GeneProbYesOrNo		! Temporary Array - use gene prob or not
-	integer(kind=1),allocatable,dimension(:,:,:) 			:: FounderAssignment   	! Temporary File - Save the IDs of the grandparents
+	integer(kind=1),allocatable,dimension(:,:,:) 	:: FounderAssignment   	! Temporary File - Save the IDs of the grandparents
 
 	integer :: Windows
 end module GlobalPar
@@ -159,11 +168,10 @@ program FamilyPhase
 		write(*,*) "Total wall time for Importing Probabilities", tend - tstart
 	endif
 
-	if (maxWindowSizeHapDefinition.gt.1) allocate(FounderAssignment(ped%pedigreeSize-ped%nDummys,nSnp,2))
-	if (maxWindowSizeHapDefinition.gt.1) allocate(HapProb(ped%pedigreeSize-ped%nDummys,nSnp,2,2))
-	call CalculateFounderAssignment
-
-
+	if (maxWindowSizeHapDefinition.gt.1) then
+		allocate(FounderAssignment(ped%pedigreeSize-ped%nDummys,nSnp,2))
+	endif
+	
 	! Iterate on the next steps ----------------------------------------------------------------------------------------
 	 print*," "
 	 write (*,'(1a39)') " Window Iter   ProbThr    %Phase   %Geno"
@@ -195,9 +203,11 @@ program FamilyPhase
 	 	call SimpleCleanUpFillIn
 	 		
 	 	if (maxWindowSizeHapDefinition.gt.1) then
-		 	call ChunkDefinition
-	 		call BuildConsensus
-	 		call SimpleCleanUpFillIn
+			call CalculateFounderAssignment
+
+!		 	call ChunkDefinition
+!	 		call BuildConsensus
+!	 		call SimpleCleanUpFillIn
 	 	endif
 	! 	! Count Missing
 	 	CurrentCountMissingGenos=ped%CountMissingGenotypesNoDummys()
@@ -225,66 +235,57 @@ program FamilyPhase
 end program FamilyPhase
 
 
-subroutine MakeDirectories
-	#ifdef OS_UNIX
-
-	#DEFINE DASH "/"
-	#DEFINE MD "mkdir -p"
-
-	#else
-	#DEFINE DASH "\"
-	#DEFINE MD "md"
-	#endif
+! subroutine MakeDirectories
 
 
-	use GlobalPar
-	use ifport
-	implicit none
+! 	use GlobalPar
+! 	use ifport
+! 	implicit none
 
-	integer :: CSTAT,ESTAT
-	character(len=100) :: CMSG
-	logical :: dirExists
+! 	integer :: CSTAT,ESTAT
+! 	character(len=100) :: CMSG
+! 	logical :: dirExists
 
-	#ifdef OS_UNIX
-		inquire(directory="Output", exist=dirExists)
-		if (.not. dirExists) then
-			CALL EXECUTE_COMMAND_LINE ("mkdir -p Output",EXITSTAT=ESTAT, CMDSTAT=CSTAT, CMDMSG=CMSG)
-			if (CSTAT.gt.0) then
-				print*,"ERROR : Command execution failed",trim(CMSG)
-			else if (CSTAT.lt.0) then
-				print*,"ERROR : Command execution not supported"
-			else
-				print*,"Command completed with status",ESTAT
-			endif
-		endif
+! 	#ifdef OS_UNIX
+! 		inquire(directory="Output", exist=dirExists)
+! 		if (.not. dirExists) then
+! 			CALL EXECUTE_COMMAND_LINE ("mkdir -p Output",EXITSTAT=ESTAT, CMDSTAT=CSTAT, CMDMSG=CMSG)
+! 			if (CSTAT.gt.0) then
+! 				print*,"ERROR : Command execution failed",trim(CMSG)
+! 			else if (CSTAT.lt.0) then
+! 				print*,"ERROR : Command execution not supported"
+! 			else
+! 				print*,"Command completed with status",ESTAT
+! 			endif
+! 		endif
 
-		inquire(directory="Temporary", exist=dirExists)
-		if (.not. dirExists) then
-			CALL EXECUTE_COMMAND_LINE ("mkdir -p Output",EXITSTAT=ESTAT, CMDSTAT=CSTAT, CMDMSG=CMSG)
-			if (CSTAT.gt.0) then
-				print*,"ERROR : Command execution failed",trim(CMSG)
-			else if (CSTAT.lt.0) then
-				print*,"ERROR : Command execution not supported"
-			else
-				print*,"Command completed with status",ESTAT
-			endif
-		endif
+! 		inquire(directory="Temporary", exist=dirExists)
+! 		if (.not. dirExists) then
+! 			CALL EXECUTE_COMMAND_LINE ("mkdir -p Output",EXITSTAT=ESTAT, CMDSTAT=CSTAT, CMDMSG=CMSG)
+! 			if (CSTAT.gt.0) then
+! 				print*,"ERROR : Command execution failed",trim(CMSG)
+! 			else if (CSTAT.lt.0) then
+! 				print*,"ERROR : Command execution not supported"
+! 			else
+! 				print*,"Command completed with status",ESTAT
+! 			endif
+! 		endif
 
-		inquire(directory="Stats", exist=dirExists)
-		if (.not. dirExists) then
-			CALL EXECUTE_COMMAND_LINE ("mkdir -p Output",EXITSTAT=ESTAT, CMDSTAT=CSTAT, CMDMSG=CMSG)
-			if (CSTAT.gt.0) then
-				print*,"ERROR : Command execution failed",trim(CMSG)
-			else if (CSTAT.lt.0) then
-				print*,"ERROR : Command execution not supported"
-			else
-				print*,"Command completed with status",ESTAT
-			endif
-		endif
+! 		inquire(directory="Stats", exist=dirExists)
+! 		if (.not. dirExists) then
+! 			CALL EXECUTE_COMMAND_LINE ("mkdir -p Output",EXITSTAT=ESTAT, CMDSTAT=CSTAT, CMDMSG=CMSG)
+! 			if (CSTAT.gt.0) then
+! 				print*,"ERROR : Command execution failed",trim(CMSG)
+! 			else if (CSTAT.lt.0) then
+! 				print*,"ERROR : Command execution not supported"
+! 			else
+! 				print*,"Command completed with status",ESTAT
+! 			endif
+! 		endif
 
-	#endif
+! 	#endif
 	
-end subroutine MakeDirectories
+! end subroutine MakeDirectories
 
 !-------------------------------------------------------------------------------------------------
 !> @brief   Get phase complement and make the genotype
@@ -330,90 +331,90 @@ end subroutine SimpleCleanUpFillIn
 !  2017.09.08  mbattagin - Use all the progenies at the same time to build the consensus
 !--------------------------------------------------------------------------------------------------   
 
-subroutine BuildConsensus 
-	use GlobalPar
+! subroutine BuildConsensus 
+! 	use GlobalPar
 
-	implicit none
+! 	implicit none
 
-	integer :: i,k,e,j,m,a,nOffs,o,nFounders
-	integer(kind=1) :: ConsensusHaplotype
-	integer,dimension(2) :: countAllele !0 and 1
-	type(individual), pointer :: grandparent
-	integer,allocatable :: posOffs(:),founderOffspring(:)
+! 	integer :: i,k,e,j,m,a,nOffs,o,nFounders
+! 	integer(kind=1) :: ConsensusHaplotype
+! 	integer,dimension(2) :: countAllele !0 and 1
+! 	type(individual), pointer :: grandparent
+! 	integer,allocatable :: posOffs(:),founderOffspring(:)
 
-	do i=1,ped%pedigreeSize-ped%nDummys ! Parent
-		nOffs=ped%pedigree(i)%nOffs ! store nr of Offsprings
-		nFounders=0 ! Store number of offsprings with informative positions to build the consensus
-		k=ped%pedigree(i)%gender ! store the gender of the parent
+! 	do i=1,ped%pedigreeSize-ped%nDummys ! Parent
+! 		nOffs=ped%pedigree(i)%nOffs ! store nr of Offsprings
+! 		nFounders=0 ! Store number of offsprings with informative positions to build the consensus
+! 		k=ped%pedigree(i)%gender ! store the gender of the parent
 				
-		if ((nOffs.gt.0).and.(.not.ped%pedigree(i)%isDummy).and.(.not.ped%pedigree(i)%Founder)) then ! Build the consensus haplotypes using all the progeny informations
-			allocate(posOffs(nOffs))
-			allocate(founderOffspring(nOffs))
+! 		if ((nOffs.gt.0).and.(.not.ped%pedigree(i)%isDummy).and.(.not.ped%pedigree(i)%Founder)) then ! Build the consensus haplotypes using all the progeny informations
+! 			allocate(posOffs(nOffs))
+! 			allocate(founderOffspring(nOffs))
 
-			do o=1,nOffs
-				posOffs(o)=ped%pedigree(i)%offsprings(o)%p%id
-				if (maxval(FounderAssignment(posOffs(o),:,k)).ne.0) nFounders=nFounders+1 !Count how many individuals have informative snps
-			enddo
-			if (nFounders.gt.0) then ! Start to build the consensus
-				founderOffspring=0
-				do j=1,nSnp
-					founderOffspring=FounderAssignment(posOffs,j,k)
-					if (maxval(founderOffspring(:)).gt.0) then ! The snps have a founder, build it's consensus
-						do e=2,3
-							grandparent => ped%pedigree(i)%getSireDamObjectbyIndex(e)
+! 			do o=1,nOffs
+! 				posOffs(o)=ped%pedigree(i)%offsprings(o)%p%id
+! 				if (maxval(FounderAssignment(posOffs(o),:,k)).ne.0) nFounders=nFounders+1 !Count how many individuals have informative snps
+! 			enddo
+! 			if (nFounders.gt.0) then ! Start to build the consensus
+! 				founderOffspring=0
+! 				do j=1,nSnp
+! 					founderOffspring=FounderAssignment(posOffs,j,k)
+! 					if (maxval(founderOffspring(:)).gt.0) then ! The snps have a founder, build it's consensus
+! 						do e=2,3
+! 							grandparent => ped%pedigree(i)%getSireDamObjectbyIndex(e)
 						
-							ConsensusHaplotype=9
-							countAllele=0
-							do a=0,1 
-								if (((grandparent%individualPhase(1)%getPhase(j)+grandparent%individualPhase(2)%getPhase(j)).lt.3).and.(.not. grandparent%isDummy)) then
-									! Avoid to use markers that are not fully phased for the grandparent
-									do m=1,2 
-										if (grandparent%individualPhase(m)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
-									enddo
-								endif
+! 							ConsensusHaplotype=9
+! 							countAllele=0
+! 							do a=0,1 
+! 								if (((grandparent%individualPhase(1)%getPhase(j)+grandparent%individualPhase(2)%getPhase(j)).lt.3).and.(.not. grandparent%isDummy)) then
+! 									! Avoid to use markers that are not fully phased for the grandparent
+! 									do m=1,2 
+! 										if (grandparent%individualPhase(m)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
+! 									enddo
+! 								endif
 	
-								if (ped%pedigree(i)%individualPhase(e-1)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
+! 								if (ped%pedigree(i)%individualPhase(e-1)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
 
-								do o=1,nOffs
-									if (founderOffspring(o).eq.e) then
-										if (ped%pedigree(posOffs(o))%individualPhase(k)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
-									endif
-								enddo
-							enddo
-							! Fill the phases
-	 						if ((countAllele(2).gt.1).and.(countAllele(2).gt.countAllele(1))) ConsensusHaplotype=1
-	 						if ((countAllele(1).gt.1).and.(countAllele(1).gt.countAllele(2))) ConsensusHaplotype=0
+! 								do o=1,nOffs
+! 									if (founderOffspring(o).eq.e) then
+! 										if (ped%pedigree(posOffs(o))%individualPhase(k)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
+! 									endif
+! 								enddo
+! 							enddo
+! 							! Fill the phases
+! 	 						if ((countAllele(2).gt.1).and.(countAllele(2).gt.countAllele(1))) ConsensusHaplotype=1
+! 	 						if ((countAllele(1).gt.1).and.(countAllele(1).gt.countAllele(2))) ConsensusHaplotype=0
 	 						
-	 						if (ConsensusHaplotype.ne.9) then
-	 							!if ((minval(countAllele).gt.0).and.(nFounders.gt.1)) write(*,'(1a10,7(1x,i0),10x,100i1)'),ped%pedigree(i)%originalID,i,j,e,nOffs,nFounders,countAllele, founderOffspring
-								call ped%pedigree(i)%individualPhase(e-1)%setPhase(j,ConsensusHaplotype)
-								do o=1,nOffs
-	 								if (founderOffspring(o).eq.e) then
-			 							call ped%pedigree(posOffs(o))%individualPhase(k)%setPhase(j,ConsensusHaplotype)
-									endif
-	 							enddo
-	 						endif	
+! 	 						if (ConsensusHaplotype.ne.9) then
+! 	 							!if ((minval(countAllele).gt.0).and.(nFounders.gt.1)) write(*,'(1a10,7(1x,i0),10x,100i1)'),ped%pedigree(i)%originalID,i,j,e,nOffs,nFounders,countAllele, founderOffspring
+! 								call ped%pedigree(i)%individualPhase(e-1)%setPhase(j,ConsensusHaplotype)
+! 								do o=1,nOffs
+! 	 								if (founderOffspring(o).eq.e) then
+! 			 							call ped%pedigree(posOffs(o))%individualPhase(k)%setPhase(j,ConsensusHaplotype)
+! 									endif
+! 	 							enddo
+! 	 						endif	
 	
-						enddo
-					endif
-				enddo
-				call ped%pedigree(i)%makeIndividualPhaseCompliment()
-				call ped%pedigree(i)%makeIndividualGenotypeFromPhase()
-				do o=1,nOffs
-					call ped%pedigree(posOffs(o))%makeIndividualPhaseCompliment()
-					call ped%pedigree(posOffs(o))%makeIndividualGenotypeFromPhase()
-				enddo
+! 						enddo
+! 					endif
+! 				enddo
+! 				call ped%pedigree(i)%makeIndividualPhaseCompliment()
+! 				call ped%pedigree(i)%makeIndividualGenotypeFromPhase()
+! 				do o=1,nOffs
+! 					call ped%pedigree(posOffs(o))%makeIndividualPhaseCompliment()
+! 					call ped%pedigree(posOffs(o))%makeIndividualGenotypeFromPhase()
+! 				enddo
 
-			endif	
-			deallocate(posOffs)
-			deallocate(founderOffspring)
+! 			endif	
+! 			deallocate(posOffs)
+! 			deallocate(founderOffspring)
 
-		endif
-	enddo
+! 		endif
+! 	enddo
 
-	call ped%cleangenotypesbasedonhaplotypes()
+! 	call ped%cleangenotypesbasedonhaplotypes()
 
-end subroutine BuildConsensus 
+! end subroutine BuildConsensus 
 
 !-------------------------------------------------------------------------------------------------
 !> @brief   Work Left/Work Rigth to find chunks of haplotypes using the Founder Assignement array
@@ -436,139 +437,116 @@ end subroutine BuildConsensus
 ! 
 !--------------------------------------------------------------------------------------------------   
 
-subroutine ChunkDefinition
+! subroutine ChunkDefinition
 
-	use GlobalPar
-	use IntelRNGMod
-	use coreutils
-	implicit none
+! 	use GlobalPar
+! 	use IntelRNGMod
+! 	use coreutils
+! 	implicit none
 
-	integer 			:: i,j,e,k,c,nCores
-	integer 			:: f1,p1,p2,founder
-	integer 			:: fSnp
-	integer 			:: lSnp
-	integer 			:: ChunkLength
-	real,dimension(1)   :: Z
-	integer,allocatable,dimension (:,:) :: CoreIndex
+! 	integer 			:: i,j,e,k,c,nCores
+! 	integer 			:: f1,p1,p2,founder
+! 	integer 			:: fSnp
+! 	integer 			:: lSnp
+! 	integer 			:: ChunkLength
+! 	real,dimension(1)   :: Z
+! 	integer,allocatable,dimension (:,:) :: CoreIndex
 	
-	integer,allocatable,dimension(:) :: FounderAssignmentF,FounderAssignmentB
+! 	integer,allocatable,dimension(:) :: FounderAssignmentF,FounderAssignmentB
 
 
-	real,dimension(2) :: f
+! 	real,dimension(2) :: f
 
-	! Check window size
-	if (minWindowSizeHapDefinition.gt.nSnp) then
-		print*,"WARNING: min window size > nSnp"
-		print*,"         use nSnp as min window size"
-		minWindowSizeHapDefinition=nSnp
-	endif
+! 	! Check window size
+! 	if (minWindowSizeHapDefinition.gt.nSnp) then
+! 		print*,"WARNING: min window size > nSnp"
+! 		print*,"         use nSnp as min window size"
+! 		minWindowSizeHapDefinition=nSnp
+! 	endif
 
-	if (maxWindowSizeHapDefinition.gt.nSnp) then
-		print*,"WARNING: max window size > nSnp"
-		print*,"         use nSnp as max window size"
-		maxWindowSizeHapDefinition=nSnp
-	endif
+! 	if (maxWindowSizeHapDefinition.gt.nSnp) then
+! 		print*,"WARNING: max window size > nSnp"
+! 		print*,"         use nSnp as max window size"
+! 		maxWindowSizeHapDefinition=nSnp
+! 	endif
 
-	if (minWindowSizeHapDefinition.gt.maxWindowSizeHapDefinition) then
-		print*,"WARNING: min window size > max window size"
-		print*,"         use max window size as min window size"
-		minWindowSizeHapDefinition=maxWindowSizeHapDefinition
-	endif
+! 	if (minWindowSizeHapDefinition.gt.maxWindowSizeHapDefinition) then
+! 		print*,"WARNING: min window size > max window size"
+! 		print*,"         use max window size as min window size"
+! 		minWindowSizeHapDefinition=maxWindowSizeHapDefinition
+! 	endif
 
-	Z = SampleIntelUniformS(n=1,a=0.0,b=1.0) 
-	ChunkLength=floor((dble(minWindowSizeHapDefinition)-1)+(dble(maxWindowSizeHapDefinition)-(dble(minWindowSizeHapDefinition)-1))*Z(1))+1
-	nCores=nSnp/ChunkLength
-	allocate(CoreIndex(nCores,2))
+! 	Z = SampleIntelUniformS(n=1,a=0.0,b=1.0) 
+! 	ChunkLength=floor((dble(minWindowSizeHapDefinition)-1)+(dble(maxWindowSizeHapDefinition)-(dble(minWindowSizeHapDefinition)-1))*Z(1))+1
+! 	nCores=nSnp/ChunkLength
+! 	allocate(CoreIndex(nCores,2))
 	
-	CoreIndex=calculatecores(nSnp,ChunkLength,.false.)
-	nCores=size(CoreIndex)/2
+! 	CoreIndex=calculatecores(nSnp,ChunkLength,.false.)
+! 	nCores=size(CoreIndex)/2
 
-	do i=1,nCores
-		write(101,'(6(1x,i0))') Windows,IterationNumber,i,CoreIndex(i,:)
-	enddo
+! 	do i=1,nCores
+! 		write(101,'(6(1x,i0))') Windows,IterationNumber,i,CoreIndex(i,:)
+! 	enddo
 
-	!$OMP PARALLEL DO DEFAULT(SHARED)  PRIVATE(c,i,k,j,f,p1,p2,ChunkLength,fSnp,lSnp)
-	do c=1,nCores
-		ChunkLength=CoreIndex(c,2)-CoreIndex(c,1)+1
-		do i=1,ped%pedigreeSize-ped%nDummys
-			do k=1,2 ! paternal or maternal gamete
-				
-				fSnp=CoreIndex(c,1)
-				lSnp=CoreIndex(c,2)
-
-				f(1)=sum(HapProb(i,fSnp:lSnp,k,1))
-				f(2)=sum(HapProb(i,fSnp:lSnp,k,2))
-	 			!write(*,'(1a10,1i2,3i5,2i5,1x,250i0)'),ped%pedigree(i)%originalID,k,ChunkLength,p1,p2,f,FounderAssignment(i,fSnp:lSnp,k)
-	 			if (f(1).gt.f(2)) FounderAssignment(i,fSnp:lSnp,k)=2
-	 			if (f(2).gt.f(1)) FounderAssignment(i,fSnp:lSnp,k)=3
-	 			!write(*,'(1a10,1i2,3i5,2i5,1x,250i0)'),ped%pedigree(i)%originalID,k,ChunkLength,p1,p2,f,FounderAssignment(i,fSnp:lSnp,k)
-		 			
-	 			
-			enddo
-		enddo
-	enddo
-	!$OMP END PARALLEL DO
-
-	! OLD CHUNK DEFINITION	
-	! !$OMP PARALLEL DO DEFAULT(SHARED)  PRIVATE(c,i,k,e,j,f1,ChunkLength,fSnp,lSnp,FounderAssignmentF,FounderAssignmentB)
-	! do c=1,nCores
-	! 	ChunkLength=CoreIndex(c,2)-CoreIndex(c,1)+1
-	! 	do i=1,ped%pedigreeSize-ped%nDummys
-	! 		do k=1,2 ! paternal or maternal gamete
-	! 			e=k+1 ! position parents in Pedigree
+! 	!$OMP PARALLEL DO DEFAULT(SHARED)  PRIVATE(c,i,k,e,j,f1,ChunkLength,fSnp,lSnp,FounderAssignmentF,FounderAssignmentB)
+! 	do c=1,nCores
+! 		ChunkLength=CoreIndex(c,2)-CoreIndex(c,1)+1
+! 		do i=1,ped%pedigreeSize-ped%nDummys
+! 			do k=1,2 ! paternal or maternal gamete
+! 				e=k+1 ! position parents in Pedigree
 				
 				
-	! 			fSnp=CoreIndex(c,1)
-	! 			lSnp=CoreIndex(c,2)
+! 				fSnp=CoreIndex(c,1)
+! 				lSnp=CoreIndex(c,2)
 				
-	! 			!if (count(FounderAssignment(i,fSnp:lSnp,k).ne.0).gt.1) then
-	! 			if (dble(count(FounderAssignment(i,fSnp:lSnp,k).ne.0))/dble(ChunkLength).gt.0.05) then
+! 				!if (count(FounderAssignment(i,fSnp:lSnp,k).ne.0).gt.1) then
+! 				if (dble(count(FounderAssignment(i,fSnp:lSnp,k).ne.0))/dble(ChunkLength).gt.0.05) then
 
-	! 				allocate(FounderAssignmentF(ChunkLength))
-	! 				allocate(FounderAssignmentB(ChunkLength))
+! 					allocate(FounderAssignmentF(ChunkLength))
+! 					allocate(FounderAssignmentB(ChunkLength))
 
-	! 				FounderAssignmentF=0
-	! 				FounderAssignmentB=0
+! 					FounderAssignmentF=0
+! 					FounderAssignmentB=0
 
-	! 				FounderAssignmentF(:)=FounderAssignment(i,fSnp:lSnp,k)
-	! 				FounderAssignmentB(:)=FounderAssignment(i,fSnp:lSnp,k)
+! 					FounderAssignmentF(:)=FounderAssignment(i,fSnp:lSnp,k)
+! 					FounderAssignmentB(:)=FounderAssignment(i,fSnp:lSnp,k)
 
 					
-	! 				f1=0
-	! 				!!! Forward founder assignment 
-	! 				do j=1,ChunkLength
-	! 					if (FounderAssignmentF(j)/=0)then
-	! 						f1=FounderAssignmentF(j)
-	! 					endif
-	! 					if ((FounderAssignmentF(j)==0)) then
-	! 						FounderAssignmentF(j)=f1
-	! 					endif 
-	! 				enddo
+! 					f1=0
+! 					!!! Forward founder assignment 
+! 					do j=1,ChunkLength
+! 						if (FounderAssignmentF(j)/=0)then
+! 							f1=FounderAssignmentF(j)
+! 						endif
+! 						if ((FounderAssignmentF(j)==0)) then
+! 							FounderAssignmentF(j)=f1
+! 						endif 
+! 					enddo
 
-	! 				f1=0
-	! 				!!! Backward founder assignment 
-	! 				do j=ChunkLength,1,-1
-	! 					if (FounderAssignmentB(j)/=0)then
-	! 						f1=FounderAssignmentB(j)
-	! 					endif
-	! 					if ((FounderAssignmentB(j)==0)) then
-	! 						FounderAssignmentB(j)=f1
-	! 					endif 
-	! 				enddo
+! 					f1=0
+! 					!!! Backward founder assignment 
+! 					do j=ChunkLength,1,-1
+! 						if (FounderAssignmentB(j)/=0)then
+! 							f1=FounderAssignmentB(j)
+! 						endif
+! 						if ((FounderAssignmentB(j)==0)) then
+! 							FounderAssignmentB(j)=f1
+! 						endif 
+! 					enddo
 					
-	! 				do j=1,ChunkLength
-	! 					if (FounderAssignmentF(j)==FounderAssignmentB(j)) FounderAssignment(i,(fSnp+j-1),k)=FounderAssignmentF(j)
-	! 					if (FounderAssignmentF(j)/=FounderAssignmentB(j)) FounderAssignment(i,(fSnp+j-1),k)=0
-	! 				enddo	
-	! 				deallocate(FounderAssignmentF)
-	! 				deallocate(FounderAssignmentB)
-	! 			endif
-	! 		enddo
-	! 	enddo
-	! enddo
-	! !$OMP END PARALLEL DO
+! 					do j=1,ChunkLength
+! 						if (FounderAssignmentF(j)==FounderAssignmentB(j)) FounderAssignment(i,(fSnp+j-1),k)=FounderAssignmentF(j)
+! 						if (FounderAssignmentF(j)/=FounderAssignmentB(j)) FounderAssignment(i,(fSnp+j-1),k)=0
+! 					enddo	
+! 					deallocate(FounderAssignmentF)
+! 					deallocate(FounderAssignmentB)
+! 				endif
+! 			enddo
+! 		enddo
+! 	enddo
+! 	!$OMP END PARALLEL DO
 
-end subroutine ChunkDefinition
+! end subroutine ChunkDefinition
 
 !-------------------------------------------------------------------------------------------------
 !> @brief   Assign from which founder the haplotype has been inherited.
@@ -583,52 +561,38 @@ subroutine CalculateFounderAssignment
 	use omp_lib
 	implicit none
 
-	integer :: i,j,e,phaseId,geno,parent
+	integer :: i,j,e,phaseId,geno
 	integer,dimension(2) :: phasePar
-	real :: idGam,patGam,matGam,f1,f2
-	!type(individual),pointer :: parent
+	type(individual),pointer :: parent
 	
 	FounderAssignment(:,:,:)=0
-	HapProb(:,:,:,:)=0
-	do e=1,2 ! paternal or maternal gamete
+
+
+   	!$OMP PARALLEL DO ORDERED DEFAULT(SHARED)  PRIVATE(e,i,j,parent,phaseId,geno,phasePar) !collapse(2)	
+	do e=2,3 ! Sire and Dam pos in the ped
 		do i=1,ped%pedigreeSize-ped%nDummys
 			if (.not. ped%pedigree(i)%Founder) then
-				if (e.eq.1) parent = ped%pedigree(i)%sirePointer%id
-				if (e.eq.2) parent = ped%pedigree(i)%damPointer%id
-				do j=1,nSnp
-					idGam=ReadCounts(1,j,i)+ReadCounts(e+1,j,i)
-					HapProb(i,j,e,1)=idGam*(ReadCounts(1,j,parent)+ReadCounts(2,j,parent))
-					HapProb(i,j,e,2)=idGam*(ReadCounts(1,j,parent)+ReadCounts(3,j,parent))
-				enddo
+				parent => ped%pedigree(i)%getSireDamObjectByIndex(e)
+				
+				if (associated(parent)) then
+		 			do j=1,nSnp
+						phaseId = ped%pedigree(i)%individualPhase(e-1)%getPhase(j)
+						
+						geno = parent%individualGenotype%getGenotype(j)
+						phasePar(1) =parent%individualPhase(1)%getPhase(j)
+		 				phasePar(2) =parent%individualPhase(2)%getPhase(j)
+
+						if ((geno.eq.1).and.(sum(phasePar).lt.3)) then
+							if (phasePar(1).eq.phaseId) FounderAssignment(i,j,(e-1))=2 !GrandSire 
+							if (phasePar(2).eq.phaseId) FounderAssignment(i,j,(e-1))=3 !GrandDam
+						endif
+
+					enddo
+				endif
 			endif
 		enddo
 	enddo
-
-
-
- !   	!!$OMP PARALLEL DO ORDERED DEFAULT(SHARED)  PRIVATE(e,i,j,parent,phaseId,geno,phasePar) !collapse(2)	
-	! do e=2,3 ! Sire and Dam pos in the ped
-	! 	do i=1,ped%pedigreeSize-ped%nDummys
-	! 		if (.not. ped%pedigree(i)%Founder) then
-	! 			parent => ped%pedigree(i)%getSireDamObjectByIndex(e)
-	!			if (associated(parent)) then
-	!	 			do j=1,nSnp
-	! 					phaseId = ped%pedigree(i)%individualPhase(e-1)%getPhase(j)
-						
-	! 					geno = parent%individualGenotype%getGenotype(j)
-	! 					phasePar(1) =parent%individualPhase(1)%getPhase(j)
-	!	 				phasePar(2) =parent%individualPhase(2)%getPhase(j)
-
-	! 					if ((geno.eq.1).and.(sum(phasePar).lt.3)) then
-	! 						if (phasePar(1).eq.phaseId) FounderAssignment(i,j,(e-1))=2 !GrandSire 
-	! 						if (phasePar(2).eq.phaseId) FounderAssignment(i,j,(e-1))=3 !GrandDam
-	! 					endif
-	! 				enddo
-	!			endif
-	! 		endif
-	! 	enddo
-	! enddo
- !    !!$OMP END PARALLEL DO
+    !$OMP END PARALLEL DO
 end subroutine CalculateFounderAssignment
 
 !-------------------------------------------------------------------------------------------------
@@ -808,7 +772,7 @@ subroutine ReadPrevGeneProb
 	character(len=IDLENGTH)					:: DumC
 	character(len=:), allocatable			:: filout5
 	real(real64),dimension(:), allocatable 	:: temp
-	integer 								:: unit, count,stat
+	integer 								:: unit, count
 	integer(4) recl_at_start, recl_at_end
 	
 	filout5 ="AlphaFamSeqFinalSLP_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".bin"
@@ -925,29 +889,32 @@ subroutine WriteResults
 	! WriteOut Full Output
 
 	write(nChar,*) nSnp
-	FmtInt2='(a20,'//trim(adjustl(nChar))//'(1x,i0))'
+	FmtInt2='(a20,1x,'//trim(adjustl(nChar))//'(i0))'
 	
 	filout1 ="AlphaFamSeqFinalPhase_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".txt"
 	filout2 ="AlphaFamSeqFinalGenos_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".txt"
-	filout4 ="AlphaFamSeqFounderAssignment_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".txt"
-
 	
 	call ped%writeoutphase(trim(filout1))
 	call ped%writeoutgenotypes(trim(filout2))
 
-	open (unit=4,file=trim(filout4),status="unknown")
-	do i=1,ped%pedigreeSize-ped%nDummys
-		!tmpId = ped%inputMap(i)
-		if (maxval(FounderAssignment(i,:,:))/=0) then 
-			!print*,i,tmpId," ",ped%pedigree(i)," ",ped%pedigree(tmpId)%originalID
-			write (4,FmtInt2) ped%pedigree(i)%originalID,FounderAssignment(i,:,1)
-			write (4,FmtInt2) ped%pedigree(i)%originalID,FounderAssignment(i,:,2)
-		endif
-	enddo
-
 	close (1)
 	close (2)
-	close (4)
+
+	if (maxWindowSizeHapDefinition.gt.1) then
+		filout4 ="AlphaFamSeqFinalFounderAssignment_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".txt"
+
+		open (unit=4,file=trim(filout4),status="unknown")
+		do i=1,ped%pedigreeSize-ped%nDummys
+			!tmpId = ped%inputMap(i)
+			!if (maxval(FounderAssignment(i,:,:))/=0) then 
+				!print*,i,tmpId," ",ped%pedigree(i)," ",ped%pedigree(tmpId)%originalID
+				write (4,FmtInt2) ped%pedigree(i)%originalID,FounderAssignment(i,:,1)
+				write (4,FmtInt2) ped%pedigree(i)%originalID,FounderAssignment(i,:,2)
+			!endif
+		enddo
+		close (4)
+	endif
+	
 end subroutine WriteResults
 
 !################################################################################################
