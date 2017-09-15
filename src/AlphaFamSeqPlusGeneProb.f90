@@ -172,8 +172,6 @@ program FamilyPhase
 		allocate(FounderAssignment(ped%pedigreeSize-ped%nDummys,nSnp,2))
 	endif
 	
-	call CalculateFounderAssignment
-
 	! Iterate on the next steps ----------------------------------------------------------------------------------------
 	 print*," "
 	 write (*,'(1a39)') " Window Iter   ProbThr    %Phase   %Geno"
@@ -207,7 +205,7 @@ program FamilyPhase
 	 	if (maxWindowSizeHapDefinition.gt.1) then
 !			call CalculateFounderAssignment
 
-!		 	call ChunkDefinition
+		 	call ChunkDefinition
 !	 		call BuildConsensus
 !	 		call SimpleCleanUpFillIn
 	 	endif
@@ -439,56 +437,64 @@ end subroutine SimpleCleanUpFillIn
 ! 
 !--------------------------------------------------------------------------------------------------   
 
-! subroutine ChunkDefinition
+subroutine ChunkDefinition
 
-! 	use GlobalPar
-! 	use IntelRNGMod
-! 	use coreutils
-! 	implicit none
+	use GlobalPar
+	use IntelRNGMod
+	use coreutils
+	implicit none
 
-! 	integer 			:: i,j,e,k,c,nCores
-! 	integer 			:: f1,p1,p2,founder
-! 	integer 			:: fSnp
-! 	integer 			:: lSnp
-! 	integer 			:: ChunkLength
-! 	real,dimension(1)   :: Z
-! 	integer,allocatable,dimension (:,:) :: CoreIndex
+	integer 			:: i,j,e,k,c,nCores
+	integer 			:: f1,p1,p2,founder
+	integer 			:: fSnp
+	integer 			:: lSnp
+	integer 			:: ChunkLength
+	real,dimension(1)   :: Z
+	integer,allocatable,dimension (:,:) :: CoreIndex
 	
-! 	integer,allocatable,dimension(:) :: FounderAssignmentF,FounderAssignmentB
+	integer,allocatable,dimension(:) :: FounderAssignmentF,FounderAssignmentB
 
 
-! 	real,dimension(2) :: f
+	real,dimension(2) :: f
 
-! 	! Check window size
-! 	if (minWindowSizeHapDefinition.gt.nSnp) then
-! 		print*,"WARNING: min window size > nSnp"
-! 		print*,"         use nSnp as min window size"
-! 		minWindowSizeHapDefinition=nSnp
-! 	endif
+	! Check window size
+	if (minWindowSizeHapDefinition.gt.nSnp) then
+		print*,"WARNING: min window size > nSnp"
+		print*,"         use nSnp as min window size"
+		minWindowSizeHapDefinition=nSnp
+	endif
 
-! 	if (maxWindowSizeHapDefinition.gt.nSnp) then
-! 		print*,"WARNING: max window size > nSnp"
-! 		print*,"         use nSnp as max window size"
-! 		maxWindowSizeHapDefinition=nSnp
-! 	endif
+	if (maxWindowSizeHapDefinition.gt.nSnp) then
+		print*,"WARNING: max window size > nSnp"
+		print*,"         use nSnp as max window size"
+		maxWindowSizeHapDefinition=nSnp
+	endif
 
-! 	if (minWindowSizeHapDefinition.gt.maxWindowSizeHapDefinition) then
-! 		print*,"WARNING: min window size > max window size"
-! 		print*,"         use max window size as min window size"
-! 		minWindowSizeHapDefinition=maxWindowSizeHapDefinition
-! 	endif
+	if (minWindowSizeHapDefinition.gt.maxWindowSizeHapDefinition) then
+		print*,"WARNING: min window size > max window size"
+		print*,"         use max window size as min window size"
+		minWindowSizeHapDefinition=maxWindowSizeHapDefinition
+	endif
 
-! 	Z = SampleIntelUniformS(n=1,a=0.0,b=1.0) 
-! 	ChunkLength=floor((dble(minWindowSizeHapDefinition)-1)+(dble(maxWindowSizeHapDefinition)-(dble(minWindowSizeHapDefinition)-1))*Z(1))+1
-! 	nCores=nSnp/ChunkLength
-! 	allocate(CoreIndex(nCores,2))
+	Z = SampleIntelUniformS(n=1,a=0.0,b=1.0) 
+	ChunkLength=floor((dble(minWindowSizeHapDefinition)-1)+(dble(maxWindowSizeHapDefinition)-(dble(minWindowSizeHapDefinition)-1))*Z(1))+1
+	nCores=nSnp/ChunkLength
+	allocate(CoreIndex(nCores,2))
 	
-! 	CoreIndex=calculatecores(nSnp,ChunkLength,.false.)
-! 	nCores=size(CoreIndex)/2
+	CoreIndex=calculatecores(nSnp,ChunkLength,.false.)
+	nCores=size(CoreIndex)/2
 
-! 	do i=1,nCores
-! 		write(101,'(6(1x,i0))') Windows,IterationNumber,i,CoreIndex(i,:)
-! 	enddo
+	do i=1,nCores
+		write(101,'(6(1x,i0))') Windows,IterationNumber,i,CoreIndex(i,:)
+	enddo
+
+
+	do c=1,nCores
+		fSnp=CoreIndex(c,1)
+		lSnp=CoreIndex(c,2)
+
+		call CalculateFounderAssignment(fSnp,lSnp)
+	enddo
 
 ! 	!$OMP PARALLEL DO DEFAULT(SHARED)  PRIVATE(c,i,k,e,j,f1,ChunkLength,fSnp,lSnp,FounderAssignmentF,FounderAssignmentB)
 ! 	do c=1,nCores
@@ -548,7 +554,7 @@ end subroutine SimpleCleanUpFillIn
 ! 	enddo
 ! 	!$OMP END PARALLEL DO
 
-! end subroutine ChunkDefinition
+ end subroutine ChunkDefinition
 
 !-------------------------------------------------------------------------------------------------
 !> @brief   Assign from which founder the haplotype has been inherited.
@@ -558,11 +564,12 @@ end subroutine SimpleCleanUpFillIn
 !> @date    August 30, 2017
 !--------------------------------------------------------------------------------------------------   
 
-subroutine CalculateFounderAssignment
+subroutine CalculateFounderAssignment(fSnp,lSnp)
 	use GlobalPar
 	use omp_lib
 	implicit none
 
+	integer,intent(in) :: fSnp,lSnp
 	integer :: i,j,e,k,phaseId,geno
 	integer,dimension(2) :: phasePar
 	type(individual),pointer :: parent
@@ -588,7 +595,7 @@ subroutine CalculateFounderAssignment
 			    	k=e-1
 					parent => ped%pedigree(i)%getSireDamObjectByIndex(e)
 	    			if (associated(parent)) then
-		    			do j=1,nSnp
+		    			do j=fSnp,lSnp
 		    				ParentProb=0
 		    				ProgenyProb=0
 
@@ -600,8 +607,8 @@ subroutine CalculateFounderAssignment
 		    					HapProb(2)=HapProb(2)+(ProgenyProb*ParentProb)
 		    				endif
 		    			enddo
-		    			if (HapProb(1)/HapProb(2).ge.1.5) write(4,'(1a20,1i2,2f15.4,1i2)') ped%pedigree(i)%originalID,k,HapProb(:),2
-		    			if (HapProb(1)/HapProb(2).le.0.5) write(4,'(1a20,1i2,2f15.4,1i2)') ped%pedigree(i)%originalID,k,HapProb(:),3
+		    			if (HapProb(1)/HapProb(2).ge.1.5) write(4,'(1a20,1i2,2i10,1i2)') ped%pedigree(i)%originalID,k,fSnp,lSnp,2
+		    			if (HapProb(1)/HapProb(2).le.0.5) write(4,'(1a20,1i2,2i10,1i2)') ped%pedigree(i)%originalID,k,fSnp,lSnp,3
 	    				
 	    			endif
 	    		enddo
