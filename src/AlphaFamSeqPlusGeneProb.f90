@@ -611,7 +611,7 @@ subroutine CalculateFounderAssignment(fSnp,lSnp)
 		    					ParentProb=1-ReadCounts(2,j,parent%id)
 		    					ProgenyProb=ReadCounts(1,j,i)+ReadCounts(2,j,i)
 		    					PP(1)=(1-ProgenyProb)*ParentProb
-		    					(2)=ProgenyProb*ParentProb
+		    					PP(2)=ProgenyProb*ParentProb
 		    					
 		    					HapProb(1)=HapProb(1)+PP(1)*sum(PP)
 		    					HapProb(2)=HapProb(2)+PP(2)*sum(PP)
