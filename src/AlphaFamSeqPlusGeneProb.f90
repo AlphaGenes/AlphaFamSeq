@@ -613,8 +613,8 @@ subroutine CalculateFounderAssignment(fSnp,lSnp)
 		    					HapProb(2)=HapProb(2)+(ProgenyProb*ParentProb)
 		    				endif
 		    			enddo
-		    			if (HapProb(1)/HapProb(2).ge.1.5) write(*,'(1a20,1i2,2i10,1i2)') ped%pedigree(i)%originalID,k,fSnp,lSnp,2
-		    			if (HapProb(1)/HapProb(2).le.0.5) write(*,'(1a20,1i2,2i10,1i2)') ped%pedigree(i)%originalID,k,fSnp,lSnp,3
+		    			if (HapProb(1)/HapProb(2).ge.1.5) write(*,'(1a20,1i2,2i10,2f20.4,1i2)') ped%pedigree(i)%originalID,k,fSnp,lSnp,HapProb,2
+		    			if (HapProb(1)/HapProb(2).le.0.5) write(*,'(1a20,1i2,2i10,2f20.4,1i2)') ped%pedigree(i)%originalID,k,fSnp,lSnp,HapProb,3
 	    				
 	    			endif
 	    		enddo
