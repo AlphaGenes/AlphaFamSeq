@@ -497,7 +497,6 @@ subroutine ChunkDefinition
 		fSnp=lSnp-ChunkLength/2
 		lSnp=lSnp+ChunkLength/2
 		call CalculateFounderAssignment(fSnp,lSnp)
-		endif
 
 	enddo
 
