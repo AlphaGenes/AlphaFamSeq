@@ -581,7 +581,7 @@ subroutine CalculateFounderAssignment(fSnp,lSnp)
 	type(individual),pointer :: parent
 
 	real :: ParentProb,ProgenyProb
-	real,allocatable,dimension(:) :: HapProb
+	real,allocatable,dimension(:) :: HapProb,PP
 	character(len=80) :: filout4
 	
 	filout4 ="AlphaFamSeqHapProb.txt"
@@ -590,6 +590,7 @@ subroutine CalculateFounderAssignment(fSnp,lSnp)
 
 
 	allocate(HapProb(2))
+	allocate(PP(2))
 	
 	FounderAssignment(:,:,:)=0
 
@@ -609,8 +610,11 @@ subroutine CalculateFounderAssignment(fSnp,lSnp)
 		    				if ((ReadCounts(2,j,parent%id).eq.maxval(ReadCounts(:,j,parent%id))).or.(ReadCounts(3,j,parent%id).eq.maxval(ReadCounts(:,j,parent%id)))) then
 		    					ParentProb=1-ReadCounts(2,j,parent%id)
 		    					ProgenyProb=ReadCounts(1,j,i)+ReadCounts(2,j,i)
-		    					HapProb(1)=HapProb(1)+(1-ProgenyProb)*ParentProb
-		    					HapProb(2)=HapProb(2)+(ProgenyProb*ParentProb)
+		    					PP(1)=(1-ProgenyProb)*ParentProb
+		    					(2)=ProgenyProb*ParentProb
+		    					
+		    					HapProb(1)=HapProb(1)+PP(1)*sum(PP)
+		    					HapProb(2)=HapProb(2)+PP(2)*sum(PP)
 		    				endif
 		    			enddo
 		    			if (HapProb(1)/HapProb(2).ge.1.5) write(*,'(1a20,1i2,2i10,2f20.4,1i2)') ped%pedigree(i)%originalID,k,fSnp,lSnp,HapProb,2
