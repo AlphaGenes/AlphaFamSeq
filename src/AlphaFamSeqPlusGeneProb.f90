@@ -494,10 +494,9 @@ subroutine ChunkDefinition
 		lSnp=CoreIndex(c,2)
 
 		call CalculateFounderAssignment(fSnp,lSnp)
-		if (c.gt.1) then
-			fSnp=fSnp-ChunkLength/2
-			lSnp=lSnp-ChunkLength/2
-			call CalculateFounderAssignment(fSnp,lSnp)
+		fSnp=lSnp-ChunkLength/2
+		lSnp=lSnp+ChunkLength/2
+		call CalculateFounderAssignment(fSnp,lSnp)
 		endif
 
 	enddo
