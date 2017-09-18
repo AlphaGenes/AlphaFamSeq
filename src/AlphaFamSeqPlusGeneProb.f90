@@ -580,87 +580,33 @@ subroutine CalculateFounderAssignment(fSnp,lSnp)
 	integer,dimension(2) :: phasePar
 	type(individual),pointer :: parent
 
-	real :: ParentProb,ProgenyProb
-	real,allocatable,dimension(:) :: HapProb,PP
-	character(len=80) :: filout4
-	
-	filout4 ="AlphaFamSeqHapProb.txt"
+	FounderAssignment=0
 
-	open (unit=4,file=trim(filout4),status="unknown")
-
-
-	allocate(HapProb(2))
-	allocate(PP(2))
-	
-	FounderAssignment(:,:,:)=0
-
-    	do i=1,ped%pedigreeSize-ped%nDummys	
-    		if (.not. ped%pedigree(i)%Founder) then
-			    do e=2,3
-		    		HapProb(:)=.5
-
-			    	k=e-1
-					parent => ped%pedigree(i)%getSireDamObjectByIndex(e)
-	    			if (associated(parent)) then
-	    				nHet=0
-		    			do j=fSnp,lSnp
-		    				ParentProb=0
-		    				ProgenyProb=0
-
-		    				! The parent is heterozygous
-		    				if ((ReadCounts(2,j,parent%id).eq.maxval(ReadCounts(:,j,parent%id))).or.(ReadCounts(3,j,parent%id).eq.maxval(ReadCounts(:,j,parent%id)))) then
-		    					nHet=nHet+1
-		    					ParentProb=1-ReadCounts(2,j,parent%id)
-		    					ProgenyProb=ReadCounts(1,j,i)+ReadCounts(2,j,i)
-		    					PP(1)=(1-ProgenyProb)*ParentProb
-		    					PP(2)=ProgenyProb*ParentProb
-		    					
-		    					HapProb(1)=HapProb(1)+PP(1)*sum(PP)
-		    					HapProb(2)=HapProb(2)+PP(2)*sum(PP)
-		    				endif
-		    			enddo
-		    			if (HapProb(1)/HapProb(2).ge.1.5) write(*,'(1a20,1i2,3i10,2f20.4,1i2)') ped%pedigree(i)%originalID,k,fSnp,lSnp,nHet,HapProb,2
-		    			if (HapProb(1)/HapProb(2).le.0.5) write(*,'(1a20,1i2,3i10,2f20.4,1i2)') ped%pedigree(i)%originalID,k,fSnp,lSnp,nHet,HapProb,3
-	    				
-	    			endif
-	    		enddo
-	    	endif
-    	enddo
-    close(4)
-
-
-
-
-
-
-
-	! OldFounder Assignement
-
- 	!   	!$OMP PARALLEL DO ORDERED DEFAULT(SHARED)  PRIVATE(e,i,j,parent,phaseId,geno,phasePar) !collapse(2)	
-	! do e=2,3 ! Sire and Dam pos in the ped
-	! 	do i=1,ped%pedigreeSize-ped%nDummys
-	! 		if (.not. ped%pedigree(i)%Founder) then
-	! 			parent => ped%pedigree(i)%getSireDamObjectByIndex(e)
+  	!$OMP PARALLEL DO ORDERED DEFAULT(SHARED)  PRIVATE(e,i,j,parent,phaseId,geno,phasePar) !collapse(2)	
+	do e=2,3 ! Sire and Dam pos in the ped
+		do i=1,ped%pedigreeSize-ped%nDummys
+			if (.not. ped%pedigree(i)%Founder) then
+				parent => ped%pedigree(i)%getSireDamObjectByIndex(e)
 				
-	! 			if (associated(parent)) then
-	! 	 			do j=1,nSnp
-	! 					phaseId = ped%pedigree(i)%individualPhase(e-1)%getPhase(j)
+				if (associated(parent)) then
+		 			do j=fSnp,lSnp
+						phaseId = ped%pedigree(i)%individualPhase(e-1)%getPhase(j)
 						
-	! 					geno = parent%individualGenotype%getGenotype(j)
-	! 					phasePar(1) =parent%individualPhase(1)%getPhase(j)
-	! 	 				phasePar(2) =parent%individualPhase(2)%getPhase(j)
+						geno = parent%individualGenotype%getGenotype(j)
+						phasePar(1) =parent%individualPhase(1)%getPhase(j)
+		 				phasePar(2) =parent%individualPhase(2)%getPhase(j)
 
-	! 					if ((geno.eq.1).and.(sum(phasePar).lt.3)) then
-	! 						if (phasePar(1).eq.phaseId) FounderAssignment(i,j,(e-1))=2 !GrandSire 
-	! 						if (phasePar(2).eq.phaseId) FounderAssignment(i,j,(e-1))=3 !GrandDam
-	! 					endif
-
-	! 				enddo
-	! 			endif
-	! 		endif
-	! 	enddo
-	! enddo
- !    !$OMP END PARALLEL DO
+						if ((geno.eq.1).and.(sum(phasePar).lt.3)) then
+							if (phasePar(1).eq.phaseId) FounderAssignment(i,j,(e-1))=2 !GrandSire 
+							if (phasePar(2).eq.phaseId) FounderAssignment(i,j,(e-1))=3 !GrandDam
+						endif
+					enddo
+					write(*,'(1a20,1i2,4i10)') ped%pedigree(i)%originalID,e-1,fSnp,lSnp,count(FounderAssignment(i,fSnp:lSnp,e-1).eq.2),count(FounderAssignment(i,fSnp:lSnp,e-1).eq.3)
+				endif
+			endif
+		enddo
+	enddo
+    !$OMP END PARALLEL DO
 end subroutine CalculateFounderAssignment
 
 !-------------------------------------------------------------------------------------------------
