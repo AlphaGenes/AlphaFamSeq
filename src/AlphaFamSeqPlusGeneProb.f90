@@ -576,7 +576,7 @@ subroutine CalculateFounderAssignment(fSnp,lSnp)
 	implicit none
 
 	integer,intent(in) :: fSnp,lSnp
-	integer :: i,j,e,k,phaseId,geno
+	integer :: i,j,e,k,phaseId,geno,nHet
 	integer,dimension(2) :: phasePar
 	type(individual),pointer :: parent
 
@@ -602,12 +602,14 @@ subroutine CalculateFounderAssignment(fSnp,lSnp)
 			    	k=e-1
 					parent => ped%pedigree(i)%getSireDamObjectByIndex(e)
 	    			if (associated(parent)) then
+	    				nHet=0
 		    			do j=fSnp,lSnp
 		    				ParentProb=0
 		    				ProgenyProb=0
 
 		    				! The parent is heterozygous
 		    				if ((ReadCounts(2,j,parent%id).eq.maxval(ReadCounts(:,j,parent%id))).or.(ReadCounts(3,j,parent%id).eq.maxval(ReadCounts(:,j,parent%id)))) then
+		    					nHet=nHet+1
 		    					ParentProb=1-ReadCounts(2,j,parent%id)
 		    					ProgenyProb=ReadCounts(1,j,i)+ReadCounts(2,j,i)
 		    					PP(1)=(1-ProgenyProb)*ParentProb
@@ -617,8 +619,8 @@ subroutine CalculateFounderAssignment(fSnp,lSnp)
 		    					HapProb(2)=HapProb(2)+PP(2)*sum(PP)
 		    				endif
 		    			enddo
-		    			if (HapProb(1)/HapProb(2).ge.1.5) write(*,'(1a20,1i2,2i10,2f20.4,1i2)') ped%pedigree(i)%originalID,k,fSnp,lSnp,HapProb,2
-		    			if (HapProb(1)/HapProb(2).le.0.5) write(*,'(1a20,1i2,2i10,2f20.4,1i2)') ped%pedigree(i)%originalID,k,fSnp,lSnp,HapProb,3
+		    			if (HapProb(1)/HapProb(2).ge.1.5) write(*,'(1a20,1i2,3i10,2f20.4,1i2)') ped%pedigree(i)%originalID,k,fSnp,lSnp,nHet,HapProb,2
+		    			if (HapProb(1)/HapProb(2).le.0.5) write(*,'(1a20,1i2,3i10,2f20.4,1i2)') ped%pedigree(i)%originalID,k,fSnp,lSnp,nHet,HapProb,3
 	    				
 	    			endif
 	    		enddo
