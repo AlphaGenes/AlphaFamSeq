@@ -72,6 +72,8 @@ module GlobalPar
 	integer(kind=1),allocatable,dimension(:,:,:) 	:: FounderAssignment   	! Temporary File - Save the IDs of the grandparents
 
 	integer :: Windows
+	integer,dimension(10):: ChunkLength
+	
 end module GlobalPar
 
 !################################################################################################
@@ -180,6 +182,7 @@ program FamilyPhase
 	 CurrentCountMissingPhase=0
 	 NewCount=-1
 	 OldCount=0
+	 ChunkLength=0
 
 	 IterationNumber=0
 	 do while (NewCount.ne.OldCount)
@@ -448,7 +451,6 @@ subroutine ChunkDefinition
 	integer 			 :: f1,p1,p2,founder
 	integer 			 :: fSnp
 	integer 			 :: lSnp
-	integer,dimension(10):: ChunkLength
 	real,dimension(1)    :: Z
 	integer,allocatable,dimension (:,:) :: CoreIndex
 	integer,allocatable,dimension(:,:) :: ConsensusFounderAssignment
@@ -478,18 +480,20 @@ subroutine ChunkDefinition
 	endif
 
 	allocate(ConsensusFounderAssignment(10,nSnp))
-	i=0
-	ChunkLength=0
-	do while (i.lt.10)
-		Z = SampleIntelUniformS(n=1,a=0.0,b=1.0)
-		tmp=floor((dble(minWindowSizeHapDefinition)-1)+(dble(maxWindowSizeHapDefinition)-(dble(minWindowSizeHapDefinition)-1))*Z(1))+1
-		blah = any(ChunkLength.eq.tmp)
-		if (.not.blah) then
-			i=i+1
-			ChunkLength(i)=tmp
-		endif
-	enddo
-	print*,ChunkLength
+	if (maxval(ChunkLength(:)).eq.0) then
+		i=0
+		
+		do while (i.lt.10)
+			Z = SampleIntelUniformS(n=1,a=0.0,b=1.0)
+			tmp=floor((dble(minWindowSizeHapDefinition)-1)+(dble(maxWindowSizeHapDefinition)-(dble(minWindowSizeHapDefinition)-1))*Z(1))+1
+			blah = any(ChunkLength.eq.tmp)
+			if (.not.blah) then
+				i=i+1
+				ChunkLength(i)=tmp
+			endif
+		enddo
+		print*,ChunkLength
+	endif
 
 	do i=1,ped%pedigreeSize-ped%nDummys
 		do e=1,2
