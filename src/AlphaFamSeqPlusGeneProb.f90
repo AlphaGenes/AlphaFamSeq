@@ -206,8 +206,8 @@ program FamilyPhase
 			call CalculateFounderAssignment
 
 		 	call ChunkDefinition
-!	 		call BuildConsensus
-!	 		call SimpleCleanUpFillIn
+	 		call BuildConsensus
+	 		call SimpleCleanUpFillIn
 	 	endif
 	! 	! Count Missing
 	 	CurrentCountMissingGenos=ped%CountMissingGenotypesNoDummys()
@@ -331,90 +331,90 @@ end subroutine SimpleCleanUpFillIn
 !  2017.09.08  mbattagin - Use all the progenies at the same time to build the consensus
 !--------------------------------------------------------------------------------------------------   
 
-! subroutine BuildConsensus 
-! 	use GlobalPar
+subroutine BuildConsensus 
+	use GlobalPar
 
-! 	implicit none
+	implicit none
 
-! 	integer :: i,k,e,j,m,a,nOffs,o,nFounders
-! 	integer(kind=1) :: ConsensusHaplotype
-! 	integer,dimension(2) :: countAllele !0 and 1
-! 	type(individual), pointer :: grandparent
-! 	integer,allocatable :: posOffs(:),founderOffspring(:)
+	integer :: i,k,e,j,m,a,nOffs,o,nFounders
+	integer(kind=1) :: ConsensusHaplotype
+	integer,dimension(2) :: countAllele !0 and 1
+	type(individual), pointer :: grandparent
+	integer,allocatable :: posOffs(:),founderOffspring(:)
 
-! 	do i=1,ped%pedigreeSize-ped%nDummys ! Parent
-! 		nOffs=ped%pedigree(i)%nOffs ! store nr of Offsprings
-! 		nFounders=0 ! Store number of offsprings with informative positions to build the consensus
-! 		k=ped%pedigree(i)%gender ! store the gender of the parent
+	do i=1,ped%pedigreeSize-ped%nDummys ! Parent
+		nOffs=ped%pedigree(i)%nOffs ! store nr of Offsprings
+		nFounders=0 ! Store number of offsprings with informative positions to build the consensus
+		k=ped%pedigree(i)%gender ! store the gender of the parent
 				
-! 		if ((nOffs.gt.0).and.(.not.ped%pedigree(i)%isDummy).and.(.not.ped%pedigree(i)%Founder)) then ! Build the consensus haplotypes using all the progeny informations
-! 			allocate(posOffs(nOffs))
-! 			allocate(founderOffspring(nOffs))
+		if ((nOffs.gt.0).and.(.not.ped%pedigree(i)%isDummy).and.(.not.ped%pedigree(i)%Founder)) then ! Build the consensus haplotypes using all the progeny informations
+			allocate(posOffs(nOffs))
+			allocate(founderOffspring(nOffs))
 
-! 			do o=1,nOffs
-! 				posOffs(o)=ped%pedigree(i)%offsprings(o)%p%id
-! 				if (maxval(FounderAssignment(posOffs(o),:,k)).ne.0) nFounders=nFounders+1 !Count how many individuals have informative snps
-! 			enddo
-! 			if (nFounders.gt.0) then ! Start to build the consensus
-! 				founderOffspring=0
-! 				do j=1,nSnp
-! 					founderOffspring=FounderAssignment(posOffs,j,k)
-! 					if (maxval(founderOffspring(:)).gt.0) then ! The snps have a founder, build it's consensus
-! 						do e=2,3
-! 							grandparent => ped%pedigree(i)%getSireDamObjectbyIndex(e)
+			do o=1,nOffs
+				posOffs(o)=ped%pedigree(i)%offsprings(o)%p%id
+				if (maxval(FounderAssignment(posOffs(o),:,k)).ne.0) nFounders=nFounders+1 !Count how many individuals have informative snps
+			enddo
+			if (nFounders.gt.0) then ! Start to build the consensus
+				founderOffspring=0
+				do j=1,nSnp
+					founderOffspring=FounderAssignment(posOffs,j,k)
+					if (maxval(founderOffspring(:)).gt.0) then ! The snps have a founder, build it's consensus
+						do e=2,3
+							grandparent => ped%pedigree(i)%getSireDamObjectbyIndex(e)
 						
-! 							ConsensusHaplotype=9
-! 							countAllele=0
-! 							do a=0,1 
-! 								if (((grandparent%individualPhase(1)%getPhase(j)+grandparent%individualPhase(2)%getPhase(j)).lt.3).and.(.not. grandparent%isDummy)) then
-! 									! Avoid to use markers that are not fully phased for the grandparent
-! 									do m=1,2 
-! 										if (grandparent%individualPhase(m)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
-! 									enddo
-! 								endif
+							ConsensusHaplotype=9
+							countAllele=0
+							do a=0,1 
+								if (((grandparent%individualPhase(1)%getPhase(j)+grandparent%individualPhase(2)%getPhase(j)).lt.3).and.(.not. grandparent%isDummy)) then
+									! Avoid to use markers that are not fully phased for the grandparent
+									do m=1,2 
+										if (grandparent%individualPhase(m)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
+									enddo
+								endif
 	
-! 								if (ped%pedigree(i)%individualPhase(e-1)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
+								if (ped%pedigree(i)%individualPhase(e-1)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
 
-! 								do o=1,nOffs
-! 									if (founderOffspring(o).eq.e) then
-! 										if (ped%pedigree(posOffs(o))%individualPhase(k)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
-! 									endif
-! 								enddo
-! 							enddo
-! 							! Fill the phases
-! 	 						if ((countAllele(2).gt.1).and.(countAllele(2).gt.countAllele(1))) ConsensusHaplotype=1
-! 	 						if ((countAllele(1).gt.1).and.(countAllele(1).gt.countAllele(2))) ConsensusHaplotype=0
+								do o=1,nOffs
+									if (founderOffspring(o).eq.e) then
+										if (ped%pedigree(posOffs(o))%individualPhase(k)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
+									endif
+								enddo
+							enddo
+							! Fill the phases
+	 						if ((countAllele(2).gt.1).and.(countAllele(2).gt.countAllele(1))) ConsensusHaplotype=1
+	 						if ((countAllele(1).gt.1).and.(countAllele(1).gt.countAllele(2))) ConsensusHaplotype=0
 	 						
-! 	 						if (ConsensusHaplotype.ne.9) then
-! 	 							!if ((minval(countAllele).gt.0).and.(nFounders.gt.1)) write(*,'(1a10,7(1x,i0),10x,100i1)'),ped%pedigree(i)%originalID,i,j,e,nOffs,nFounders,countAllele, founderOffspring
-! 								call ped%pedigree(i)%individualPhase(e-1)%setPhase(j,ConsensusHaplotype)
-! 								do o=1,nOffs
-! 	 								if (founderOffspring(o).eq.e) then
-! 			 							call ped%pedigree(posOffs(o))%individualPhase(k)%setPhase(j,ConsensusHaplotype)
-! 									endif
-! 	 							enddo
-! 	 						endif	
+	 						if (ConsensusHaplotype.ne.9) then
+	 							!if ((minval(countAllele).gt.0).and.(nFounders.gt.1)) write(*,'(1a10,7(1x,i0),10x,100i1)'),ped%pedigree(i)%originalID,i,j,e,nOffs,nFounders,countAllele, founderOffspring
+								call ped%pedigree(i)%individualPhase(e-1)%setPhase(j,ConsensusHaplotype)
+								do o=1,nOffs
+	 								if (founderOffspring(o).eq.e) then
+			 							call ped%pedigree(posOffs(o))%individualPhase(k)%setPhase(j,ConsensusHaplotype)
+									endif
+	 							enddo
+	 						endif	
 	
-! 						enddo
-! 					endif
-! 				enddo
-! 				call ped%pedigree(i)%makeIndividualPhaseCompliment()
-! 				call ped%pedigree(i)%makeIndividualGenotypeFromPhase()
-! 				do o=1,nOffs
-! 					call ped%pedigree(posOffs(o))%makeIndividualPhaseCompliment()
-! 					call ped%pedigree(posOffs(o))%makeIndividualGenotypeFromPhase()
-! 				enddo
+						enddo
+					endif
+				enddo
+				call ped%pedigree(i)%makeIndividualPhaseCompliment()
+				call ped%pedigree(i)%makeIndividualGenotypeFromPhase()
+				do o=1,nOffs
+					call ped%pedigree(posOffs(o))%makeIndividualPhaseCompliment()
+					call ped%pedigree(posOffs(o))%makeIndividualGenotypeFromPhase()
+				enddo
 
-! 			endif	
-! 			deallocate(posOffs)
-! 			deallocate(founderOffspring)
+			endif	
+			deallocate(posOffs)
+			deallocate(founderOffspring)
 
-! 		endif
-! 	enddo
+		endif
+	enddo
 
-! 	call ped%cleangenotypesbasedonhaplotypes()
+	call ped%cleangenotypesbasedonhaplotypes()
 
-! end subroutine BuildConsensus 
+end subroutine BuildConsensus 
 
 !-------------------------------------------------------------------------------------------------
 !> @brief   Work Left/Work Rigth to find chunks of haplotypes using the Founder Assignement array
@@ -520,8 +520,8 @@ subroutine ChunkDefinition
 			do j=1,nSnp
 				n2=count(ConsensusFounderAssignment(:,j).eq.2)
 				n3=count(ConsensusFounderAssignment(:,j).eq.3)
-				if (n2.gt.n3.and.n2.gt.7) FounderAssignment(i,j,e)=2
-				if (n3.gt.n2.and.n3.gt.7) FounderAssignment(i,j,e)=3
+				if (n2.eq.10) FounderAssignment(i,j,e)=2
+				if (n3.eq.10) FounderAssignment(i,j,e)=3
 			enddo
 		enddo
 	enddo
