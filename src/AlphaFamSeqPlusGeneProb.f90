@@ -203,7 +203,7 @@ program FamilyPhase
 	 	call SimpleCleanUpFillIn
 	 		
 	 	if (maxWindowSizeHapDefinition.gt.1) then
-!			call CalculateFounderAssignment
+			call CalculateFounderAssignment
 
 		 	call ChunkDefinition
 !	 		call BuildConsensus
@@ -444,24 +444,25 @@ subroutine ChunkDefinition
 	use coreutils
 	implicit none
 
-	integer 			:: i,j,e,k,c,nCores
-	integer 			:: f1,p1,p2,founder
-	integer 			:: fSnp
-	integer 			:: lSnp
-	integer 			:: ChunkLength
-	real,dimension(1)   :: Z
+	integer 			 :: i,j,e,k,c,nCores,tmp,n2,n3
+	integer 			 :: f1,p1,p2,founder
+	integer 			 :: fSnp
+	integer 			 :: lSnp
+	integer,dimension(10):: ChunkLength
+	real,dimension(1)    :: Z
 	integer,allocatable,dimension (:,:) :: CoreIndex
-	
+	integer,allocatable,dimension(:,:) :: ConsensusFounderAssignment
 	integer,allocatable,dimension(:) :: FounderAssignmentF,FounderAssignmentB
-
 
 	real,dimension(2) :: f
 
+	logical:: blah
+	
 	! Check window size
 	if (minWindowSizeHapDefinition.gt.nSnp) then
 		print*,"WARNING: min window size > nSnp"
-		print*,"         use nSnp as min window size"
-		minWindowSizeHapDefinition=nSnp
+		print*,"         use 1 as min window size"
+		minWindowSizeHapDefinition=1
 	endif
 
 	if (maxWindowSizeHapDefinition.gt.nSnp) then
@@ -472,32 +473,57 @@ subroutine ChunkDefinition
 
 	if (minWindowSizeHapDefinition.gt.maxWindowSizeHapDefinition) then
 		print*,"WARNING: min window size > max window size"
-		print*,"         use max window size as min window size"
-		minWindowSizeHapDefinition=maxWindowSizeHapDefinition
+		print*,"         use 1 as min window size"
+		minWindowSizeHapDefinition=1
 	endif
 
-	Z = SampleIntelUniformS(n=1,a=0.0,b=1.0) 
-	ChunkLength=floor((dble(minWindowSizeHapDefinition)-1)+(dble(maxWindowSizeHapDefinition)-(dble(minWindowSizeHapDefinition)-1))*Z(1))+1
-	nCores=nSnp/ChunkLength
-	allocate(CoreIndex(nCores,2))
-	
-	CoreIndex=calculatecores(nSnp,ChunkLength,.false.)
-	nCores=size(CoreIndex)/2
-
-	do i=1,nCores
-		write(101,'(6(1x,i0))') Windows,IterationNumber,i,CoreIndex(i,:)
+	allocate(ConsensusFounderAssignment(10,nSnp))
+	i=0
+	ChunkLength=0
+	do while (i.lt.10)
+		Z = SampleIntelUniformS(n=1,a=0.0,b=1.0)
+		tmp=floor((dble(minWindowSizeHapDefinition)-1)+(dble(maxWindowSizeHapDefinition)-(dble(minWindowSizeHapDefinition)-1))*Z(1))+1
+		blah = any(ChunkLength.eq.tmp)
+		if (.not.blah) then
+			i=i+1
+			ChunkLength(i)=tmp
+		endif
 	enddo
+	print*,ChunkLength
 
+	do i=1,ped%pedigreeSize-ped%nDummys
+		do e=1,2
+			ConsensusFounderAssignment=0
+			do k=1,10
+				nCores=nSnp/ChunkLength(k)
+				allocate(CoreIndex(nCores,2))
+		
+				CoreIndex=calculatecores(nSnp,ChunkLength(k),.false.)
+				nCores=size(CoreIndex)/2
 
-	do c=1,nCores
-		fSnp=CoreIndex(c,1)
-		lSnp=CoreIndex(c,2)
+				! do j=1,nCores
+				! 	write(101,'(7(1x,i0))') Windows,IterationNumber,i,j,CoreIndex(j,:)
+				! enddo
 
-		call CalculateFounderAssignment(fSnp,lSnp)
-		fSnp=lSnp-ChunkLength/2
-		lSnp=lSnp+ChunkLength/2
-		call CalculateFounderAssignment(fSnp,lSnp)
+				do c=1,nCores
+					fSnp=CoreIndex(c,1)
+					lSnp=CoreIndex(c,2)
+					n2=count(FounderAssignment(i,fSnp:lSnp,e).eq.2)
+					n3=count(FounderAssignment(i,fSnp:lSnp,e).eq.3)
 
+					if (n2.gt.n3) ConsensusFounderAssignment(k,fSnp:lSnp)=2
+					if (n3.gt.n2) ConsensusFounderAssignment(k,fSnp:lSnp)=3
+				enddo
+				deallocate(CoreIndex)
+			enddo
+			
+			do j=1,nSnp
+				n2=count(ConsensusFounderAssignment(:,j).eq.2)
+				n3=count(ConsensusFounderAssignment(:,j).eq.3)
+				if (n2.gt.n3.and.n2.gt.7) FounderAssignment(i,j,e)=2
+				if (n3.gt.n2.and.n3.gt.7) FounderAssignment(i,j,e)=3
+			enddo
+		enddo
 	enddo
 
 ! 	!$OMP PARALLEL DO DEFAULT(SHARED)  PRIVATE(c,i,k,e,j,f1,ChunkLength,fSnp,lSnp,FounderAssignmentF,FounderAssignmentB)
@@ -568,12 +594,11 @@ subroutine ChunkDefinition
 !> @date    August 30, 2017
 !--------------------------------------------------------------------------------------------------   
 
-subroutine CalculateFounderAssignment(fSnp,lSnp)
+subroutine CalculateFounderAssignment
 	use GlobalPar
 	use omp_lib
 	implicit none
 
-	integer,intent(in) :: fSnp,lSnp
 	integer :: i,j,e,k,phaseId,geno,nHet
 	integer,dimension(2) :: phasePar
 	type(individual),pointer :: parent
@@ -587,7 +612,7 @@ subroutine CalculateFounderAssignment(fSnp,lSnp)
 				parent => ped%pedigree(i)%getSireDamObjectByIndex(e)
 				
 				if (associated(parent)) then
-		 			do j=fSnp,lSnp
+		 			do j=1,nSnp
 						phaseId = ped%pedigree(i)%individualPhase(e-1)%getPhase(j)
 						
 						geno = parent%individualGenotype%getGenotype(j)
@@ -599,7 +624,6 @@ subroutine CalculateFounderAssignment(fSnp,lSnp)
 							if (phasePar(2).eq.phaseId) FounderAssignment(i,j,(e-1))=3 !GrandDam
 						endif
 					enddo
-					write(*,'(1a20,1i2,4i10)') ped%pedigree(i)%originalID,e-1,fSnp,lSnp,count(FounderAssignment(i,fSnp:lSnp,e-1).eq.2),count(FounderAssignment(i,fSnp:lSnp,e-1).eq.3)
 				endif
 			endif
 		enddo
