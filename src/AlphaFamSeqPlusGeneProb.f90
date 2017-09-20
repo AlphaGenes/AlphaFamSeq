@@ -72,7 +72,7 @@ module GlobalPar
 	integer(kind=1),allocatable,dimension(:,:,:) 	:: FounderAssignment   	! Temporary File - Save the IDs of the grandparents
 
 	integer :: Windows
-	integer,dimension(10):: ChunkLength
+	integer,dimension(:),allocatable	:: ChunkLength
 	
 end module GlobalPar
 
@@ -451,8 +451,7 @@ subroutine ChunkDefinition
 
 	integer 			 :: i,j,e,k,c,nCores,tmp,n2,n3
 	integer 			 :: f1,p1,p2,founder
-	integer 			 :: fSnp
-	integer 			 :: lSnp
+	integer 			 :: fSnp,lSnp,nChunk
 	real,dimension(1)    :: Z
 	integer,allocatable,dimension (:,:) :: CoreIndex
 	integer,allocatable,dimension(:,:) :: ConsensusFounderAssignment
@@ -462,6 +461,7 @@ subroutine ChunkDefinition
 
 	logical:: blah
 	
+
 	! Check window size
 	if (minWindowSizeHapDefinition.gt.nSnp) then
 		print*,"WARNING: min window size > nSnp"
@@ -481,26 +481,37 @@ subroutine ChunkDefinition
 		minWindowSizeHapDefinition=1
 	endif
 
-	allocate(ConsensusFounderAssignment(10,nSnp))
-	if (maxval(ChunkLength(:)).eq.0) then
-		i=0
-		
-		do while (i.lt.10)
-			Z = SampleIntelUniformS(n=1,a=0.0,b=1.0)
-			tmp=floor((dble(minWindowSizeHapDefinition)-1)+(dble(maxWindowSizeHapDefinition)-(dble(minWindowSizeHapDefinition)-1))*Z(1))+1
-			blah = any(ChunkLength.eq.tmp)
-			if (.not.blah) then
-				i=i+1
-				ChunkLength(i)=tmp
-			endif
-		enddo
-		print*,ChunkLength
+	nChunk=10
+	if (minWindowSizeHapDefinition.eq.maxWindowSizeHapDefinition) nChunk=1
+
+	allocate(ConsensusFounderAssignment(nChunk,nSnp))
+	if (.not. allocated(ChunkLength)) then
+		allocate(ChunkLength(nChunk))
+		ChunkLength=0
+	endif
+
+	if (nChunk.eq.1) then
+		ChunkLength(1)=minWindowSizeHapDefinition
+	else if (nChunk.gt.1) then
+		if (maxval(ChunkLength(:)).eq.0) then
+			i=0
+			do while (i.lt.nChunk)
+				Z = SampleIntelUniformS(n=1,a=0.0,b=1.0)
+				tmp=floor((dble(minWindowSizeHapDefinition)-1)+(dble(maxWindowSizeHapDefinition)-(dble(minWindowSizeHapDefinition)-1))*Z(1))+1
+				blah = any(ChunkLength.eq.tmp)
+				if (.not.blah) then
+					i=i+1
+					ChunkLength(i)=tmp
+				endif
+			enddo
+			print*,ChunkLength
+		endif
 	endif
 
 	do i=1,ped%pedigreeSize-ped%nDummys
 		do e=1,2
 			ConsensusFounderAssignment=0
-			do k=1,10
+			do k=1,nChunk
 				nCores=nSnp/ChunkLength(k)
 				allocate(CoreIndex(nCores,2))
 		
@@ -526,8 +537,8 @@ subroutine ChunkDefinition
 			do j=1,nSnp
 				n2=count(ConsensusFounderAssignment(:,j).eq.2)
 				n3=count(ConsensusFounderAssignment(:,j).eq.3)
-				if (n2.eq.10) FounderAssignment(i,j,e)=2
-				if (n3.eq.10) FounderAssignment(i,j,e)=3
+				if (n2.eq.nChunk) FounderAssignment(i,j,e)=2
+				if (n3.eq.nChunk) FounderAssignment(i,j,e)=3
 			enddo
 		enddo
 	enddo
