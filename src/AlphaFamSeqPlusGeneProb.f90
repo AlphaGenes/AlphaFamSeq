@@ -989,11 +989,7 @@ subroutine CalculateResults(what)
 
 	nIndTrueFile = countLines(filout5)
 
-	if (trim(what).eq."P") then
-		print*,nIndTrueFile
-		nIndTrueFile=nIndTrueFile/2
-		print*,nIndTrueFile
-	endif
+	if (trim(what).eq."P") nIndTrueFile=nIndTrueFile/2
 
 	if (trim(what).eq."G") then
 		open(4,file=trim("AlphaFamSeqIndividualGenosResults.txt"),status="unknown")
