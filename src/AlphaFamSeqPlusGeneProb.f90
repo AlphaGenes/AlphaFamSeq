@@ -224,7 +224,8 @@ program FamilyPhase
 	! ! WriteOut Results -------------------------------------------------------------------------------------------------
 
 	 call WriteResults
-	 call CalculateResults("G")
+	 if (trim(GenoFile).ne."None") call CalculateResults("G")
+	 if (trim(phaseFile).ne."None") call CalculateResults("P")
 	! call DeallocateArrays
 
 	! call UnintitialiseIntelRNG
@@ -963,38 +964,38 @@ end subroutine WriteResults
 subroutine CalculateResults(what)
 
 	use GlobalPar
-	use AlphaHouseMod, only : countColumns
+	use AlphaHouseMod, only : countLines
 	use ConstantModule, only : IDLENGTH,DICT_NULL
 
 	implicit none
 	character(len=1),intent(in) 		:: what
 	character(len=80)					:: filout5
 	character(len=IDLENGTH)				:: DumC
-	integer 							:: nIndTrueFile,unit,i,j,id,ImputedData,nCorrect,nWrong,nMissing
+	integer 							:: nIndTrueFile,unit,i,j,g,id,ImputedData,nCorrect,nWrong,nMissing
 	integer,allocatable,dimension(:) 	:: TrueData
-	character(len=1), dimension(3)		:: delimiter
 	logical 							:: exist
 	
 	
-	delimiter(1) = ","
-	delimiter(2) = " "
-	delimiter(3) = char(9)
 	allocate(TrueData(nSnp))
 	
-	if (what.eq."G") then
+	if (trim(what).eq."G") then
 		filout5=trim(GenoFile)
-	else if (what.eq."P") then
+	else if (trim(what).eq."P") then
 		filout5=trim(PhaseFile)
 	endif
 
 	inquire(file=trim(filout5),exist=exist)
 	open (newunit=unit,file=trim(filout5),status="old")
 
-	nIndTrueFile = countColumns(filout5, delimiter)-5 ! First 5 columns are "CHROM POS REF ALT QUAL"
+	nIndTrueFile = countLines(filout5)
 
-	if (what.eq."P") nIndTrueFile=nIndTrueFile/2
+	if (trim(what).eq."P") then
+		print*,nIndTrueFile
+		nIndTrueFile=nIndTrueFile/2
+		print*,nIndTrueFile
+	endif
 
-	if (what.eq."G") then
+	if (trim(what).eq."G") then
 		open(4,file=trim("AlphaFamSeqIndividualGenosResults.txt"),status="unknown")
 		write(4,'(1a74)'), "ID                    nCorrect nError nMissing Yield% Correct% CorrectRate"
 		do i=1,nIndTrueFile
@@ -1018,9 +1019,34 @@ subroutine CalculateResults(what)
 				write(4,'(1a20,3i8,3f9.4)') DumC,nCorrect,nWrong,nMissing,100-(dble(nMissing)/dble(nMissing+nCorrect+nWrong))*100,(dble(nCorrect)/dble(nMissing+nCorrect+nWrong))*100,(dble(nCorrect)/dble(nCorrect+nWrong))*100
 			endif
 		enddo
+	endif
 
-	
-
+	if (trim(what).eq."P") then
+		open(4,file=trim("AlphaFamSeqIndividualPhaseResults.txt"),status="unknown")
+		write(4,'(1a81)'), "ID                    Gamete nCorrect nError nMissing Yield% Correct% CorrectRate"
+		do i=1,nIndTrueFile
+			do g=1,2
+				read(unit,*) DumC,TrueData
+				id = ped%dictionary%getValue(DumC)
+				if (id /= DICT_NULL) then
+					nCorrect=0
+					nWrong=0
+					nMissing=0
+					do j=1,nSnp
+						ImputedData = ped%pedigree(i)%individualPhase(g)%getPhase(j)
+						if (TrueData(j).ne.9) then
+							if (ImputedData.eq.9) then
+								nMissing=nMissing+1
+							else if (ImputedData.ne.9) then
+								if (TrueData(j).eq.ImputedData) nCorrect=nCorrect+1
+								if (TrueData(j).ne.ImputedData) nWrong=nWrong+1
+							endif
+						endif
+					enddo
+					write(4,'(1a20,4i8,3f9.4)') DumC,g,nCorrect,nWrong,nMissing,100-(dble(nMissing)/dble(nMissing+nCorrect+nWrong))*100,(dble(nCorrect)/dble(nMissing+nCorrect+nWrong))*100,(dble(nCorrect)/dble(nCorrect+nWrong))*100
+				endif
+			enddo
+		enddo
 	endif
 
 	close (unit)
