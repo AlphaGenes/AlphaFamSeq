@@ -1006,11 +1006,13 @@ subroutine CalculateResults(what)
 				nMissing=0
 				do j=1,nSnp
 					ImputedData = ped%pedigree(id)%individualGenotype%getGenotype(j)
-					if (ImputedData.eq.9) then
-						nMissing=nMissing+1
-					else if (ImputedData.ne.9) then
-						if (TrueData(j).eq.ImputedData) nCorrect=nCorrect+1
-						if (TrueData(j).ne.ImputedData) nWrong=nWrong+1
+					if (TrueData(j).ne.9) then
+						if (ImputedData.eq.9) then
+							nMissing=nMissing+1
+						else if (ImputedData.ne.9) then
+							if (TrueData(j).eq.ImputedData) nCorrect=nCorrect+1
+							if (TrueData(j).ne.ImputedData) nWrong=nWrong+1
+						endif
 					endif
 				enddo
 				write(4,'(1a20,3i8,3f9.4)') DumC,nCorrect,nWrong,nMissing,100-(dble(nMissing)/dble(nMissing+nCorrect+nWrong))*100,(dble(nCorrect)/dble(nMissing+nCorrect+nWrong))*100,(dble(nCorrect)/dble(nCorrect+nWrong))*100
