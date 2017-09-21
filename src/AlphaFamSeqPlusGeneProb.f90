@@ -407,10 +407,15 @@ subroutine BuildConsensus
 				enddo
 				call ped%pedigree(i)%makeIndividualPhaseCompliment()
 				call ped%pedigree(i)%makeIndividualGenotypeFromPhase()
+
 				do o=1,nOffs
 					call ped%pedigree(posOffs(o))%makeIndividualPhaseCompliment()
 					call ped%pedigree(posOffs(o))%makeIndividualGenotypeFromPhase()
 				enddo
+
+				call ped%phaseComplement()
+				call ped%makeGenotype()
+
 
 			endif	
 			deallocate(posOffs)
@@ -420,7 +425,6 @@ subroutine BuildConsensus
 	enddo
 
 	!call ped%cleangenotypesbasedonhaplotypes()
-	!call ped%cleanGenotypesAndPhase()
 
 end subroutine BuildConsensus 
 
@@ -533,8 +537,8 @@ subroutine ChunkDefinition
 					n2=count(FounderAssignment(i,fSnp:lSnp,e).eq.2)
 					n3=count(FounderAssignment(i,fSnp:lSnp,e).eq.3)
 
-					if (n2.gt.n3) ConsensusFounderAssignment(k,fSnp:lSnp)=2
-					if (n3.gt.n2) ConsensusFounderAssignment(k,fSnp:lSnp)=3
+					if (n2.gt.n3.and.n2.gt.1) ConsensusFounderAssignment(k,fSnp:lSnp)=2
+					if (n3.gt.n2.and.n3.gt.1) ConsensusFounderAssignment(k,fSnp:lSnp)=3
 				enddo
 				!if ((minval(ConsensusFounderAssignment(k,:)).gt.0).and.e==1) write(*,'(i10,1x,100i1)'),i,ConsensusFounderAssignment(k,:)
 				!if (i==1587.and.e==1) write(*,'(1a10,1x,6802i1)'),ped%pedigree(i)%originalID,ConsensusFounderAssignment(k,:)
@@ -955,8 +959,8 @@ subroutine WriteResults
 	filout1 ="AlphaFamSeqFinalPhase_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".txt"
 	filout2 ="AlphaFamSeqFinalGenos_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".txt"
 	
-	call ped%writeoutphase(trim(filout1))
-	call ped%writeoutgenotypes(trim(filout2))
+	call ped%WriteoutPhaseNoDummies(trim(filout1))
+	call ped%writeOutGenotypesNoDummies(trim(filout2))
 
 	close (1)
 	close (2)
