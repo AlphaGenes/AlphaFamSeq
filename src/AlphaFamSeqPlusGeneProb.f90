@@ -419,7 +419,7 @@ subroutine BuildConsensus
 		endif
 	enddo
 
-	call ped%cleangenotypesbasedonhaplotypes()
+	!call ped%cleangenotypesbasedonhaplotypes()
 	!call ped%cleanGenotypesAndPhase()
 
 end subroutine BuildConsensus 
