@@ -488,7 +488,7 @@ subroutine ChunkDefinition
 		minWindowSizeHapDefinition=1
 	endif
 
-	nChunk=20
+	nChunk=10
 	if (maxWindowSizeHapDefinition-minWindowSizeHapDefinition+1.lt.nChunk) nChunk=maxWindowSizeHapDefinition-minWindowSizeHapDefinition+1
 	if (minWindowSizeHapDefinition.eq.maxWindowSizeHapDefinition) nChunk=1
 
@@ -537,8 +537,8 @@ subroutine ChunkDefinition
 					n2=count(FounderAssignment(i,fSnp:lSnp,e).eq.2)
 					n3=count(FounderAssignment(i,fSnp:lSnp,e).eq.3)
 
-					if (n2.gt.n3.and.n2.gt.1) ConsensusFounderAssignment(k,fSnp:lSnp)=2
-					if (n3.gt.n2.and.n3.gt.1) ConsensusFounderAssignment(k,fSnp:lSnp)=3
+					if (n2.gt.n3.and.n2.gt.0) ConsensusFounderAssignment(k,fSnp:lSnp)=2
+					if (n3.gt.n2.and.n3.gt.0) ConsensusFounderAssignment(k,fSnp:lSnp)=3
 				enddo
 				!if ((minval(ConsensusFounderAssignment(k,:)).gt.0).and.e==1) write(*,'(i10,1x,100i1)'),i,ConsensusFounderAssignment(k,:)
 				!if (i==1587.and.e==1) write(*,'(1a10,1x,6802i1)'),ped%pedigree(i)%originalID,ConsensusFounderAssignment(k,:)
