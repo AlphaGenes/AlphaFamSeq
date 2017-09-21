@@ -319,7 +319,8 @@ subroutine SimpleCleanUpFillIn
 
 		call ped%phaseComplement()
 		call ped%makeGenotype()
-		
+!		call ped%cleanGenotypesAndPhase()
+
 		newMissingGeno=ped%CountMissingGenotypesNoDummys()
 		newMissingPhase=ped%CountMissingPhaseNoDummys()
 	enddo
@@ -352,7 +353,7 @@ subroutine BuildConsensus
 		nFounders=0 ! Store number of offsprings with informative positions to build the consensus
 		k=ped%pedigree(i)%gender ! store the gender of the parent
 				
-		if ((nOffs.gt.0).and.(.not.ped%pedigree(i)%isDummy).and.(.not.ped%pedigree(i)%Founder)) then ! Build the consensus haplotypes using all the progeny informations
+		if ((nOffs.gt.0).and.(.not.ped%pedigree(i)%Founder)) then ! Build the consensus haplotypes using all the progeny informations
 			allocate(posOffs(nOffs))
 			allocate(founderOffspring(nOffs))
 
@@ -387,11 +388,12 @@ subroutine BuildConsensus
 								enddo
 							enddo
 							! Fill the phases
-	 						if ((countAllele(2).gt.1).and.(countAllele(2).gt.countAllele(1))) ConsensusHaplotype=1
-	 						if ((countAllele(1).gt.1).and.(countAllele(1).gt.countAllele(2))) ConsensusHaplotype=0
+	 						if ((countAllele(2).gt.0).and.(countAllele(1).eq.0)) ConsensusHaplotype=1
+	 						if ((countAllele(1).gt.0).and.(countAllele(2).eq.0)) ConsensusHaplotype=0
 	 						
 	 						if (ConsensusHaplotype.ne.9) then
-	 							!if ((minval(countAllele).gt.0).and.(nFounders.gt.1)) write(*,'(1a10,7(1x,i0),10x,100i1)'),ped%pedigree(i)%originalID,i,j,e,nOffs,nFounders,countAllele, founderOffspring
+	 							!if (trim(ped%pedigree(i)%originalID)=="11851".and.ped%pedigree(i)%individualGenotype%getGenotype(j).eq.1) write(*,'(1a10,4(1x,i0),10x,100i1)'),ped%pedigree(i)%originalID,e,j,countAllele,founderOffspring
+	 							!if (minval(countAllele).gt.0) write(*,'(1a10,4(1x,i0),10x,100i1)'),ped%pedigree(i)%originalID,e,j,countAllele,founderOffspring
 								call ped%pedigree(i)%individualPhase(e-1)%setPhase(j,ConsensusHaplotype)
 								do o=1,nOffs
 	 								if (founderOffspring(o).eq.e) then
@@ -418,6 +420,7 @@ subroutine BuildConsensus
 	enddo
 
 	call ped%cleangenotypesbasedonhaplotypes()
+	!call ped%cleanGenotypesAndPhase()
 
 end subroutine BuildConsensus 
 
@@ -481,7 +484,7 @@ subroutine ChunkDefinition
 		minWindowSizeHapDefinition=1
 	endif
 
-	nChunk=10
+	nChunk=20
 	if (minWindowSizeHapDefinition.eq.maxWindowSizeHapDefinition) nChunk=1
 
 	allocate(ConsensusFounderAssignment(nChunk,nSnp))
@@ -511,6 +514,8 @@ subroutine ChunkDefinition
 	do i=1,ped%pedigreeSize-ped%nDummys
 		do e=1,2
 			ConsensusFounderAssignment=0
+			!if (i==1587.and.e==1) write(*,'(1a10,1x,6802i1)'),ped%pedigree(i)%originalID,FounderAssignment(i,:,e)
+			!if ((minval(FounderAssignment(i,:,e)).gt.0).and.e==1) write(*,'(i10,1x,6802i1)'),i,FounderAssignment(i,:,e)
 			do k=1,nChunk
 				nCores=nSnp/ChunkLength(k)
 				allocate(CoreIndex(nCores,2))
@@ -521,7 +526,6 @@ subroutine ChunkDefinition
 				! do j=1,nCores
 				! 	write(101,'(7(1x,i0))') Windows,IterationNumber,i,j,CoreIndex(j,:)
 				! enddo
-
 				do c=1,nCores
 					fSnp=CoreIndex(c,1)
 					lSnp=CoreIndex(c,2)
@@ -531,6 +535,8 @@ subroutine ChunkDefinition
 					if (n2.gt.n3) ConsensusFounderAssignment(k,fSnp:lSnp)=2
 					if (n3.gt.n2) ConsensusFounderAssignment(k,fSnp:lSnp)=3
 				enddo
+				!if ((minval(ConsensusFounderAssignment(k,:)).gt.0).and.e==1) write(*,'(i10,1x,100i1)'),i,ConsensusFounderAssignment(k,:)
+				!if (i==1587.and.e==1) write(*,'(1a10,1x,6802i1)'),ped%pedigree(i)%originalID,ConsensusFounderAssignment(k,:)
 				deallocate(CoreIndex)
 			enddo
 			
@@ -622,23 +628,24 @@ subroutine CalculateFounderAssignment
 
 	FounderAssignment=0
 
-  	!$OMP PARALLEL DO ORDERED DEFAULT(SHARED)  PRIVATE(e,i,j,parent,phaseId,geno,phasePar) !collapse(2)	
+  	!$OMP PARALLEL DO ORDERED DEFAULT(SHARED)  PRIVATE(e,i,j,k,parent,phaseId,geno,phasePar) !collapse(2)	
 	do e=2,3 ! Sire and Dam pos in the ped
+		k=e-1
 		do i=1,ped%pedigreeSize-ped%nDummys
 			if (.not. ped%pedigree(i)%Founder) then
 				parent => ped%pedigree(i)%getSireDamObjectByIndex(e)
 				
 				if (associated(parent)) then
 		 			do j=1,nSnp
-						phaseId = ped%pedigree(i)%individualPhase(e-1)%getPhase(j)
+						phaseId = ped%pedigree(i)%individualPhase(k)%getPhase(j)
 						
 						geno = parent%individualGenotype%getGenotype(j)
 						phasePar(1) =parent%individualPhase(1)%getPhase(j)
 		 				phasePar(2) =parent%individualPhase(2)%getPhase(j)
 
 						if ((geno.eq.1).and.(sum(phasePar).lt.3)) then
-							if (phasePar(1).eq.phaseId) FounderAssignment(i,j,(e-1))=2 !GrandSire 
-							if (phasePar(2).eq.phaseId) FounderAssignment(i,j,(e-1))=3 !GrandDam
+							if (phasePar(1).eq.phaseId) FounderAssignment(i,j,(k))=2 !GrandSire 
+							if (phasePar(2).eq.phaseId) FounderAssignment(i,j,(k))=3 !GrandDam
 						endif
 					enddo
 				endif
@@ -975,7 +982,8 @@ end subroutine WriteResults
 subroutine CalculateResults(what)
 
 	use GlobalPar
-	use AlphaHouseMod, only : countLines
+
+	use AlphaHouseMod, only : countLines,countColumns
 	use ConstantModule, only : IDLENGTH,DICT_NULL
 
 	implicit none
@@ -985,10 +993,13 @@ subroutine CalculateResults(what)
 	integer 							:: nIndTrueFile,unit,i,j,g,id,ImputedData,nCorrect,nWrong,nMissing
 	integer,allocatable,dimension(:) 	:: TrueData
 	logical 							:: exist
+	character(len=1), dimension(3):: delimiter
+	integer :: nCol
 	
-	
-	allocate(TrueData(nSnp))
-	
+	delimiter(1) = ","
+	delimiter(2) = " "
+	delimiter(3) = char(9)
+
 	if (trim(what).eq."G") then
 		filout5=trim(GenoFile)
 	else if (trim(what).eq."P") then
@@ -999,6 +1010,10 @@ subroutine CalculateResults(what)
 	open (newunit=unit,file=trim(filout5),status="old")
 
 	nIndTrueFile = countLines(filout5)
+	nCol=countColumns(trim(filout5), delimiter)-1 
+
+	allocate(TrueData(nCol))
+	
 
 	if (trim(what).eq."P") nIndTrueFile=nIndTrueFile/2
 
@@ -1040,7 +1055,7 @@ subroutine CalculateResults(what)
 					nWrong=0
 					nMissing=0
 					do j=1,nSnp
-						ImputedData = ped%pedigree(i)%individualPhase(g)%getPhase(j)
+						ImputedData = ped%pedigree(id)%individualPhase(g)%getPhase(j)
 						if (TrueData(j).ne.9) then
 							if (ImputedData.eq.9) then
 								nMissing=nMissing+1
