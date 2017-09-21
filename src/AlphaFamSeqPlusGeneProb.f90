@@ -485,6 +485,7 @@ subroutine ChunkDefinition
 	endif
 
 	nChunk=20
+	if (maxWindowSizeHapDefinition-minWindowSizeHapDefinition+1.lt.nChunk) nChunk=maxWindowSizeHapDefinition-minWindowSizeHapDefinition+1
 	if (minWindowSizeHapDefinition.eq.maxWindowSizeHapDefinition) nChunk=1
 
 	allocate(ConsensusFounderAssignment(nChunk,nSnp))
