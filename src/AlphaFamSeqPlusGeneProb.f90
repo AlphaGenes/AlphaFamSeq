@@ -132,6 +132,7 @@ program FamilyPhase
 	print*,"Read Pedigree"
 	ped = PedigreeHolder(pedigreeFile,nsnps=nSnp) 
 	call ped%sortPedigreeAndOverwrite()
+	call ped%outputSortedPedigree(file="PedigreeSorted.txt")
 	nInd=ped%pedigreeSize
 
 	! Read Sequence Data -----------------------------------------------------------------------------------------------
