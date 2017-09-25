@@ -131,7 +131,7 @@ program FamilyPhase
 	! Read Pedigree ----------------------------------------------------------------------------------------------------
 	print*,"Read Pedigree"
 	ped = PedigreeHolder(pedigreeFile,nsnps=nSnp) 
-	!call ped%sortPedigreeAndOverwrite()
+	call ped%sortPedigreeAndOverwrite()
 	nInd=ped%pedigreeSize
 
 	! Read Sequence Data -----------------------------------------------------------------------------------------------
@@ -970,12 +970,12 @@ subroutine WriteResults
 
 		open (unit=4,file=trim(filout4),status="unknown")
 		do i=1,ped%pedigreeSize-ped%nDummys
-			!tmpId = ped%inputMap(i)
-			!if (maxval(FounderAssignment(i,:,:))/=0) then 
+			tmpId = ped%inputMap(i)
+			if (maxval(FounderAssignment(i,:,:))/=0) then 
 				!print*,i,tmpId," ",ped%pedigree(i)," ",ped%pedigree(tmpId)%originalID
 				write (4,FmtInt2) ped%pedigree(i)%originalID,FounderAssignment(i,:,1)
 				write (4,FmtInt2) ped%pedigree(i)%originalID,FounderAssignment(i,:,2)
-			!endif
+			endif
 		enddo
 		close (4)
 	endif
