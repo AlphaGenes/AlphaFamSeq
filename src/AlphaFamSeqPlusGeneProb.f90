@@ -135,16 +135,37 @@ program FamilyPhase
 	call ped%outputSortedPedigree(file="PedigreeSorted.txt")
 	nInd=ped%pedigreeSize
 
+
+	if ((UsePrevGeneProb==0).and.(trim(SnpChipFile).eq."None").and.(trim(SequenceFile).eq."None")) then
+		print*,"ERROR : Sequence file or Genotype file must be provided"
+		stop
+	endif
+
 	! Read Sequence Data -----------------------------------------------------------------------------------------------
-	! TODO split windows to avoid huge memory allocation
 	! TODO check type of genotype info - right now this for sequence 
-	if (UsePrevGeneProb==0) then
+	if ((UsePrevGeneProb==0).and.(trim(SequenceFile).ne."None")) then
 		print*,"Read SequenceData"
 		if (trim(SequenceDataType)=="RC") then
-			if (trim(SequenceFileFormat)=="AlphaSim") call ped%addSequenceFromFile(SequenceFile,nSnp,startSnp=StartPos,endSnp=EndPos) ! read sequence file AlphaSimFormat
-			if (trim(SequenceFileFormat)=="VcfTools") call ped%addSequenceFromVCFFile(seqFile=SequenceFile,nSnpsIn=nSnp,chr=chr,StartPos=StartPos,EndPos=EndPos)
+			if (trim(SequenceFileFormat)=="ASim") call ped%addSequenceFromFile(SequenceFile,nSnp,startSnp=StartPos,endSnp=EndPos) ! read sequence file AlphaSimFormat
+			if (trim(SequenceFileFormat)=="GATK") call ped%addSequenceFromVCFFile(seqFile=SequenceFile,nSnpsIn=nSnp,chr=chr,StartPos=StartPos,EndPos=EndPos)
 		endif
-	endif	
+	endif
+
+	! Read Genotype Data -----------------------------------------------------------------------------------------------
+	if ((UsePrevGeneProb==0).and.(trim(SnpChipFile).ne."None").and.(trim(SequenceFile).eq."None")) then
+		print*,"Read Genotype Data"
+		call AddGenotypesAsSequenceData
+	endif
+
+	if ((UsePrevGeneProb==0).and.(trim(SnpChipFile).ne."None").and.(trim(SequenceFile).ne."None")) then
+		print*,"Read Genotype Data"
+		call MergeGenotypesAndSequenceData
+	endif
+
+
+
+
+
 	! Edit The Row Data ------------------------------------------------------------------------------------------------
 	! TODO : Check Mendelian Inconsistencies
 	! TODO : Check Excess of Reads
@@ -232,66 +253,60 @@ program FamilyPhase
 	! call UnintitialiseIntelRNG
 	! close(101)
 
-	! ! ! Compute statistics
-	! ! if ((trim(GenoFile)/="None").or.(trim(PhaseFile)/="None")) print*," Calculate Results"
-	! ! if (trim(GenoFile)/="None") 	call GetResultsImputation(LenghtSequenceDataFile,"AlphaFamSeqFinalGenos.txt",GenoFile,"AlphaFamSeqEditingMarkersRemoved.txt",1,"Yes","AlphaFamSeq")
-	! ! if (trim(PhaseFile)/="None") 	call GetResultsImputation(LenghtSequenceDataFile,"AlphaFamSeqFinalPhase.txt",PhaseFile,"AlphaFamSeqEditingMarkersRemoved.txt",2,"No","AlphaFamSeq")
-
-
 end program FamilyPhase
 
 
-! subroutine MakeDirectories
+subroutine MakeDirectories
 
 
-! 	use GlobalPar
-! 	use ifport
-! 	implicit none
+	! 	use GlobalPar
+	! 	use ifport
+	! 	implicit none
 
-! 	integer :: CSTAT,ESTAT
-! 	character(len=100) :: CMSG
-! 	logical :: dirExists
+	! 	integer :: CSTAT,ESTAT
+	! 	character(len=100) :: CMSG
+	! 	logical :: dirExists
 
-! 	#ifdef OS_UNIX
-! 		inquire(directory="Output", exist=dirExists)
-! 		if (.not. dirExists) then
-! 			CALL EXECUTE_COMMAND_LINE ("mkdir -p Output",EXITSTAT=ESTAT, CMDSTAT=CSTAT, CMDMSG=CMSG)
-! 			if (CSTAT.gt.0) then
-! 				print*,"ERROR : Command execution failed",trim(CMSG)
-! 			else if (CSTAT.lt.0) then
-! 				print*,"ERROR : Command execution not supported"
-! 			else
-! 				print*,"Command completed with status",ESTAT
-! 			endif
-! 		endif
+	! 	#ifdef OS_UNIX
+	! 		inquire(directory="Output", exist=dirExists)
+	! 		if (.not. dirExists) then
+	! 			CALL EXECUTE_COMMAND_LINE ("mkdir -p Output",EXITSTAT=ESTAT, CMDSTAT=CSTAT, CMDMSG=CMSG)
+	! 			if (CSTAT.gt.0) then
+	! 				print*,"ERROR : Command execution failed",trim(CMSG)
+	! 			else if (CSTAT.lt.0) then
+	! 				print*,"ERROR : Command execution not supported"
+	! 			else
+	! 				print*,"Command completed with status",ESTAT
+	! 			endif
+	! 		endif
 
-! 		inquire(directory="Temporary", exist=dirExists)
-! 		if (.not. dirExists) then
-! 			CALL EXECUTE_COMMAND_LINE ("mkdir -p Output",EXITSTAT=ESTAT, CMDSTAT=CSTAT, CMDMSG=CMSG)
-! 			if (CSTAT.gt.0) then
-! 				print*,"ERROR : Command execution failed",trim(CMSG)
-! 			else if (CSTAT.lt.0) then
-! 				print*,"ERROR : Command execution not supported"
-! 			else
-! 				print*,"Command completed with status",ESTAT
-! 			endif
-! 		endif
+	! 		inquire(directory="Temporary", exist=dirExists)
+	! 		if (.not. dirExists) then
+	! 			CALL EXECUTE_COMMAND_LINE ("mkdir -p Output",EXITSTAT=ESTAT, CMDSTAT=CSTAT, CMDMSG=CMSG)
+	! 			if (CSTAT.gt.0) then
+	! 				print*,"ERROR : Command execution failed",trim(CMSG)
+	! 			else if (CSTAT.lt.0) then
+	! 				print*,"ERROR : Command execution not supported"
+	! 			else
+	! 				print*,"Command completed with status",ESTAT
+	! 			endif
+	! 		endif
 
-! 		inquire(directory="Stats", exist=dirExists)
-! 		if (.not. dirExists) then
-! 			CALL EXECUTE_COMMAND_LINE ("mkdir -p Output",EXITSTAT=ESTAT, CMDSTAT=CSTAT, CMDMSG=CMSG)
-! 			if (CSTAT.gt.0) then
-! 				print*,"ERROR : Command execution failed",trim(CMSG)
-! 			else if (CSTAT.lt.0) then
-! 				print*,"ERROR : Command execution not supported"
-! 			else
-! 				print*,"Command completed with status",ESTAT
-! 			endif
-! 		endif
+	! 		inquire(directory="Stats", exist=dirExists)
+	! 		if (.not. dirExists) then
+	! 			CALL EXECUTE_COMMAND_LINE ("mkdir -p Output",EXITSTAT=ESTAT, CMDSTAT=CSTAT, CMDMSG=CMSG)
+	! 			if (CSTAT.gt.0) then
+	! 				print*,"ERROR : Command execution failed",trim(CMSG)
+	! 			else if (CSTAT.lt.0) then
+	! 				print*,"ERROR : Command execution not supported"
+	! 			else
+	! 				print*,"Command completed with status",ESTAT
+	! 			endif
+	! 		endif
 
-! 	#endif
+	! 	#endif
 	
-! end subroutine MakeDirectories
+end subroutine MakeDirectories
 
 !-------------------------------------------------------------------------------------------------
 !> @brief   Get phase complement and make the genotype
@@ -320,7 +335,7 @@ subroutine SimpleCleanUpFillIn
 
 		call ped%phaseComplement()
 		call ped%makeGenotype()
-!		call ped%cleanGenotypesAndPhase()
+	!		call ped%cleanGenotypesAndPhase()
 
 		newMissingGeno=ped%CountMissingGenotypesNoDummys()
 		newMissingPhase=ped%CountMissingPhaseNoDummys()
@@ -489,7 +504,7 @@ subroutine ChunkDefinition
 		minWindowSizeHapDefinition=1
 	endif
 
-	nChunk=10
+	nChunk=5
 	if (maxWindowSizeHapDefinition-minWindowSizeHapDefinition+1.lt.nChunk) nChunk=maxWindowSizeHapDefinition-minWindowSizeHapDefinition+1
 	if (minWindowSizeHapDefinition.eq.maxWindowSizeHapDefinition) nChunk=1
 
@@ -555,63 +570,63 @@ subroutine ChunkDefinition
 		enddo
 	enddo
 
-! 	!$OMP PARALLEL DO DEFAULT(SHARED)  PRIVATE(c,i,k,e,j,f1,ChunkLength,fSnp,lSnp,FounderAssignmentF,FounderAssignmentB)
-! 	do c=1,nCores
-! 		ChunkLength=CoreIndex(c,2)-CoreIndex(c,1)+1
-! 		do i=1,ped%pedigreeSize-ped%nDummys
-! 			do k=1,2 ! paternal or maternal gamete
-! 				e=k+1 ! position parents in Pedigree
-				
-				
-! 				fSnp=CoreIndex(c,1)
-! 				lSnp=CoreIndex(c,2)
-				
-! 				!if (count(FounderAssignment(i,fSnp:lSnp,k).ne.0).gt.1) then
-! 				if (dble(count(FounderAssignment(i,fSnp:lSnp,k).ne.0))/dble(ChunkLength).gt.0.05) then
-
-! 					allocate(FounderAssignmentF(ChunkLength))
-! 					allocate(FounderAssignmentB(ChunkLength))
-
-! 					FounderAssignmentF=0
-! 					FounderAssignmentB=0
-
-! 					FounderAssignmentF(:)=FounderAssignment(i,fSnp:lSnp,k)
-! 					FounderAssignmentB(:)=FounderAssignment(i,fSnp:lSnp,k)
-
+	! 	!$OMP PARALLEL DO DEFAULT(SHARED)  PRIVATE(c,i,k,e,j,f1,ChunkLength,fSnp,lSnp,FounderAssignmentF,FounderAssignmentB)
+	! 	do c=1,nCores
+	! 		ChunkLength=CoreIndex(c,2)-CoreIndex(c,1)+1
+	! 		do i=1,ped%pedigreeSize-ped%nDummys
+	! 			do k=1,2 ! paternal or maternal gamete
+	! 				e=k+1 ! position parents in Pedigree
 					
-! 					f1=0
-! 					!!! Forward founder assignment 
-! 					do j=1,ChunkLength
-! 						if (FounderAssignmentF(j)/=0)then
-! 							f1=FounderAssignmentF(j)
-! 						endif
-! 						if ((FounderAssignmentF(j)==0)) then
-! 							FounderAssignmentF(j)=f1
-! 						endif 
-! 					enddo
-
-! 					f1=0
-! 					!!! Backward founder assignment 
-! 					do j=ChunkLength,1,-1
-! 						if (FounderAssignmentB(j)/=0)then
-! 							f1=FounderAssignmentB(j)
-! 						endif
-! 						if ((FounderAssignmentB(j)==0)) then
-! 							FounderAssignmentB(j)=f1
-! 						endif 
-! 					enddo
 					
-! 					do j=1,ChunkLength
-! 						if (FounderAssignmentF(j)==FounderAssignmentB(j)) FounderAssignment(i,(fSnp+j-1),k)=FounderAssignmentF(j)
-! 						if (FounderAssignmentF(j)/=FounderAssignmentB(j)) FounderAssignment(i,(fSnp+j-1),k)=0
-! 					enddo	
-! 					deallocate(FounderAssignmentF)
-! 					deallocate(FounderAssignmentB)
-! 				endif
-! 			enddo
-! 		enddo
-! 	enddo
-! 	!$OMP END PARALLEL DO
+	! 				fSnp=CoreIndex(c,1)
+	! 				lSnp=CoreIndex(c,2)
+					
+	! 				!if (count(FounderAssignment(i,fSnp:lSnp,k).ne.0).gt.1) then
+	! 				if (dble(count(FounderAssignment(i,fSnp:lSnp,k).ne.0))/dble(ChunkLength).gt.0.05) then
+
+	! 					allocate(FounderAssignmentF(ChunkLength))
+	! 					allocate(FounderAssignmentB(ChunkLength))
+
+	! 					FounderAssignmentF=0
+	! 					FounderAssignmentB=0
+
+	! 					FounderAssignmentF(:)=FounderAssignment(i,fSnp:lSnp,k)
+	! 					FounderAssignmentB(:)=FounderAssignment(i,fSnp:lSnp,k)
+
+						
+	! 					f1=0
+	! 					!!! Forward founder assignment 
+	! 					do j=1,ChunkLength
+	! 						if (FounderAssignmentF(j)/=0)then
+	! 							f1=FounderAssignmentF(j)
+	! 						endif
+	! 						if ((FounderAssignmentF(j)==0)) then
+	! 							FounderAssignmentF(j)=f1
+	! 						endif 
+	! 					enddo
+
+	! 					f1=0
+	! 					!!! Backward founder assignment 
+	! 					do j=ChunkLength,1,-1
+	! 						if (FounderAssignmentB(j)/=0)then
+	! 							f1=FounderAssignmentB(j)
+	! 						endif
+	! 						if ((FounderAssignmentB(j)==0)) then
+	! 							FounderAssignmentB(j)=f1
+	! 						endif 
+	! 					enddo
+						
+	! 					do j=1,ChunkLength
+	! 						if (FounderAssignmentF(j)==FounderAssignmentB(j)) FounderAssignment(i,(fSnp+j-1),k)=FounderAssignmentF(j)
+	! 						if (FounderAssignmentF(j)/=FounderAssignmentB(j)) FounderAssignment(i,(fSnp+j-1),k)=0
+	! 					enddo	
+	! 					deallocate(FounderAssignmentF)
+	! 					deallocate(FounderAssignmentB)
+	! 				endif
+	! 			enddo
+	! 		enddo
+	! 	enddo
+	! 	!$OMP END PARALLEL DO
 
  end subroutine ChunkDefinition
 
@@ -816,6 +831,203 @@ end subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 
 !################################################################################################
 
+!---------------------------------------------------------------------------
+!> @brief   Read in SnpChipFile and convert to ReadsCount
+!> @date    Octorber 04, 2017
+!---------------------------------------------------------------------------   
+
+subroutine AddGenotypesAsSequenceData
+	use GlobalPar
+	use constantmodule, only : idlength,dict_null
+	use alphahousemod, only : int2char,countlines,countcolumns
+	implicit none
+
+    integer(kind=1),allocatable, dimension(:) :: geno
+    integer,allocatable, dimension(:) :: ref,alt
+    character(len=1), dimension(3):: delimiter
+    integer :: nRow,nCol,i,j,id,unit
+	character(len=IDLENGTH)					:: DumC
+	
+	delimiter(1) = ","
+  	delimiter(2) = " "
+ 	delimiter(3) = char(9)
+ 	
+ 	nCol=countcolumns(trim(SnpChipFile), delimiter)-1 ! First column is animal id
+	nRow = countlines(SnpChipFile)
+
+    open(newunit=unit,file=trim(SnpChipFile),status="old") !INPUT FILE
+	allocate(geno(nCol))
+	allocate(ref(nCol))
+ 	allocate(alt(nCol))
+
+	do i=1,nRow
+		read(unit,*) DumC,geno
+		id = ped%dictionary%getValue(DumC)
+		if (id /= DICT_NULL) then
+			
+			do j=1,nCol
+				if (geno(j).eq.9) then
+					ref(j)=0
+					alt(j)=0
+				else if (geno(j).eq.0) then
+					ref(j)=30
+					alt(j)=0
+				else if (geno(j).eq.1) then
+					ref(j)=15
+					alt(j)=15
+				else if (geno(j).eq.2) then
+					ref(j)=0
+					alt(j)=30
+				endif
+			enddo
+			call ped%setAnimalAsGenotypedSequence(id,geno,ref,alt)
+		endif
+	enddo
+end subroutine AddGenotypesAsSequenceData
+
+!---------------------------------------------------------------------------
+!> @brief   Read in SnpChipFile and convert to ReadsCount
+!> @date    Octorber 04, 2017
+!---------------------------------------------------------------------------   
+
+subroutine MergeGenotypesAndSequenceData
+	use GlobalPar
+	use constantmodule, only : idlength,dict_null
+	use alphahousemod, only : int2char,countlines,countcolumns
+	implicit none
+
+    integer(kind=1),allocatable, dimension(:) :: geno,tmpG
+    integer,allocatable, dimension(:) :: ref,alt,PosBase,PosSeq,PosSnp,tmpR,SnpDisagree,IndDisagree
+    character(len=1), dimension(3):: delimiter
+    integer :: nRowMap,nRow,nCol,i,j,id,unit,tmpRef,tmpAlt
+	character(len=IDLENGTH)					:: DumC
+	character(len=30) :: DumChr,DumPos
+	character(len=:), allocatable:: filout1,filout2
+	
+	delimiter(1) = ","
+  	delimiter(2) = " "
+ 	delimiter(3) = char(9)
+ 	
+
+
+	nRowMap = countlines(MapSnpChipFile)-1
+	allocate(PosSeq(nRowMap))
+	allocate(PosSnp(nRowMap))
+	allocate(PosBase(nRowMap))
+
+	open(newunit=unit,file=trim(MapSnpChipFile),status="old")
+	read(unit,*) DumChr,DumPos,DumC,DumC
+	do i=1,nRowMap
+		read(unit,*) DumChr,PosBase(i),PosSeq(i),PosSnp(i)
+	enddo
+	close(unit)
+
+    open(newunit=unit,file=trim(SnpChipFile),status="old") 
+ 	nCol=countcolumns(trim(SnpChipFile), delimiter)-1 ! First column is animal id
+	nRow = countlines(SnpChipFile)
+
+
+	if (nCol.ne.count(PosSnp.ne.0)) then
+		print*,"ERROR : Genotype and Map files have different numbers of SNP"
+		print*,"Snps in Genotype File: ",nCol
+		print*,"Snps in Map File:      ",count(PosSnp.ne.0)
+		stop
+	endif
+
+	if (ped%nsnpsPopulation.ne.nRowMap) then
+		print*,"ERROR : Sequence and Map files have different numbers of variants"
+		print*,"Snps in Sequence File: ",ped%nsnpsPopulation
+		print*,"Snps in Map File:      ",nRowMap
+		stop
+	endif
+
+
+	allocate(geno(nCol))
+	allocate(ref(nCol))
+ 	allocate(alt(nCol))
+
+ 	allocate(tmpR(ped%nsnpsPopulation))
+ 	allocate(tmpG(ped%nsnpsPopulation))
+ 	tmpR=0
+ 	tmpG=9
+
+
+ 	allocate(SnpDisagree(nCol))
+ 	allocate(IndDisagree(ped%pedigreeSize-ped%nDummys))
+ 	SnpDisagree=0
+ 	IndDisagree=0
+
+	do i=1,nRow
+		read(unit,*) DumC,geno
+		id = ped%dictionary%getValue(DumC)
+		if (id /= DICT_NULL) then
+			if (.not. allocated(ped%pedigree(id)%referAllele)) call ped%setAnimalAsGenotypedSequence(id,tmpG,tmpR,tmpR)
+			do j=1,nCol
+				if (geno(j).eq.9) then
+					ref(j)=0
+					alt(j)=0
+				else if (geno(j).eq.0) then
+					ref(j)=30
+					alt(j)=0
+				else if (geno(j).eq.1) then
+					ref(j)=15
+					alt(j)=15
+				else if (geno(j).eq.2) then
+					ref(j)=0
+					alt(j)=30
+				endif
+			enddo
+
+			do j=1,ped%nsnpsPopulation
+				if (PosSnp(j).ne.0) then
+					tmpRef=ped%pedigree(id)%referAllele(PosSeq(j))
+					tmpAlt=ped%pedigree(id)%alterAllele(PosSeq(j))
+					if ((geno(PosSnp(j)).eq.0).and.(tmpAlt.gt.0).and.(tmpRef.eq.0)) then
+						SnpDisagree(PosSnp(j))=SnpDisagree(PosSnp(j))+1
+						IndDisagree(id)=IndDisagree(id)+1
+					else if ((geno(PosSnp(j)).eq.1).and.(((tmpAlt.gt.0).and.(tmpRef.eq.0)).or.((tmpAlt.gt.0).and.(tmpRef.eq.0)))) then
+						SnpDisagree(PosSnp(j))=SnpDisagree(PosSnp(j))+1
+						IndDisagree(id)=IndDisagree(id)+1
+					else if ((geno(PosSnp(j)).eq.2).and.(tmpRef.gt.0).and.(tmpAlt.eq.0)) then
+						SnpDisagree(PosSnp(j))=SnpDisagree(PosSnp(j))+1
+						IndDisagree(id)=IndDisagree(id)+1
+					endif
+					
+					ped%pedigree(id)%referAllele(PosSeq(j))=ref(PosSnp(j))
+					ped%pedigree(id)%alterAllele(PosSeq(j))=alt(PosSnp(j))
+					!call ped%pedigree(id)%individualGenotype%setGenotype(PosSeq(j),geno(PosSnp(j)))
+				endif
+			enddo
+		endif
+	enddo
+	close(unit)
+	
+	filout1 ="AlphaFamSeqCheckDisagreementSnps_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".txt"
+	filout2 ="AlphaFamSeqCheckDisagreementIds_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".txt"
+
+	open (unit=1,file=trim(filout1),status="unknown")
+	write(1,'(1a30)'),"CHROM POS SEQ SNP DISAGREEMENT"
+
+	do i=1,nCol
+		if (PosSnp(i).ne.0) then
+			write(1,'(1a20,4(1x,1i0))') DumChr,PosBase(i),PosSeq(i),PosSnp(i),SnpDisagree(i)
+		endif
+	enddo
+	close(1)
+		
+
+	open (unit=2,file=trim(filout2),status="unknown")
+	write(2,'(1a15)'),"ID DISAGREEMENT"
+
+	do i=1,ped%pedigreeSize-ped%nDummys
+		write(2,'(1a20,1x,1i0)') ped%pedigree(i)%originalID,IndDisagree(i)
+	enddo
+	close(2)
+
+
+
+end subroutine MergeGenotypesAndSequenceData
+
 
 !---------------------------------------------------------------------------
 !> @brief   Read the results of GeneProb if we already run it
@@ -873,7 +1085,6 @@ subroutine ReadPrevGeneProb
 		print*,"        use RunSingleLocusPeeler = 0 to run Single Locus Peeler"
 		stop
 	endif
-
 end subroutine ReadPrevGeneProb
 
 !---------------------------------------------------------------------------
@@ -931,8 +1142,6 @@ subroutine SaveGeneProbResults
 		enddo
 	enddo
 	close (unit)
-
-
 end subroutine SaveGeneProbResults
 
 !---------------------------------------------------------------------------
@@ -972,15 +1181,14 @@ subroutine WriteResults
 		open (unit=4,file=trim(filout4),status="unknown")
 		do i=1,ped%pedigreeSize-ped%nDummys
 			tmpId = ped%inputMap(i)
-			if (maxval(FounderAssignment(i,:,:))/=0) then 
+			!if (maxval(FounderAssignment(i,:,:))/=0) then 
 				!print*,i,tmpId," ",ped%pedigree(i)," ",ped%pedigree(tmpId)%originalID
 				write (4,FmtInt2) ped%pedigree(i)%originalID,FounderAssignment(i,:,1)
 				write (4,FmtInt2) ped%pedigree(i)%originalID,FounderAssignment(i,:,2)
-			endif
+			!endif
 		enddo
 		close (4)
 	endif
-	
 end subroutine WriteResults
 
 !################################################################################################
@@ -1079,7 +1287,6 @@ subroutine CalculateResults(what)
 
 	close (unit)
 	deallocate(TrueData)
-
 end subroutine CalculateResults
 
 !################################################################################################
