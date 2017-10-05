@@ -201,7 +201,6 @@ module specFileModule
                         ReduceThr=GeneProbThresh-GeneProbThreshMin
                     endif
 
-
                 case('windowsizehaplotype')
                     read(1, *, iostat=stat) minWindowSizeHapDefinition,maxWindowSizeHapDefinition
                     if (stat /= 0) then
@@ -227,8 +226,7 @@ module specFileModule
                         minWindowSizeHapDefinition=1
                     endif
    
-
-    			case('truegenofile')
+       			case('truegenofile')
                     read(1, *, iostat=stat) GenoFile
                     if (stat /= 0) then
                         print*, "ERROR - TrueGenoFile not set properly in spec file"
