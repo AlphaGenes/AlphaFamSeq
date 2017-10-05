@@ -195,8 +195,9 @@ module specFileModule
                     endif
 
                    if (GeneProbThresh-GeneProbThreshMin.lt.ReduceThr) then
-                        print*,"WARNING - Decrement of the allele probability threshold is greater than the difference of the two thresholds"
-                        print*,"          Using value of ",GeneProbThresh-GeneProbThreshMin," instead of ",GeneProbThreshMin
+                        print*,"WARNING - Decrement of the allele probability threshold" 
+                        print*,"          is greater than the difference of the two thresholds."
+                        write(*,'(1a26,1f7.4,1a12,1f7.4)'),"          Using value of ",GeneProbThresh-GeneProbThreshMin," instead of ",ReduceThr
                         ReduceThr=GeneProbThresh-GeneProbThreshMin
                     endif
 
