@@ -987,7 +987,7 @@ subroutine MergeGenotypesAndSequenceData
 	open (unit=1,file=trim(filout1),status="unknown")
 	write(1,'(1a30)'),"CHROM POS SEQ SNP DISAGREEMENT"
 
-	do i=1,nCol
+	do i=1,nRowMap
 		if (PosSnp(i).ne.0) then
 			write(1,'(1a20,4(1x,1i0))') DumChr,PosBase(i),PosSeq(i),PosSnp(i),SnpDisagree(i)
 		endif
