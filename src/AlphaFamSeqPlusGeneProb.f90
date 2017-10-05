@@ -163,9 +163,6 @@ program FamilyPhase
 	endif
 
 
-
-
-
 	! Edit The Row Data ------------------------------------------------------------------------------------------------
 	! TODO : Check Mendelian Inconsistencies
 	! TODO : Check Excess of Reads
@@ -485,24 +482,6 @@ subroutine ChunkDefinition
 	logical:: blah
 	
 
-	! Check window size
-	if (minWindowSizeHapDefinition.gt.nSnp) then
-		print*,"WARNING: min window size > nSnp"
-		print*,"         use 1 as min window size"
-		minWindowSizeHapDefinition=1
-	endif
-
-	if (maxWindowSizeHapDefinition.gt.nSnp) then
-		print*,"WARNING: max window size > nSnp"
-		print*,"         use nSnp as max window size"
-		maxWindowSizeHapDefinition=nSnp
-	endif
-
-	if (minWindowSizeHapDefinition.gt.maxWindowSizeHapDefinition) then
-		print*,"WARNING: min window size > max window size"
-		print*,"         use 1 as min window size"
-		minWindowSizeHapDefinition=1
-	endif
 
 	nChunk=5
 	if (maxWindowSizeHapDefinition-minWindowSizeHapDefinition+1.lt.nChunk) nChunk=maxWindowSizeHapDefinition-minWindowSizeHapDefinition+1
