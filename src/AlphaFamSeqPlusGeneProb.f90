@@ -931,7 +931,7 @@ subroutine MergeGenotypesAndSequenceData
  	tmpG=9
 
 
- 	allocate(SnpDisagree(nCol))
+ 	allocate(SnpDisagree(nRowMap))
  	allocate(IndDisagree(ped%pedigreeSize-ped%nDummys))
  	SnpDisagree=0
  	IndDisagree=0
