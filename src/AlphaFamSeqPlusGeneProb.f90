@@ -965,13 +965,13 @@ subroutine MergeGenotypesAndSequenceData
 					if ((tmpRef.gt.0).and.(tmpAlt.eq.0)) tmpGeno=0
 					if ((tmpRef.gt.0).and.(tmpAlt.gt.0)) tmpGeno=1
 					if ((tmpRef.eq.0).and.(tmpAlt.gt.0)) tmpGeno=2
-					if ((geno(PosSnp(j)).eq.0).and.((tmpGeno.ne.0).and.(tmpGeno.ne.9)) then
+					if ((geno(PosSnp(j)).eq.0).and.((tmpGeno.ne.0).and.(tmpGeno.ne.9))) then
 						SnpDisagree(PosSnp(j))=SnpDisagree(PosSnp(j))+1
 						IndDisagree(id)=IndDisagree(id)+1
-					else if ((geno(PosSnp(j)).eq.1).and.((tmpGeno.ne.1).and.(tmpGeno.ne.9)) then
+					else if ((geno(PosSnp(j)).eq.1).and.((tmpGeno.ne.1).and.(tmpGeno.ne.9))) then
 						SnpDisagree(PosSnp(j))=SnpDisagree(PosSnp(j))+1
 						IndDisagree(id)=IndDisagree(id)+1
-					else if ((geno(PosSnp(j)).eq.2).and.((tmpGeno.ne.2).and.(tmpGeno.ne.9)) then
+					else if ((geno(PosSnp(j)).eq.2).and.((tmpGeno.ne.2).and.(tmpGeno.ne.9))) then
 						SnpDisagree(PosSnp(j))=SnpDisagree(PosSnp(j))+1
 						IndDisagree(id)=IndDisagree(id)+1
 					endif
