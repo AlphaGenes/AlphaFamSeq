@@ -101,6 +101,14 @@ module specFileModule
                         stop
                     endif
 
+                    if ((trim(SequenceDataType)=="GL").or.(trim(SequenceDataType)=="GT")) then
+                        print*,"ERROR - Sequence data type not supported"
+                        print*,"        Supported type is: RC"
+                        print*,"        Please check the parameters file"
+                        print*,"        ",trim(SequenceDataType)
+                        stop
+                    endif
+
                     if ((trim(SequenceDataType)/="RC").and.(trim(SequenceDataType)/="None")) then
                         print*,"ERROR - Sequence data type not recognized or not supported"
                         print*,"        Supported type is: RC"
