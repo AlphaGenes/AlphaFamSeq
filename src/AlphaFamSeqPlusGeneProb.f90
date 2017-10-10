@@ -878,7 +878,7 @@ subroutine MergeGenotypesAndSequenceData
     integer(kind=1),allocatable, dimension(:) :: geno,tmpG
     integer,allocatable, dimension(:) :: ref,alt,PosBase,PosSeq,PosSnp,tmpR,SnpDisagree,IndDisagree
     character(len=1), dimension(3):: delimiter
-    integer :: nRowMap,nRow,nCol,i,j,id,unit,tmpRef,tmpAlt
+    integer :: nRowMap,nRow,nCol,i,j,id,unit,tmpRef,tmpAlt,tmpGeno
 	character(len=IDLENGTH)					:: DumC
 	character(len=30) :: DumChr,DumPos
 	character(len=:), allocatable:: filout1,filout2
@@ -961,13 +961,17 @@ subroutine MergeGenotypesAndSequenceData
 				if (PosSnp(j).ne.0) then
 					tmpRef=ped%pedigree(id)%referAllele(PosSeq(j))
 					tmpAlt=ped%pedigree(id)%alterAllele(PosSeq(j))
-					if ((geno(PosSnp(j)).eq.0).and.(tmpAlt.gt.0).and.(tmpRef.eq.0)) then
+					tmpGeno=9
+					if ((tmpRef.gt.0).and.(tmpAlt.eq.0)) tmpGeno=0
+					if ((tmpRef.gt.0).and.(tmpAlt.gt.0)) tmpGeno=1
+					if ((tmpRef.eq.0).and.(tmpAlt.gt.0)) tmpGeno=2
+					if ((geno(PosSnp(j)).eq.0).and.((tmpGeno.ne.0).and.(tmpGeno.ne.9)) then
 						SnpDisagree(PosSnp(j))=SnpDisagree(PosSnp(j))+1
 						IndDisagree(id)=IndDisagree(id)+1
-					else if ((geno(PosSnp(j)).eq.1).and.(((tmpAlt.gt.0).and.(tmpRef.eq.0)).or.((tmpAlt.gt.0).and.(tmpRef.eq.0)))) then
+					else if ((geno(PosSnp(j)).eq.1).and.((tmpGeno.ne.1).and.(tmpGeno.ne.9)) then
 						SnpDisagree(PosSnp(j))=SnpDisagree(PosSnp(j))+1
 						IndDisagree(id)=IndDisagree(id)+1
-					else if ((geno(PosSnp(j)).eq.2).and.(tmpRef.gt.0).and.(tmpAlt.eq.0)) then
+					else if ((geno(PosSnp(j)).eq.2).and.((tmpGeno.ne.2).and.(tmpGeno.ne.9)) then
 						SnpDisagree(PosSnp(j))=SnpDisagree(PosSnp(j))+1
 						IndDisagree(id)=IndDisagree(id)+1
 					endif
