@@ -146,26 +146,26 @@ module specFileModule
                         stop
                     endif
     			
-                case('removeoutliersreadscount')
-                    read(1, *, iostat=stat) maxStdForReadsCount,ThresholdMaxReadsCount
-                    if (stat /= 0) then
-                        print*, "ERROR - RemoveOutliersReadsCount not set properly in spec file"
-                        stop 2
-                    endif 
+       !          case('removeoutliersreadscount')
+       !              read(1, *, iostat=stat) maxStdForReadsCount,ThresholdMaxReadsCount
+       !              if (stat /= 0) then
+       !                  print*, "ERROR - RemoveOutliersReadsCount not set properly in spec file"
+       !                  stop 2
+       !              endif 
 
-    			case('removemarkerslownrreads')
-                    read(1, *, iostat=stat) ThresholdReadsCount
-                    if (stat /= 0) then
-                        print*, "ERROR - RemoveMarkersLowNrReads not set properly in spec file"
-                        stop 2
-                    endif 
+    			! case('removemarkerslownrreads')
+       !              read(1, *, iostat=stat) ThresholdReadsCount
+       !              if (stat /= 0) then
+       !                  print*, "ERROR - RemoveMarkersLowNrReads not set properly in spec file"
+       !                  stop 2
+       !              endif 
 
-    			case('removeexcessheteropvalue')
-                    read(1, *, iostat=stat) ThresholdExcessHetero
-                    if (stat /= 0) then
-                        print*, "ERROR - RemoveExcessHeteroPvalue not set properly in spec file"
-                        stop 2
-                    endif 
+    			! case('removeexcessheteropvalue')
+       !              read(1, *, iostat=stat) ThresholdExcessHetero
+       !              if (stat /= 0) then
+       !                  print*, "ERROR - RemoveExcessHeteroPvalue not set properly in spec file"
+       !                  stop 2
+       !              endif 
 
                 case('runsinglelocuspeeler')
                     read(1, *, iostat=stat) UsePrevGeneProb !nIter 
