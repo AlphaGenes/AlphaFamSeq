@@ -1,4 +1,5 @@
 module AlphaVarCallFuture
+use globalGP
 use ISO_Fortran_Env
 implicit none
 
@@ -8,8 +9,9 @@ contains
 
     !######################################################################################################################################################
 
-    subroutine AlphaVarCall(nAnis,nSnp,StartSnp,EndSnp,ErrorRate,Seq0Snp1Mode,SeqSire,SeqDam,ReadCountsTmp,InputGenosTmp,Pr00,Pr01,Pr10,Pr11)
+    subroutine AlphaVarCall(nAnis,nSnp,StartSnp,EndSnp,ErrorRate,Seq0Snp1Mode,ped,OutProb)
 
+      use globalGP, only :pedigree
       use ISO_Fortran_Env
       use omp_lib
 
@@ -17,17 +19,13 @@ contains
 
       integer, intent(in) :: nAnis,nSnp,StartSnp,EndSnp,Seq0Snp1Mode
       real(kind=8),intent(in) :: ErrorRate
+      type(PedigreeHolder) ,target:: ped
       
-      integer(int64), intent(in), dimension (:) :: SeqSire(nAnis),SeqDam(nAnis)
-      
-      integer(kind=2),intent(in),dimension(:,:,:) :: ReadCountsTmp(1:nAnis,nSnp,2) 
-      integer(kind=1),intent(inout),dimension(:,:) :: InputGenosTmp(1:nAnis,nSnp) 
-      
+      real(kind=real64),intent(inout),dimension(:,:,:)  :: OutProb(4,EndSnp-StartSnp+1,nAnis)
 
-      real(kind=4),intent(inout),dimension(:,:) :: Pr00(nAnis,EndSnp-StartSnp+1)
-      real(kind=4),intent(inout),dimension(:,:) :: Pr01(nAnis,EndSnp-StartSnp+1)
-      real(kind=4),intent(inout),dimension(:,:) :: Pr10(nAnis,EndSnp-StartSnp+1)
-      real(kind=4),intent(inout),dimension(:,:) :: Pr11(nAnis,EndSnp-StartSnp+1)
+      integer(int64),dimension(:) :: SeqSire(nAnis),SeqDam(nAnis)
+      integer(kind=2),dimension(:,:,:) :: ReadCountsTmp(1:nAnis,nSnp,2) 
+      integer(kind=1),dimension(:,:) :: InputGenosTmp(1:nAnis,nSnp) 
       
       integer :: MaxFs,MaxMates,MaxReadCounts
 
@@ -44,8 +42,24 @@ contains
       INTEGER,allocatable,dimension(:) :: mate,prog,next,ifirst
       
       real(kind=8)::tstart,tend
-      integer :: i 
-      
+      integer :: i
+
+      do i=1,ped%pedigreeSize-ped%nDummys
+        if ((ped%pedigree(i)%Founder)) then
+          SeqSire(i)=0
+          SeqDam(i)=0
+        else if (.not. ped%pedigree(i)%Founder) then
+          SeqSire(i)=ped%pedigree(i)%sirePointer%id
+          if (SeqSire(i).gt.i) SeqSire(i)=0
+          SeqDam(i)=ped%pedigree(i)%damPointer%id
+          if (SeqDam(i).gt.i) SeqDam(i)=0
+        endif
+        print*,i,SeqSire(i),SeqDam(i)
+      enddo
+
+      ReadCountsTmp=ped%convertsequencedatatoarray()
+      InputGenosTmp=ped%getgenotypesasarray()
+
       call GetMaxFamilySize(nAnis,SeqSire,SeqDam,MaxFs,MaxMates)
       call SetUpData(Seq0Snp1Mode,ReadCounts,InputGenos,nAnis,nSnp,EndSnp,StartSnp,ReadCountsTmp,InputGenosTmp,MaxReadCounts)
       call SetUpEquationsForSnp(Seq0Snp1Mode,GMatSnp,GMatRds,ErrorRate,MaxReadCounts)
@@ -53,11 +67,11 @@ contains
       
       tstart = omp_get_wtime()
 
-      !$OMP PARALLEL DO DEFAULT(FIRSTPRIVATE) PRIVATE(i) SHARED(ReadCounts,InputGenos,MaxReadCounts,GMatSnp,GMatRds,Pr00, Pr01, Pr10, Pr11)
+      !$OMP PARALLEL DO DEFAULT(FIRSTPRIVATE) PRIVATE(i) SHARED(ReadCounts,InputGenos,MaxReadCounts,GMatSnp,GMatRds,OutProb)
       do i=1,(EndSnp-StartSnp+1)
         call geneprob(i,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos, &
-                      maxfs,MaxMates,GMatSnp,SeqSire,SeqDam, &
-                      Pr00,Pr01,Pr10,Pr11,ErrorRate, &
+                      maxfs,MaxMates,MaxReadCounts,GMatSnp,GMatRds,SeqSire,SeqDam, &
+                      OutProb, &
                       mxeq,mate,ifirst,next,prog)
       enddo
       !$OMP END PARALLEL DO
@@ -149,7 +163,6 @@ contains
         if (Seq0Snp1Mode==0) then
 
             allocate(GMatRds(0:MaxReadCounts,3,MaxReadCounts))      
-
             do k=1,MaxReadCounts
                 do i=0,k
 
@@ -461,23 +474,23 @@ contains
 
     !######################################################################################################################################################
 
-subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,MaxMates,GMatSnp,SeqSire,SeqDam,Pr00,Pr01,Pr10,Pr11,ErrorRate,mxeq,mate,ifirst,next,prog)
+subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,MaxMates,MaxReadCounts,GMatSnp,GMatRds,SeqSire,SeqDam,OutProb,mxeq,mate,ifirst,next,prog)
         use ISO_Fortran_Env
 	      implicit none
 
-	      integer, intent(in) :: currentSnp,Seq0Snp1Mode,maxfs,MaxMates
-	      integer, intent(in) :: nAnis
-	      integer(int64), intent(in), dimension (:) :: SeqSire(nAnis),SeqDam(nAnis)
+        integer, intent(in) :: currentSnp,Seq0Snp1Mode,maxfs,MaxMates,MaxReadCounts
+        integer, intent(in) :: nAnis
+        integer(int64), intent(in), dimension (:) :: SeqSire(nAnis),SeqDam(nAnis)
 
-	      real(kind=8),intent(in),dimension(:,:) :: GMatSnp(1:3,1:3)
-	      
+        real(kind=8),intent(in),dimension(:,:) :: GMatSnp(1:3,1:3)
+        real(kind=8),intent(in),dimension(:,:,:) :: GMatRds(0:MaxReadCounts,3,MaxReadCounts)
+
 	      integer(kind=1),intent(in),dimension(:,:) :: InputGenos 
 	      integer(kind=2),intent(in),dimension(:,:,:) :: ReadCounts 
 
-	      real(kind=4),intent(inout),dimension(:,:) :: Pr00,Pr01,Pr10,Pr11 
-        real(kind=8),intent(in) :: ErrorRate
-
-	      
+	      real(kind=real64),intent(inout),dimension(:,:,:)  :: OutProb
+        !real(kind=4),intent(inout),dimension(:,:) :: Pr00,Pr01,Pr10,Pr11 
+        
 	      integer,intent(in) :: mxeq
 
 	      INTEGER, intent(inout),dimension(:) :: mate(0:2*nAnis),prog(0:2*nAnis)
@@ -591,10 +604,31 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
           if (Seq0Snp1Mode==1) phen(ia) = InputGenos(ia,currentSnp)
 
           if (Seq0Snp1Mode==0) then
-            freq(:,ia) =log(1.)
-            if (sum(ReadCounts(ia,currentSnp,:)).gt.0) then
-              call ReadsLikelihood(ReadCounts(ia,currentSnp,1),ReadCounts(ia,currentSnp,2),ErrorRate,dble(0.5),freq(1,ia),freq(2,ia),freq(3,ia)) 
-            endif
+              sumReads=0
+              sumReads=sum(ReadCounts(ia,currentSnp,:))
+              if (sumReads.eq.0) THEN
+                  freq(:,ia) =log(1.)
+              else
+                  do i = 0, sumReads
+                      IF (phen(ia).eq.i) THEN
+                          IF (GMatRds(i, 1,sumReads).lt.log(.000000001))then 
+                              freq(1,ia) =-9999
+                          else
+                              freq(1,ia) =GMatRds(i, 1,sumReads)
+                          endif
+                          IF(GMatRds(i, 2,sumReads).lt.log(.000000001))then
+                              freq(2,ia) =-9999
+                          else
+                              freq(2,ia)=GMatRds(i, 2,sumReads)
+                          endif
+                          IF(GMatRds(i, 3,sumReads).lt.log(.000000001))then
+                              freq(3,ia) =-9999
+                          else
+                              freq(3,ia) =GMatRds(i, 3,sumReads)
+                          endif
+                      endif
+                  enddo
+              endif
           endif
 
           if (Seq0Snp1Mode==1) then
@@ -1101,10 +1135,10 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	         
 	          if(Imprinting>0) then
 	            if(phet(i)<0.0000001) then
-	              Pr00(i,currentSnp) = pnor(i)
-	              Pr01(i,currentSnp) = phet(i)
-	              Pr10(i,currentSnp) = phet(i)
-	              Pr11(i,currentSnp) = phom(i)
+                OutProb(1,currentSnp,i)=pnor(i)
+                OutProb(2,currentSnp,i)=phet(i)
+                OutProb(3,currentSnp,i)=phet(i)
+                OutProb(4,currentSnp,i)=phom(i)
 	            else
 	              p12= (pnor(seqsire(i))+0.5*phet(seqsire(i))) * (phom( seqdam(i))+0.5*phet( seqdam(i)))  ! extra safe due to the above
 	              p21= (pnor( seqdam(i))+0.5*phet( seqdam(i))) * (phom(seqsire(i))+0.5*phet(seqsire(i)))
@@ -1115,22 +1149,22 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
 	                endif
 
 	                if(Imprinting==2)then
-	                  Pr00(i,currentSnp) = pnor(i)
-	                  Pr01(i,currentSnp) = phet(i)
-	                  Pr10(i,currentSnp) = (1.-2.*IMPratio)*phet(i)
-	                  Pr11(i,currentSnp) = phom(i)
+                    OutProb(1,currentSnp,i)=pnor(i)
+                    OutProb(2,currentSnp,i)=phet(i)
+                    OutProb(3,currentSnp,i)=(1.-2.*IMPratio)*phet(i)
+                    OutProb(4,currentSnp,i)=phom(i)
 	                else
-	                  Pr00(i,currentSnp) = pnor(i)
-	                  Pr01(i,currentSnp) = IMPratio*phet(i)
-	                  Pr10(i,currentSnp) = (1.-IMPratio)*phet(i)
-	                  Pr11(i,currentSnp) = phom(i)
+                    OutProb(1,currentSnp,i)=pnor(i)
+                    OutProb(2,currentSnp,i)=IMPratio*phet(i)
+                    OutProb(3,currentSnp,i)=(1.-IMPratio)*phet(i)
+                    OutProb(4,currentSnp,i)=phom(i)
 	                endif
 	            endif
 	          else
-	            Pr00(i,currentSnp) = pnor(i)
-	            Pr01(i,currentSnp) = phet(i)
-	            Pr10(i,currentSnp) = phet(i)
-	            Pr11(i,currentSnp) = phom(i)
+              OutProb(1,currentSnp,i)=pnor(i)
+              OutProb(2,currentSnp,i)=phet(i)
+              OutProb(3,currentSnp,i)=phet(i)
+              OutProb(4,currentSnp,i)=phom(i)
 	          endif
 	        enddo
 
@@ -1324,14 +1358,15 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
             lPr2=log(1.)
           else
             lPr0=(dble(nRef)*log(1-ErrorHomo))+(dble(nAlt)*log(ErrorHomo))
-!            if (lPr0.lt.log(.000000001)) lPr0=-9999
+            if (lPr0.lt.log(.000000001)) lPr0=-9999
             
             lPr1=(dble(nRef)*log(ProbHetero))+(dble(nAlt)*log(1-ProbHetero))
-!            if (lPr1.lt.log(.000000001)) lPr1=-9999
+            if (lPr1.lt.log(.000000001)) lPr1=-9999
             
             lPr2=(dble(nAlt)*log(1-ErrorHomo))+(dble(nRef)*log(ErrorHomo))
-!            if (lPr2.lt.log(.000000001)) lPr2=-9999
+            if (lPr2.lt.log(.000000001)) lPr2=-9999
           endif
+          write(*,'(2i3,3f12.4)'),nRef,nAlt,lPr0,lPr1,lPr2
     end subroutine ReadsLikelihood
 
     !###########################################################################################################################################################
