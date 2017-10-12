@@ -131,7 +131,7 @@ program FamilyPhase
  
 	! Read Pedigree ----------------------------------------------------------------------------------------------------
 	print*,"Read Pedigree"
-	ped = PedigreeHolder(pedigreeFile,nsnps=nSnp) 
+	call initPedigree(ped,pedigreeFile,nsnps=nSnp) 
 	call ped%sortPedigreeAndOverwrite()
 	call ped%outputSortedPedigree(file="PedigreeSorted.txt")
 	nInd=ped%pedigreeSize
