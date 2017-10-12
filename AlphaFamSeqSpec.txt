@@ -3,10 +3,7 @@ SequenceDataFile              ,variants_chr1.OneFamily,VcfTools,RC
 GenotypeDataFileAndMap        ,None,None
 NumberOfSnps                  ,2081100
 ChromosomeAndInterval         ,CM000812.5,112,274327071
-RemoveOutliersReadsCount      ,100,1
-RemoveMarkersLowNrReads       ,-1
-RemoveExcessHeteroPvalue      ,-1
-RunSingleLocusPeeler          ,0
+RunSingleLocusPeeler          ,1
 AlleleThresholdProbability    ,1.00,0.99,0.01
 WindowSizeHaplotype           ,100000,100000
 TrueGenoFile                  ,None
