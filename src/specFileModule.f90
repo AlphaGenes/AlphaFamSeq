@@ -6,8 +6,6 @@ module specFileModule
                             SequenceFile,SequenceFileFormat,SequenceDataType, &
                             SnpChipFile,MapSnpChipFile, &
                             nSnp,chr, StartPos,EndPos, & 
-                            maxStdForReadsCount,ThresholdMaxReadsCount, &
-                            ThresholdReadsCount,ThresholdExcessHetero, &
                             UsePrevGeneProb,GeneProbThresh,GeneProbThreshMin,ReduceThr, &
                             minWindowSizeHapDefinition,maxWindowSizeHapDefinition, &
                             GenoFile,PhaseFile)
@@ -29,9 +27,9 @@ module specFileModule
     character(len=300),intent(inout) :: chr                                               ! SpecFile - Input SequenceFile Option - chromosome ID
     integer,intent(inout) :: StartPos,EndPos                                              ! SpecFile - Input SequenceFile Option - first and last position
 
-    real,intent(inout)          :: maxStdForReadsCount,ThresholdMaxReadsCount              ! SpecFile - Editing Parametes - Remove Reads that are above this standard deviation
-    integer,intent(inout)       :: ThresholdReadsCount                                     ! SpecFile - Editing Parametes - Remove single/double/n-tones 
-    real,intent(inout)          :: ThresholdExcessHetero                                   ! SpecFile - Editing Parametes - Remove variants with an excess of heterozygotes
+    ! real,intent(inout)          :: maxStdForReadsCount,ThresholdMaxReadsCount              ! SpecFile - Editing Parametes - Remove Reads that are above this standard deviation
+    ! integer,intent(inout)       :: ThresholdReadsCount                                     ! SpecFile - Editing Parametes - Remove single/double/n-tones 
+    ! real,intent(inout)          :: ThresholdExcessHetero                                   ! SpecFile - Editing Parametes - Remove variants with an excess of heterozygotes
     
     integer(kind=1),intent(inout)   :: UsePrevGeneProb                                         ! SpecFile - Input SingleLocusPeeler - Read old results of GeneProb 1==YES, 0==NO
     real,intent(inout)              :: GeneProbThresh                                          ! SpecFile - Input SingleLocusPeeler - Threshold to call a genotype from the probabilities First Value
