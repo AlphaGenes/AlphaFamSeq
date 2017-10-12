@@ -3,6 +3,7 @@
 SET(AlphaFamSeq_src
         ${SRCAlphaFamSeq}ComputeStat.f90
         ${SRCAlphaFamSeq}specFileModule.f90
+	${SRCAlphaFamSeq}AlphaVarCallParallelised.f90
         ${SRCAlphaFamSeq}AlphaFamSeqPlusGeneProb.f90
 )
 

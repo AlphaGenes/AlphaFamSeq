@@ -58,7 +58,7 @@ module GlobalPar
 	real(real64), allocatable, dimension(:) 		:: quality
 
 	! AlphaMPL output
-	real(kind=real64),allocatable,dimension(:,:,:) 	:: ReadCounts !< in the format (pedigreeId, snpId, prob) prob is Pr00,Pr01,Pr10,Pr11
+	real(kind=real64),allocatable,dimension(:,:,:) 	:: ReadCounts !< in the format (prob,nSnp,nInd) prob is Pr00,Pr01,Pr10,Pr11
     
     real(kind=real64),allocatable,dimension(:) 		:: Maf
 
@@ -86,17 +86,18 @@ program FamilyPhase
 	use GlobalPar
 	use IntelRNGMod
 	use AlphaMLPModule
+	use AlphaVarCallFuture
 	use CalculateStatisticsForGenoAndPhase
 	
 	implicit none
 
-	!integer 		:: i,j
+	integer 		:: i
 	integer(int64) 	:: OldCount,NewCount
 	integer(int64)	:: CurrentCountMissingPhase,CurrentCountMissingGenos
 	integer(int32) 	:: Seed1,Seed2
 	real(kind=8) 	:: InitialGeneProbThresh
 	logical			:: fileExists
-	real(kind=8)	:: tstart,tend
+	real(kind=8)	:: tstart,tend,ErrorRate
 
 	! Seed Definition --------------------------------------------------------------------------------------------------
 	! Use a seed to sample the Haplotypes length of each window and iteration
@@ -134,7 +135,6 @@ program FamilyPhase
 	call ped%sortPedigreeAndOverwrite()
 	call ped%outputSortedPedigree(file="PedigreeSorted.txt")
 	nInd=ped%pedigreeSize
-
 
 	if ((UsePrevGeneProb==0).and.(trim(SnpChipFile).eq."None").and.(trim(SequenceFile).eq."None")) then
 		print*,"ERROR : Sequence file or Genotype file must be provided"
@@ -177,7 +177,9 @@ program FamilyPhase
 		print*,"Run GeneProb"
 		allocate(Maf(nSnp))
 		tstart = omp_get_wtime()
-		call runAlphaMLPAlphaImpute(1,nSnp,ped,ReadCounts,Maf)
+		!call runAlphaMLPAlphaImpute(1,nSnp,ped,ReadCounts,Maf)
+		ErrorRate=0.001
+		call AlphaVarCall(ped%pedigreeSize-ped%nDummys,nSnp,1,nSnp,ErrorRate,0,ped,ReadCounts)
 		tend = omp_get_wtime()
 		write(*,*) "Total wall time for Running SingleLP", tend - tstart
 		call SaveGeneProbResults
