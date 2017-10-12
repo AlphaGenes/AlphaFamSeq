@@ -10,7 +10,7 @@
 
 !################################################################################################
 
-module GlobalPar
+module GlobalPars
 	
 	use ISO_Fortran_Env
 	use pedigreemodule
@@ -74,7 +74,7 @@ module GlobalPar
 	integer :: Windows
 	integer,dimension(:),allocatable	:: ChunkLength
 	
-end module GlobalPar
+end module GlobalPars
 
 !################################################################################################
 
@@ -83,7 +83,7 @@ program FamilyPhase
     use ISO_Fortran_Env
     use specFileModule
     use omp_lib
-	use GlobalPar
+	use GlobalPars
 	use IntelRNGMod
 	use AlphaMLPModule
 	use AlphaVarCallFuture
@@ -256,7 +256,7 @@ end program FamilyPhase
 subroutine MakeDirectories
 
 
-	! 	use GlobalPar
+	! 	use GlobalPars
 	! 	use ifport
 	! 	implicit none
 
@@ -313,7 +313,7 @@ end subroutine MakeDirectories
 
 subroutine SimpleCleanUpFillIn
 
-	use GlobalPar
+	use GlobalPars
 	use omp_lib
 	implicit none
 
@@ -351,7 +351,7 @@ end subroutine SimpleCleanUpFillIn
 !--------------------------------------------------------------------------------------------------   
 
 subroutine BuildConsensus 
-	use GlobalPar
+	use GlobalPars
 
 	implicit none
 
@@ -464,7 +464,7 @@ end subroutine BuildConsensus
 
 subroutine ChunkDefinition
 
-	use GlobalPar
+	use GlobalPars
 	use IntelRNGMod
 	use coreutils
 	implicit none
@@ -618,7 +618,7 @@ subroutine ChunkDefinition
 !--------------------------------------------------------------------------------------------------   
 
 subroutine CalculateFounderAssignment
-	use GlobalPar
+	use GlobalPars
 	use omp_lib
 	implicit none
 
@@ -668,7 +668,7 @@ end subroutine CalculateFounderAssignment
 
 subroutine SimpleFillInBasedOnProgenyReads
 
-	use GlobalPar
+	use GlobalPars
 	use omp_lib
 	implicit none
 
@@ -717,7 +717,7 @@ end subroutine SimpleFillInBasedOnProgenyReads
 
 subroutine SimpleFillInBasedOnParentsReads
 
-	use GlobalPar
+	use GlobalPars
 	use omp_lib
 	implicit none
 
@@ -750,7 +750,7 @@ end subroutine SimpleFillInBasedOnParentsReads
  
 subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 	
-	use GlobalPar
+	use GlobalPars
 	use omp_lib
 	
 	implicit none
@@ -816,7 +816,7 @@ end subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 !---------------------------------------------------------------------------   
 
 subroutine AddGenotypesAsSequenceData
-	use GlobalPar
+	use GlobalPars
 	use constantmodule, only : idlength,dict_null
 	use alphahousemod, only : int2char,countlines,countcolumns
 	implicit none
@@ -870,7 +870,7 @@ end subroutine AddGenotypesAsSequenceData
 !---------------------------------------------------------------------------   
 
 subroutine MergeGenotypesAndSequenceData
-	use GlobalPar
+	use GlobalPars
 	use constantmodule, only : idlength,dict_null
 	use alphahousemod, only : int2char,countlines,countcolumns
 	implicit none
@@ -1023,7 +1023,7 @@ end subroutine MergeGenotypesAndSequenceData
 !---------------------------------------------------------------------------   
 
 subroutine ReadPrevGeneProb
-	use GlobalPar
+	use GlobalPars
 	use constantModule, only : IDLENGTH
 	use alphahousemod, only : int2char
 	implicit none
@@ -1077,7 +1077,7 @@ end subroutine ReadPrevGeneProb
 !---------------------------------------------------------------------------   
 
 subroutine SaveGeneProbResults
-	use GlobalPar
+	use GlobalPars
 	use alphahousemod, only : int2char
 	implicit none
 
@@ -1135,7 +1135,7 @@ end subroutine SaveGeneProbResults
 
 subroutine WriteResults
 
-	use GlobalPar
+	use GlobalPars
 	use alphahousemod, only : int2char
 	implicit none
 
@@ -1178,7 +1178,7 @@ end subroutine WriteResults
 
 subroutine CalculateResults(what)
 
-	use GlobalPar
+	use GlobalPars
 
 	use AlphaHouseMod, only : countLines,countColumns
 	use ConstantModule, only : IDLENGTH,DICT_NULL
@@ -1302,7 +1302,7 @@ end subroutine ReadsLikelihood
 
 !###########################################################################################
 subroutine InternalEdititing
-	! 	use GlobalPar
+	! 	use GlobalPars
 	! 	use omp_lib
 	! 	implicit none
 
@@ -1350,7 +1350,7 @@ end subroutine InternalEdititing
 ! Moreover, the coverage/individual and coverage/marker are calculated in this step
 subroutine CleanUpTheRawData
 
-	! 	use GlobalPar
+	! 	use GlobalPars
 	! 	use omp_lib
 	! 	implicit none
 
@@ -1640,7 +1640,7 @@ end subroutine ExcessHeterozygotes
  
 subroutine ReadSamFile
 	
-	! 	use GlobalPar
+	! 	use GlobalPars
 	! 	use omp_lib
 		
 	! 	implicit none
