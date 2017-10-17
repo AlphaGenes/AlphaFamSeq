@@ -175,9 +175,9 @@ program FamilyPhase
 		print*,"Run GeneProb"
 		allocate(Maf(nSnp))
 		tstart = omp_get_wtime()
-		call runAlphaMLPAlphaImpute(1,nSnp,ped,ReadCounts,Maf)
-		!ErrorRate=0.001
-		!call AlphaVarCall(ped%pedigreeSize-ped%nDummys,nSnp,1,nSnp,ErrorRate,0,ped,ReadCounts)
+		!call runAlphaMLPAlphaImpute(1,nSnp,ped,ReadCounts,Maf)
+		ErrorRate=0.001
+		call AlphaVarCall(ped%pedigreeSize-ped%nDummys,nSnp,1,nSnp,ErrorRate,0,ped,ReadCounts)
 		tend = omp_get_wtime()
 		write(*,*) "Total wall time for Running SingleLP", tend - tstart
 		call SaveGeneProbResults
