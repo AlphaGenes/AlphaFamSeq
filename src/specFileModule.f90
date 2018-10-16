@@ -69,10 +69,10 @@ module specFileModule
     do i=1, countLines("AlphaFamSeqSpec.txt")
         read(1,'(a30,A)', advance='NO', iostat=stat) SpecParam 
         
-        ! if (SpecParam(1:1)=="=" .or. len(trim(SpecParam))==0) then
-        !     print*,SpecParam(1:9)
-        !     cycle
-        ! else
+        if (SpecParam(1:1)=="=" .or. len(trim(SpecParam))==0) then
+            print*,SpecParam(1:9)
+            cycle
+        else
         
             select case(trim(TLC(SpecParam)))
 
@@ -250,7 +250,7 @@ module specFileModule
                     print*, "ERROR - Error in specfile, please check", SpecParam
                     stop 16
         	end select
-        !endif
+        endif
     enddo
 
     close(1)
