@@ -44,13 +44,20 @@ subroutine readRogerData(filename, Ids, position, quality, SequenceData,nSnpIn,S
 
   character(len=100), dimension(:), allocatable::dumE, dumC
   real(real64), allocatable, dimension(:), intent(out):: quality
-  integer(int32), dimension(:), allocatable, intent(out):: position
-  integer(int32), dimension(:,:,:), allocatable, intent(out):: SequenceData
+  integer(int64), dimension(:), allocatable, intent(out):: position
+  integer(kind=2), dimension(:,:,:), allocatable, intent(out):: SequenceData
+  integer(kind=2), dimension(:,:,:), allocatable:: SequenceData2
+  
+  integer(int64)  :: tmpPosition
+  real(real64)    :: tmpQuality
+  integer(kind=2), dimension(:,:), allocatable:: tmpSequenceData
 
   integer(int32), intent(in):: SnpUsed,nSnpIn,StartSnp,EndSnp,nIndivIn
   integer(int32)::nSnp,pos,fileUnit, nIndiv
   integer(int32)::i,j,k
 
+  real(kind=8)::tstart,tend
+  character(100):: temp
 
   ! Open the file
   open(newunit=fileUnit, file=filename, action="read")
@@ -59,12 +66,14 @@ subroutine readRogerData(filename, Ids, position, quality, SequenceData,nSnpIn,S
   nIndiv = nIndivIn
   
   allocate(SequenceData(nIndiv, SnpUsed, 2))
+  allocate(tmpSequenceData(nIndiv,2))
   allocate(position(SnpUsed))
   allocate(quality(SnpUsed))
   allocate(Ids(nIndiv))
   allocate(dumE(5+2*nIndiv))
   allocate(dumC(5+nIndiv))
 
+  tstart = omp_get_wtime()
   read(fileUnit, *) dumC 
   write(*,"(5A)") "STUFF", trim(dumC(1)), trim(dumC(2)), trim(dumC(3)), "ENDSTUFF"
   do i =1, nIndiv
@@ -73,37 +82,38 @@ subroutine readRogerData(filename, Ids, position, quality, SequenceData,nSnpIn,S
 
   pos=1
   do j = 1, nSnp
-    read(fileUnit, *) dumE
-    if ((j.ge.StartSnp).and.(j.le.EndSnp)) then
-      read(dumE(2), *) position(pos)
-      read(dumE(5), *) quality(pos)
-      !$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (nIndiv,j,pos,dumE,SequenceData,position)
-      do i = 1, nIndiv
-        k = i*2+4
-        read(dumE(k), *) SequenceData(i,pos, 1)
-        read(dumE(k+1), *) SequenceData(i, pos, 2)
-      end do
-      !$OMP END PARALLEL DO
-      pos=pos+1
-    endif
+      read(fileUnit, *) temp, tmpPosition, temp, temp, tmpQuality, (tmpSequenceData(i,1), tmpSequenceData(i,2), i =1, nIndiv)
+      if ((j.ge.StartSnp).and.(j.le.EndSnp)) then
+        position(pos)=tmpPosition
+        quality(pos)=tmpQuality
+        SequenceData(:,pos,1)=tmpSequenceData(:,1)
+        SequenceData(:,pos,2)=tmpSequenceData(:,2)
+        pos=pos+1
+      end if
   end do
+  tend = omp_get_wtime()
+  write(*,*) "Total wall time for Importing Reads", tend - tstart
+  !write(*,*) SequenceData
 
-  end subroutine readRogerData
+end subroutine readRogerData
 
-  subroutine readAlphaSimReads(filename, Ids,SequenceData,nSnpIn,SnpUsed,StartSnp,EndSnp,nIndivIn)
+  subroutine readAlphaSimReads(filename, Ids,position,SequenceData,nSnpIn,SnpUsed,StartSnp,EndSnp,nIndivIn)
   use ISO_Fortran_Env
+  use omp_lib
   implicit none
   
   character(len=*), intent(in)::filename
   character(len=100), allocatable, dimension(:), intent(out):: Ids
+  integer(int64), dimension(:), allocatable, intent(out):: position
   
-  character(len=100), dimension(:), allocatable::dumE
-  integer(int32), dimension(:,:,:), allocatable::SequenceData
+  integer, dimension(:), allocatable::dumE
+  integer(kind=2), dimension(:,:,:), allocatable::SequenceData
 
   integer(int32), intent(in)::SnpUsed,nSnpIn,StartSnp,EndSnp,nIndivIn
   integer(int32)::nSnp,pos,fileUnit, nIndiv
   integer(int32)::i,j, k,dumI
 
+  real(kind=8)::tstart,tend
   
   ! Open the file
   open(newunit=fileUnit, file=filename, action="read")
@@ -111,25 +121,34 @@ subroutine readRogerData(filename, Ids, position, quality, SequenceData,nSnpIn,S
   nSnp = nSnpIn
   nIndiv = nIndivIn
  
-  allocate(dumE(nSnp))
+  allocate(dumE(StartSnp-1))
   allocate(SequenceData(nIndiv, SnpUsed, 2))
   allocate(Ids(nIndiv))
+  allocate(position(SnpUsed))
   
-  do i = 1, nIndiv
-    read(fileUnit, *) Ids(i),dumE
-    read(dumE(StartSnp:EndSnp), *) SequenceData(i,:, 1)
-    read(fileUnit, *) dumI,dumE
-    read(dumE(StartSnp:EndSnp), *) SequenceData(i,:, 2)
-  end do
+  do i=1,SnpUsed
+    position(i)=i
+  enddo
 
+  tstart = omp_get_wtime()
+  do i = 1, nIndiv
+    if(StartSnp.eq.1) read(fileUnit, *) Ids(i),SequenceData(i,:, 1)
+    if(StartSnp.eq.1) read(fileUnit, *) Ids(i),SequenceData(i,:, 2)
+    
+    if(StartSnp.gt.1) read(fileUnit, *) Ids(i),dumE,SequenceData(i,:, 1)
+    if(StartSnp.gt.1) read(fileUnit, *) Ids(i),dumE,SequenceData(i,:, 2)
+    
+  end do
+  tend = omp_get_wtime()
+  write(*,*) "Total wall time for Importing Reads", tend - tstart
+
+  deallocate(dumE)
+
+  
 end subroutine readAlphaSimReads
 
 
 end module MaraModule
-
-
-
-  !So we want to read in and inver
 
 
 

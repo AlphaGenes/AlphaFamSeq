@@ -1,1016 +1,807 @@
-!################################################################################################
-include "Ferdosi.f90"
-include "AlphaVarCallParallelised.f90"
-include "ReadRogerData.f90"
+! #ifdef OS_UNIX
 
-module GlobalPar
+! #DEFINE DASH "/"
+! #DEFINE MD "mkdir -p"
+! #else
+! #DEFINE DASH "\"
+! #DEFINE MD "md"
+! #endif
+
+
+!################################################################################################
+
+module GlobalPars
 	
 	use ISO_Fortran_Env
+	use pedigreemodule
 	implicit none
 
-	integer :: nIndSeq                         					! SpecFile - Number of Individuals in the sequence file
-	integer :: LenghtSequenceDataFile,nSnp,fistWindow			! SpecFile - Total number of Snps
-	integer :: nInd 											! number of Individuals in the Pedigree
-	integer :: InternalEdit                    					! SpecFile - Internal Edit 1==yes or 0==no
-	real(kind=8) :: EditingParameter							! SpecFile - 1st Number is the MAF (excluede SNP with MAF=<EditingParameter)
+	! SpecFile Parametes --------------------------------------------------------------------------
+	character(len=300) :: PedigreeFile      								! SpecFile - Input File Name - Pedigree
+	character(len=300) :: SequenceFile             							! SpecFile - Input File Name - Sequence Data
+	character(len=300) :: SequenceFileFormat             					! SpecFile - Input SequenceFile Option - AlphaSim or VcfTools format
+	character(len=300) :: SequenceDataType									! SpecFile - Input SequenceFile Option - RC = read counts, GL= genotype likelihood, GT= genotype 
 
-
-	real(kind=8) :: GeneProbThresh  							! SpecFile - Threshold to call a genotype from the probabilities First Value
-	real(kind=8) :: GeneProbThreshMin							! SpecFile - Threshold to call a genotype from the probabilities Last Value
-	integer :: nIter                        					! SpecFile - Every nIter the ReadContMaxThresh decrease of 1 value until GeneProbThresh
+	character(len=300) :: SnpChipFile   									! SpecFile - Input File Name - Snp chip array to add more information to the Reads
+	character(len=300) :: MapSnpChipFile   									! SpecFile - Input File Name - Map file for Snp chip array
 	
-	real(kind=8) :: ErrorRate									! SpecFile - Error rates to define the genotypes probabilities
-	
-	integer :: ChunkLengthA                 					! SpecFile - First value to define Haplotypes length
-	integer :: ChunkLengthB                 					! SpecFile - Last value to define Haplotypes length
+	integer 		   :: nSnp												! SpecFile - Input - Total number of Snps
 
-	integer :: SuperC                           				! SpecFile - Parameter to use/not use Ferdosi module
+	character(len=300) :: chr 			  									! SpecFile - Input SequenceFile Option - chromosome ID
+	integer 		   :: StartPos,EndPos									! SpecFile - Input SequenceFile Option - first and last position
 
-	character(len=300) :: PedigreeFile      					! Input File Name - Pedigree
-	character(len=300) :: ReadsFile             				! Input File Name - Reads Count for the Reference and the Alternative Allele
-	character(len=300) :: ReadsType             				! Input File Name - Reads Count for the Reference and the Alternative Allele
+	real 			:: maxStdForReadsCount,ThresholdMaxReadsCount				! SpecFile - Editing Parametes - Remove Reads that are above this standard deviation
+	integer 	 	:: ThresholdReadsCount										! SpecFile - Editing Parametes - Remove single/double/n-tones 
+	real			:: ThresholdExcessHetero									! SpecFile - Editing Parametes - Remove variants with an excess of heterozygotes
 	
-	character(len=300) :: MapFile             					! Input File Name - Map File - position of the Variants
-	character(len=300) :: SnpChipsInformation   				! Input File Name - Snp array to add more information to the Reads
+	integer(kind=1)	:: UsePrevGeneProb                      					! SpecFile - Input SingleLocusPeeler - Read old results of GeneProb 1==YES, 0==NO
+	real 		 	:: GeneProbThresh  											! SpecFile - Input SingleLocusPeeler - Threshold to call a genotype from the probabilities First Value
+	real 			:: GeneProbThreshMin										! SpecFile - Input SingleLocusPeeler - Threshold to call a genotype from the probabilities Last Value
+	real 			:: ReduceThr 												! SpecFile - Input SingleLocusPeeler - Reduce Geno Treshold factor
 	
-	character(len=300) :: GenoFile              				! Control Results File Name - TrueGeno Genotypes to check results 
-	character(len=300) :: PhaseFile             				! Control Results File Name - True Phase to check results 
+	integer 	 :: minWindowSizeHapDefinition      						! SpecFile - Input Build Consensu Haplotype - First value to define Haplotypes length
+	integer 	 :: maxWindowSizeHapDefinition      						! SpecFile - Input Build Consensu Haplotype - Last value to define Haplotypes length
 
-	integer :: IterationNumber                  				! Control Parameter - Define the number of Iterations
-	integer :: CurrentCountFilledPhase          				! Control Parameter - used to finish the program
-	integer :: CurrentCountFilledGenos          				! Control Parameter - used to finish the program
-	integer :: SolutionChanged                  				! Control Parameter - used to finish the program 
+	character(len=300) :: GenoFile              							! SpecFile - Control Results File Name - TrueGeno Genotypes to check results 
+	character(len=300) :: PhaseFile             							! SpecFile - Control Results File Name - True Phase to check results 
+
+
+	! Global Parametes --------------------------------------------------------------------------
+	type(PedigreeHolder) :: ped
+	integer :: nInd 														! Calculated Internally - Number of Individuals in the Pedigree
+
+	integer :: IterationNumber                  							! Control Parameter - Define the number of Iterations
 	integer :: StartSnp,EndSnp
+
+	! Sequence Data VcfTools Info
+	integer(int64), dimension(:), allocatable 		:: position
+	real(real64), allocatable, dimension(:) 		:: quality
+
+	! AlphaMPL output
+	real(kind=real64),allocatable,dimension(:,:,:) 	:: ReadCounts !< in the format (prob,nSnp,nInd) prob is Pr00,Pr01,Pr10,Pr11
+    
+    real(kind=real64),allocatable,dimension(:) 		:: Maf
+
+
+	integer(kind=1),allocatable,dimension(:,:) 		:: TrueGenos			! Control Results - True Genotypes to check results 
+	integer(kind=1),allocatable,dimension(:,:,:) 	:: TruePhase			! Control Results - True Phase to check results 
+
+	integer(kind=1),allocatable,dimension(:)		:: MarkersToExclude		! CleanUpTheRawData - 0=use the variant; 1= don't use the variant
 	
-	integer,allocatable,dimension(:,:) :: Ped               	! Input File - Pedigree
-	integer,allocatable,dimension(:,:) :: RecPed				! Temporary File - Pedigree Recoded
-	integer,allocatable,dimension(:) :: Id                      ! Read Data - used to read unsorted data
-
-	integer(int32),allocatable,dimension(:,:,:) :: SequenceData	! Input File - Snp array to add more information to the Reads
-	real(kind=8),allocatable,dimension(:,:,:) :: RawReads		! Input File - Snp array to add more information to the Reads
-	character(len=100), allocatable, dimension(:) :: Ids
-	integer(int32), dimension(:), allocatable :: position
-	real(real64), allocatable, dimension(:) :: quality
-
-	integer,allocatable,dimension(:,:) :: TrueGenos				! Control Results - True Genotypes to check results 
-	integer,allocatable,dimension(:,:,:) :: TruePhase				! Control Results - True Phase to check results 
-
-	
-	character(len=1),allocatable,dimension(:,:) :: CheckGenos   ! Control Results - Use character to check True vs Imputed Genotypes
-	character(len=1),allocatable,dimension(:,:,:) :: CheckPhase ! Control Results - Use character to check True vs Imputed Phase
-	character(len=1),allocatable,dimension(:,:) :: CharPhase    ! Control Results - Use character to check True vs Imputed Genotypes
-	
-	integer,allocatable,dimension(:) :: GeneProbYesOrNo			! Temporary Array - use gene prob or not
-	integer,allocatable,dimension(:,:,:) :: FounderAssignment   ! Temporary File - Save the IDs of the grandparents
-
-	real(kind=4),allocatable,dimension(:,:) :: Pr00   			! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Homozygote for Reference Allele 
-    real(kind=4),allocatable,dimension(:,:) :: Pr01	  			! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Heterozygote (0 from dad, 1 from mum)
-    real(kind=4),allocatable,dimension(:,:) :: Pr10				! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Heterozygote (1 from dad, 0 from mum)
-    real(kind=4),allocatable,dimension(:,:) :: Pr11				! Output GeneProb - Probabilities for Ind(i) and Spn(j) to be Homozygote for Alternative Allele 
-
-
-	integer,allocatable,dimension(:,:) :: FilledGenos 			! Output - Imputed Genotypes
-	integer,allocatable,dimension(:,:,:) :: FilledPhase  		! Output - Imputed Phase
-
-
+	integer,allocatable,dimension(:) 				:: GeneProbYesOrNo		! Temporary Array - use gene prob or not
+	integer(kind=1),allocatable,dimension(:,:,:) 	:: FounderAssignment   	! Temporary File - Save the IDs of the grandparents
 
 	integer :: Windows
-end module GlobalPar
+	integer,dimension(:),allocatable	:: ChunkLength
+	
+end module GlobalPars
 
 !################################################################################################
 
 program FamilyPhase
-
-	use GlobalPar
-
+    
+    use ISO_Fortran_Env
+    use specFileModule
+    use omp_lib
+	use GlobalPars
+	use IntelRNGMod
+	use AlphaMLPModule
+	use AlphaVarCallFuture
+	use CalculateStatisticsForGenoAndPhase
+	
 	implicit none
 
-	integer :: OldCount,NewCount,i
-	real(kind=8) :: InitialGeneProbThresh
+	integer 		:: i
+	integer(int64) 	:: OldCount,NewCount
+	integer(int64)	:: CurrentCountMissingPhase,CurrentCountMissingGenos
+	integer(int32) 	:: Seed1,Seed2
+	real(kind=8) 	:: InitialGeneProbThresh
+	logical			:: fileExists
+	real(kind=8)	:: tstart,tend,ErrorRate
 
-	call ReadSpecfile
-	call ReadPedigree
+	! Seed Definition --------------------------------------------------------------------------------------------------
+	! Use a seed to sample the Haplotypes length of each window and iteration
+	inquire(file="Seed.txt", exist=fileExists)
+	if (fileExists) then
+		open(99,file="Seed.txt",action="read")
+		read(99,*) Seed1
+		close(99)
+		call IntitialiseIntelRNG(Seed1,"SeedOld.txt",Seed2)
+	else
+		call IntitialiseIntelRNG(Seedfile="SeedOld.txt",Out=Seed2)
+	end if
+
+	!call MakeDirectories
 	
-	Windows=fistWindow
-	EndSnp=(Windows*nSnp)
-	StartSnp=EndSnp-nSnp+1
-	if (EndSnp>LenghtSequenceDataFile) EndSnp=LenghtSequenceDataFile
-	
+	! Print out the window/iteratin/haplotype length in a file
+	open(101,file="AlphaFamSeqHaplotypeLengths.txt",status="unknown")
+	write(101,'(1a32)') "Window Iter Core StartSnp EndSnp" 
+
+	! User-defined parameters ------------------------------------------------------------------------------------------
+	print*,"ReadSpecfile"
+	call ReadSpecfile(PedigreeFile, &
+                      SequenceFile,SequenceFileFormat,SequenceDataType, &
+                      SnpChipFile,MapSnpChipFile, &
+                      nSnp,chr, StartPos,EndPos, & 
+                      UsePrevGeneProb,GeneProbThresh,GeneProbThreshMin,ReduceThr, &
+                      minWindowSizeHapDefinition,maxWindowSizeHapDefinition, &
+                      GenoFile,PhaseFile)
+ 
+	! Read Pedigree ----------------------------------------------------------------------------------------------------
+	print*,"Read Pedigree"
+	call initPedigree(ped,pedigreeFile,nsnps=nSnp) 
+	call ped%sortPedigreeAndOverwrite()
+	call ped%outputSortedPedigree(file="PedigreeSorted.txt")
+	nInd=ped%pedigreeSize
+
+	if ((UsePrevGeneProb==0).and.(trim(SnpChipFile).eq."None").and.(trim(SequenceFile).eq."None")) then
+		print*,"ERROR : Sequence file or Genotype file must be provided"
+		stop
+	endif
+
+	! Read Sequence Data -----------------------------------------------------------------------------------------------
+	! TODO check type of genotype info - right now this for sequence 
+	if ((UsePrevGeneProb==0).and.(trim(SequenceFile).ne."None")) then
+		print*,"Read SequenceData"
+		if (trim(SequenceDataType)=="RC") then
+			if (trim(SequenceFileFormat)=="ASim") call ped%addSequenceFromFile(SequenceFile,nSnp,startSnp=StartPos,endSnp=EndPos) ! read sequence file AlphaSimFormat
+			if (trim(SequenceFileFormat)=="GATK") call ped%addSequenceFromVCFFile(seqFile=SequenceFile,nSnpsIn=nSnp,chr=chr,StartPos=StartPos,EndPos=EndPos)
+		endif
+	endif
+
+	! Read Genotype Data -----------------------------------------------------------------------------------------------
+	if ((UsePrevGeneProb==0).and.(trim(SnpChipFile).ne."None").and.(trim(SequenceFile).eq."None")) then
+		print*,"Read Genotype Data"
+		call AddGenotypesAsSequenceData
+	endif
+
+	if ((UsePrevGeneProb==0).and.(trim(SnpChipFile).ne."None").and.(trim(SequenceFile).ne."None")) then
+		print*,"Read Genotype Data"
+		call MergeGenotypesAndSequenceData
+	endif
+
+
+	! Edit The Row Data ------------------------------------------------------------------------------------------------
+	! TODO : Check Mendelian Inconsistencies
+	! TODO : Check Excess of Reads
+	! TODO : Check Single- and Double-tones
+
+	! Run GeneProb -----------------------------------------------------------------------------------------------------
 	InitialGeneProbThresh=GeneProbThresh
+	GeneProbThresh=InitialGeneProbThresh
 
-	do while(StartSnp.le.LenghtSequenceDataFile)
-		write(*,'(1a10,2i10,1a1,1i10)')"Windows",Windows,StartSnp,"-",EndSnp
+	allocate(ReadCounts(4,nSnp,nInd))
+	if (UsePrevGeneProb==0) then
+		print*,"Run GeneProb"
+		allocate(Maf(nSnp))
+		tstart = omp_get_wtime()
+		!call runAlphaMLPAlphaImpute(1,nSnp,ped,ReadCounts,Maf)
+		ErrorRate=0.001
+		call AlphaVarCall(ped%pedigreeSize-ped%nDummys,nSnp,1,nSnp,ErrorRate,0,ped,ReadCounts)
+		tend = omp_get_wtime()
+		write(*,*) "Total wall time for Running SingleLP", tend - tstart
+		call SaveGeneProbResults
+	else if (UsePrevGeneProb==1) then
+		print*,"Read old results of SingleLP"
+		tstart = omp_get_wtime()
+		call ReadPrevGeneProb
+		tend = omp_get_wtime()
+		write(*,*) "Total wall time for Importing Probabilities", tend - tstart
+	endif
 
-		CurrentCountFilledPhase=0
-		CurrentCountFilledGenos=0
-		GeneProbThresh=InitialGeneProbThresh
+	if (maxWindowSizeHapDefinition.gt.1) then
+		allocate(FounderAssignment(ped%pedigreeSize-ped%nDummys,nSnp,2))
+	endif
+	
+	! Iterate on the next steps ----------------------------------------------------------------------------------------
+	 print*," "
+	 write (*,'(1a39)') " Window Iter   ProbThr    %Phase   %Geno"
 
-		!call AllocateArrays
-		call ReadData
-		call InitialiseArrays
-		call CheckMissingData
-		call RunGeneProb
+	 CurrentCountMissingGenos=0
+	 CurrentCountMissingPhase=0
+	 NewCount=-1
+	 OldCount=0
+	 ChunkLength=0
 
-		IterationNumber=0
-		SolutionChanged=1
-		do while ((SolutionChanged==1))!.and.(IterationNumber<2))
-
-			OldCount=CurrentCountFilledPhase+CurrentCountFilledGenos
-			IterationNumber=IterationNumber+1
+	 IterationNumber=0
+	 do while (NewCount.ne.OldCount)
+	 	OldCount=NewCount
+	 	IterationNumber=IterationNumber+1
 			
-			if ((IterationNumber>1).and.(mod(IterationNumber,nIter)==0).and.(GeneProbThresh>GeneProbThreshMin)) then 
-				GeneProbThresh=GeneProbThresh-0.001
-			endif
+	 	if ((IterationNumber>1).and.(GeneProbThresh>GeneProbThreshMin)) then 
+	 		GeneProbThresh=GeneProbThresh-ReduceThr
+	 		if (GeneProbThresh.lt.GeneProbThreshMin) GeneProbThresh=GeneProbThreshMin
+	 	endif
+	 	call UseGeneProbToSimpleFillInBasedOnOwnReads
+	 	call SimpleCleanUpFillIn ! count Geno is not working
 
-			print*,IterationNumber,GeneProbThresh,GeneProbThreshMin
-			!if (InternalEdit==1) then
-			!	call SimpleFillInBasedOnOwnReads   ! Old Subroutine that don't use AlphaVarCall
-			!	call SimpleCleanUpFillIn
-			!	call CurrentCountFilled
-			!endif
+	! 	!if (IterationNumber==1) call ReadSamFile
+	! 	call SimpleCleanUpFillIn
+	! 	!if (IterationNumber==1) call UseSnpChipInformation 
+	 	call SimpleFillInBasedOnParentsReads
+	 	call SimpleCleanUpFillIn
 
-			if ((GeneProbThresh>GeneProbThreshMin).or.(IterationNumber==1)) call UseGeneProbToSimpleFillInBasedOnOwnReads
-			call SimpleCleanUpFillIn
-			call CurrentCountFilled
-
-			!if (IterationNumber==1) call UseSnpChipInformation 
-
-			call SimpleFillInBasedOnParentsReads
-			call SimpleCleanUpFillIn
-			call CurrentCountFilled
-			
-			call SimpleFillInBasedOnProgenyReads
-			call SimpleCleanUpFillIn
-			call CurrentCountFilled
-
+	 	call SimpleFillInBasedOnProgenyReads
+	 	call SimpleCleanUpFillIn
+	 		
+	 	if (maxWindowSizeHapDefinition.gt.1) then
 			call CalculateFounderAssignment
-			call ChunkDefinition
-			
-			call BuildConsensus
-			call SimpleCleanUpFillIn
-			call CurrentCountFilled
 
-			if (SuperC==1) then
-				call FerdosiSerap
-				call SimpleCleanUpFillIn
-				call CurrentCountFilled
-			endif
+		 	call ChunkDefinition
+	 		call BuildConsensus
+	 		call SimpleCleanUpFillIn
+	 	endif
+	! 	! Count Missing
+	 	CurrentCountMissingGenos=ped%CountMissingGenotypesNoDummys()
+	 	CurrentCountMissingPhase=ped%CountMissingPhaseNoDummys()
 
-			NewCount=CurrentCountFilledPhase+CurrentCountFilledGenos
-			
-			if (OldCount/=NewCount) then
-				SolutionChanged=1
-			else
-				SolutionChanged=0
-			endif
-		enddo
+	 	NewCount=CurrentCountMissingPhase + CurrentCountMissingGenos
+		write (*,'(2i4,1f10.3,2i15)') Windows,IterationNumber,GeneProbThresh,CurrentCountMissingPhase,CurrentCountMissingGenos
 
-		if ((trim(PhaseFile)/="None").or.(trim(GenoFile)/="None")) then 
-			call Checker
-		endif
-		call WriteResults
+	 enddo
 
-		StartSnp=EndSnp+1
-		EndSnp=EndSnp+nSnp
-		if (EndSnp>LenghtSequenceDataFile) then 
-			EndSnp=LenghtSequenceDataFile
-			nSnp=EndSnp-StartSnp+1
-		endif
-		Windows=Windows+1
+	! ! WriteOut Results -------------------------------------------------------------------------------------------------
 
-		call DeallocateArrays
+	 call WriteResults
+	 if (trim(GenoFile).ne."None") call CalculateResults("G")
+	 if (trim(phaseFile).ne."None") call CalculateResults("P")
+	! call DeallocateArrays
 
-	enddo
+	! call UnintitialiseIntelRNG
+	! close(101)
+
 end program FamilyPhase
 
-!###########################################################################################################################################################
 
-subroutine ProcessLine(Var)
+subroutine MakeDirectories
 
-	use GlobalPar
 
-	implicit none
+	! 	use GlobalPars
+	! 	use ifport
+	! 	implicit none
 
-	integer :: nChrom
-    integer, allocatable, dimension(:) :: nSnpPerChrom
-    
-	character(len=256), intent(inout) :: Var
-    character (len=512) :: TLC
-    character(len=8) :: temp
-    character(len=1) :: comma
-    character(len=512) :: snps
+	! 	integer :: CSTAT,ESTAT
+	! 	character(len=100) :: CMSG
+	! 	logical :: dirExists
 
-    integer :: i
+	! 	#ifdef OS_UNIX
+	! 		inquire(directory="Output", exist=dirExists)
+	! 		if (.not. dirExists) then
+	! 			CALL EXECUTE_COMMAND_LINE ("mkdir -p Output",EXITSTAT=ESTAT, CMDSTAT=CSTAT, CMDMSG=CMSG)
+	! 			if (CSTAT.gt.0) then
+	! 				print*,"ERROR : Command execution failed",trim(CMSG)
+	! 			else if (CSTAT.lt.0) then
+	! 				print*,"ERROR : Command execution not supported"
+	! 			else
+	! 				print*,"Command completed with status",ESTAT
+	! 			endif
+	! 		endif
 
-    allocate(nSnpPerChrom(nChrom))
+	! 		inquire(directory="Temporary", exist=dirExists)
+	! 		if (.not. dirExists) then
+	! 			CALL EXECUTE_COMMAND_LINE ("mkdir -p Output",EXITSTAT=ESTAT, CMDSTAT=CSTAT, CMDMSG=CMSG)
+	! 			if (CSTAT.gt.0) then
+	! 				print*,"ERROR : Command execution failed",trim(CMSG)
+	! 			else if (CSTAT.lt.0) then
+	! 				print*,"ERROR : Command execution not supported"
+	! 			else
+	! 				print*,"Command completed with status",ESTAT
+	! 			endif
+	! 		endif
 
-	read(Var,'(A,a8)') comma, temp
+	! 		inquire(directory="Stats", exist=dirExists)
+	! 		if (.not. dirExists) then
+	! 			CALL EXECUTE_COMMAND_LINE ("mkdir -p Output",EXITSTAT=ESTAT, CMDSTAT=CSTAT, CMDMSG=CMSG)
+	! 			if (CSTAT.gt.0) then
+	! 				print*,"ERROR : Command execution failed",trim(CMSG)
+	! 			else if (CSTAT.lt.0) then
+	! 				print*,"ERROR : Command execution not supported"
+	! 			else
+	! 				print*,"Command completed with status",ESTAT
+	! 			endif
+	! 		endif
 
-	if (trim(TLC(temp))=='constant') then
-		read(Var, '(A,a8,A,i)') comma, temp, comma, nSnp
-		do i=2, nChrom
-			nSnpPerChrom(i) = nSnpPerChrom(1)
-		enddo
-	else
-		read(Var, '(A,a8,A,a512)') comma, temp, comma, snps
-		read(snps, *) nSnpPerChrom(1:nChrom)
-	endif
-end subroutine ProcessLine
-
-!###########################################################################################################################################################
-! STOLEN FROM ALPHASIM, WRITTEN BY DAVID WILSON 
-! Function returns a character (Of 512 Bytes for compatibility) that is a completely lowercase copy of input str
-function TLC(str)
-    
-    character(*), intent(in) :: str
-    character(len=512) :: TLC
-    integer :: i
-    TLC = trim(str)
-    do i = 1, len(TLC)
-        select case(TLC(i:i))
-            case("A":"Z")
-                TLC(i:i) = achar(iachar(TLC(i:i))+32)
-        end select
-    enddo
-    return
-end function TLC
-
-!###########################################################################################################################################################
-
-! reads in and initialises specfile parameters 
-subroutine ReadSpecfile
-
-    use GlobalPar
-
-    implicit none
-
-    integer :: FileLength, stat, i
-    character(len=256) :: Var
-    character(len=30) :: SpecParam
-   	character (len=512) :: TLC
-
-    open(unit=1, file="AlphaFamSeqSpec.txt", status="old")
-
-    FileLength = 0
-
-    do
-        read(1, *, iostat=stat) SpecParam
-        if (stat/=0) exit
-        FileLength = FileLength + 1
-    enddo
-
-    rewind(1)
-
-    do i=1, FileLength
-        read(1,'(a30,A)', advance='NO', iostat=stat) SpecParam 
-        
-        select case(trim(TLC(SpecParam)))
-
-        	case('numberofindividuals')
-                read(1, *, iostat=stat) nIndSeq
-                if (stat /= 0) then
-                    print *, "NumberOfIndividuals not set properly in spec file"
-                    stop 2
-                endif 
-               
-			case('numberofsnps')
-                read(1, *, iostat=stat) LenghtSequenceDataFile,nSnp,fistWindow
-                if (stat /= 0) then
-                    print *, "NumberOfSnps not set properly in spec file"
-                    print *, LenghtSequenceDataFile,nSnp
-                    stop 2
-                endif 
-
-			case('internaledit')
-                read(1, *, iostat=stat) InternalEdit
-                if (stat /= 0) then
-                    print *, "InternalEdit not set properly in spec file"
-                    print *, InternalEdit
-                    stop 2
-                endif 
-
-			case('editingparameter')
-                read(1, *, iostat=stat) EditingParameter
-                if (stat /= 0) then
-                    print *, "EditingParameter not set properly in spec file"
-                    print *, EditingParameter
-                    stop 2
-                endif 
-
-                
-            case('genotypeprobability')
-                read(1, *, iostat=stat) GeneProbThresh,GeneProbThreshMin,nIter 
-                if (stat /= 0) then
-                    print *, "GenotypeProbability not set properly in spec file"
-                    stop 8
-                endif   
-
-            case('errorrate')
-                read(1, *, iostat=stat) ErrorRate
-                if (stat /= 0) then
-                    print *, "ErrorRate not set properly in spec file"
-                    stop 8
-                endif   
-
-            case('rangechunklenght')
-                read(1, *, iostat=stat) ChunkLengthA,ChunkLengthB
-                if (stat /= 0) then
-                    print *, "RangeChunkLenght not set properly in spec file"
-                    stop 8
-                endif   
-
-			case('superconsensus')
-                read(1, *, iostat=stat) SuperC
-                if (stat /= 0) then
-                    print *, "SuperConsensus not set properly in spec file"
-                    stop 8
-                endif   
-                
-			case('pedigreefile')
-                read(1, *, iostat=stat) PedigreeFile
-                if (stat /= 0) then
-                    print *, "PedigreeFile not set properly in spec file"
-                    stop 8
-                endif   
-
-			case('readsfile')
-                read(1, *, iostat=stat) ReadsFile,ReadsType
-                if (stat /= 0) then
-                    print *, "ReadsFile not set properly in spec file"
-                    stop 10
-                endif   
-
-			case('mapfile')
-                read(1, *, iostat=stat) MapFile
-                if (stat /= 0) then
-                    print *, "MapFile not set properly in spec file"
-                    stop 10
-                endif   
-                
-			case('genofile')
-                read(1, *, iostat=stat) GenoFile
-                if (stat /= 0) then
-                    print *, "GenoFile not set properly in spec file"
-                    stop 10 
-                endif   
-            
-            case('snpchipsinformation')
-            	read(1, *, iostat=stat) SnpChipsInformation
-            	if (stat /= 0) then
-                    print *, "SnpChipsInformation not set properly in spec file"
-                    stop 10
-                endif
-                
-			case('phasefile')
-                read(1, *, iostat=stat) PhaseFile
-                if (stat /= 0) then
-                    print *, "PhaseFile not set properly in spec file"
-                    stop 10
-                endif
-                
-			case default
-               print *, "Error in specfile, please check", SpecParam
-                stop 16
-    	end select
-    enddo
-
-    close(1)
-end subroutine ReadSpecfile
-
-!###########################################################################################
-
-subroutine UseSnpChipInformation
-
-	use GlobalPar
-
-	implicit none
-
-	integer:: FileLength,stat,DumI,i,PosGeno,j
-	integer,allocatable,dimension(:) :: TempImput
-	integer,allocatable,dimension(:,:) :: IdsSnpChip
+	! 	#endif
 	
-	if (trim(SnpChipsInformation)/="None") then
+end subroutine MakeDirectories
 
-		allocate(TempImput(nSnp))
-		
-		open (unit=11,file=trim(SnpChipsInformation),status="old")
-
-		FileLength = 0
-	    do
-	        read(11, *, iostat=stat) DumI
-	        if (stat/=0) exit
-	        FileLength = FileLength + 1
-	    enddo
-	    
-	    rewind(11)
-
-	    allocate(IdsSnpChip(nInd,nSnp))
-	    
-	    IdsSnpChip=9
-
-	    do i=1, FileLength
-			PosGeno=0
-	    	read(11,*) Id(i), TempImput(:) 
-	    	call GetID(Id(i), PosGeno)
-	    	IdsSnpChip(PosGeno,:) = TempImput(:)
-	    enddo
-
-		close(11)
-	    
-	    
-	    do i=1,nInd
-			do j=1,nSnp
-				if (IdsSnpChip(i,j)==0) then 
-					FilledPhase(i,j,:)=0
-					FilledGenos(i,j)=0
-				endif
-				if (IdsSnpChip(i,j)==2) then
-					FilledPhase(i,j,:)=1
-					FilledGenos(i,j)=2
-				endif
-				if (IdsSnpChip(i,j)==1) then
-					FilledGenos(i,j)=1
-				endif
-			enddo
-		enddo
-
-		call CurrentCountFilled
-
-		deallocate(TempImput)
-		deallocate(IdsSnpChip)
-	
-	endif
-end subroutine UseSnpChipInformation
-
-!###########################################################################################
-
-subroutine CheckMissingData
-
-	use GlobalPar
-
-	implicit none
-
-	integer :: j
-	character(len=50) :: filout1
-
-	write (filout1,'("AlphaFamSeqMarkersWithZeroReads",i0,".txt")') Windows
-	open (unit=1,file=trim(filout1),status="unknown")
-		
-	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (RawReads,nSnp)
-		do j=1,nSnp
-			if (maxval(RawReads(:,j,:))==0) then
-				write (1,'(i10)') j
-			endif
-		enddo
-	!$OMP END PARALLEL DO
-
-	close (1)
-
-end subroutine CheckMissingData
-
-!###########################################################################################
+!-------------------------------------------------------------------------------------------------
+!> @brief   Get phase complement and make the genotype
+!> @detail  Do while thre are no more information to add
+!> @date    August 31, 2017
+!--------------------------------------------------------------------------------------------------   
 
 subroutine SimpleCleanUpFillIn
 
-	use GlobalPar
-
+	use GlobalPars
+	use omp_lib
 	implicit none
 
-	integer i,j,Change,e,k,g1,g2
+	integer :: oldMissingGeno,newMissingGeno,oldMissingPhase,newMissingPhase
 
-	Change=1
-	do while (Change==1)
-		Change=0
-		!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase,nInd,nSnp)
-		do i=1,nInd
-			do j=1,nSnp
-				if (FilledGenos(i,j)==9) then
-					if ((FilledPhase(i,j,1)/=9).and.(FilledPhase(i,j,2)/=9)) then
-						FilledGenos(i,j)=sum(FilledPhase(i,j,:))
-						Change=1
-					endif
-				endif
-				if ((FilledPhase(i,j,1)/=9).and.(FilledPhase(i,j,2)==9).and.(FilledGenos(i,j)==1)) then
-					if (FilledPhase(i,j,1)==0) FilledPhase(i,j,2)=1
-					if (FilledPhase(i,j,1)==1) FilledPhase(i,j,2)=0
-					Change=1
-				endif
-				if ((FilledPhase(i,j,2)/=9).and.(FilledPhase(i,j,1)==9).and.(FilledGenos(i,j)==1)) then
-					if (FilledPhase(i,j,2)==0) FilledPhase(i,j,1)=1
-					if (FilledPhase(i,j,2)==1) FilledPhase(i,j,1)=0
-					Change=1
-				endif
+	oldMissingGeno=ped%CountMissingGenotypesNoDummys()
+	oldMissingPhase=ped%CountMissingPhaseNoDummys()
+	
+	newMissingGeno=0
+	newMissingPhase=0
 
-			enddo
-		enddo
-		!$OMP END PARALLEL DO
+	!do while ((newMissingGeno.ne.oldMissingGeno).or.(newMissingPhase.ne.oldMissingPhase))
+	do while ((newMissingPhase.ne.oldMissingPhase))
+		oldMissingGeno=newMissingGeno
+		oldMissingPhase=newMissingPhase
+
+		call ped%phaseComplement()
+		call ped%makeGenotype()
+	!		call ped%cleanGenotypesAndPhase()
+
+		newMissingGeno=ped%CountMissingGenotypesNoDummys()
+		newMissingPhase=ped%CountMissingPhaseNoDummys()
 	enddo
 end subroutine SimpleCleanUpFillIn
 
-!###########################################################################################
-
-subroutine FerdosiSerap
-
-	use GlobalPar
-	use Ferdosi
-	implicit none
-
-	integer :: nHalfSib,i,k,p,hs,ParentGender,j,ChunckStart,ChunckStop,count1,count2,j2,nHalfSibOwnReads
-	integer, allocatable, dimension(:) :: HalfSibID,ParentGeno,HasOwnReads
-	integer, allocatable, dimension(:,:) :: ParentPhase, HalfSibGeno
-	integer, allocatable, dimension(:,:,:) :: HalfSibPhase
-	
-
-	nHalfSib=0
-	do i=nInd,1,-1 ! count how many time is a parent
-		do k=2,3 ! sire or dam
-			ParentGender=k-1
-			nHalfSib=count(RecPed(:,k)==i)
-	
-			allocate(HalfSibID(nHalfSib))
-			allocate(HasOwnReads(nHalfSib))
-
-			HasOwnReads=0
-			nHalfSibOwnReads=0
-
-			p=1
-			do hs=1,nInd
-				if (RecPed(hs,k)==i) then
-					HalfSibID(p)=hs
-					if ((maxval(RawReads(hs,:,:))>0).and.(count(FilledGenos(hs,:)==9)<20000)) then
-						HasOwnReads(p)=1
-						nHalfSibOwnReads=nHalfSibOwnReads+1
-					endif
-					p=p+1
-				endif
-			enddo
-
-			if (nHalfSibOwnReads > 19 ) then
-
-				allocate(HalfSibGeno(nHalfSibOwnReads, nSnp))
-				allocate(HalfSibPhase(nHalfSibOwnReads, nSnp, 2))
-
-				allocate(ParentPhase(nSnp,2))
-				allocate(ParentGeno(nSnp))
-
-				p=1
-				do hs=1,nHalfSib
-					if (HasOwnReads(hs)==1) then
-						HalfSibGeno(p,:)=FilledGenos(HalfSibID(hs),:)
-						p=p+1
-					endif
-				enddo
-
-				ParentGeno = 9
-				ParentPhase = 9
-				HalfSibPhase = 9
-
-				call FerdosiRunner(nHalfSibOwnReads, nSnp, ParentGender, ParentPhase, HalfSibGeno, HalfSibPhase)
-
-				do j=1,nSnp ! Update Parents genotypes
-					if (sum(ParentPhase(j,:))<3) then 
-
-						ParentGeno=sum(ParentPhase(j,:))
-
-						if (FilledGenos(i,j)==9) then
-							FilledGenos(i,j)=ParentGeno(j)
-						endif
-
-						if (FilledGenos(i,j)==0) then
-							if ((FilledPhase(i,j,1)==9).and.(FilledPhase(i,j,2)==9)) then
-								FilledPhase(i,j,:)=0
-							endif
-						endif
-						
-						if (FilledGenos(i,j)==2) then
-							if ((FilledPhase(i,j,1)==9).and.(FilledPhase(i,j,2)==9)) then
-								FilledPhase(i,j,:)=1
-							endif
-						endif
-
-	!						if (FilledGenos(i,j)==1) then
-	!							if ((FilledPhase(i,j,1)/=9).or.(FilledPhase(i,j,2)/=9)) then
-	!								if (FilledPhase(i,j,1)==0) FilledPhase(i,j,2)=1
-	!								if (FilledPhase(i,j,1)==1) FilledPhase(i,j,2)=0
-	!								if (FilledPhase(i,j,2)==0) FilledPhase(i,j,1)=1
-	!								if (FilledPhase(i,j,2)==1) FilledPhase(i,j,1)=0
-	!							endif
-	!						endif
-					
-					! check
-					if (i==100) then
-						if ((ParentGeno(j)/=TrueGenos(i,j)).and.(ParentGeno(j)==FilledGenos(i,j))) then
-							write(*,'(6i6)'),j,RawReads(i,j,:),TrueGenos(i,j),FilledGenos(i,j),ParentGeno(j)
-						endif
-					endif
-
-
-					endif
-				enddo
-
-
-	!				p=1
-	!				do hs=1,nInd
-	!					if (RecPed(hs,k)==i) then
-	!						if (sum(HalfSibPhase(p,j,:))<3) then
-							
-	!							if (FilledGenos(hs,j)==9) then
-	!								FilledGenos(hs,j)=HalfSibGeno(p,j)
-	!							endif
-
-							!if (HalfSibGeno(p,j) /= FilledGenos(hs,j)) then
-							!	FilledGenos(hs,j)=9
-							!endif
-
-	!							if (sum(FilledPhase(hs,j,:))==9) then
-	!								FilledPhase(hs,j,:)=HalfSibPhase(p,j,:)
-	!							endif
-
-							!if (HalfSibPhase(p,j,1) /= FilledPhase(hs,j,1)) then
-							!	FilledPhase(hs,j,:)=9
-							!endif
-
-							!if (HalfSibPhase(p,j,2) /= FilledPhase(hs,j,2)) then
-							!	FilledPhase(hs,j,:)=9
-							!endif
-	!							p=p+1
-	!						endif
-	!					endif
-	!				enddo
-
-
-				deallocate(ParentPhase)
-				deallocate(ParentGeno)
-				deallocate(HalfSibGeno)
-				deallocate(HalfSibPhase)
-
-			endif
-
-			deallocate(HasOwnReads)
-			deallocate(HalfSibID)
-
-
-		enddo
-	enddo
-end subroutine FerdosiSerap
-
-!###########################################################################################
+!-------------------------------------------------------------------------------------------------
+!> @brief   Build the consensus haplotype for grandparent-parent-probands 
+!> @detail  Here we use the chunks previously define, and we try to fill the missing value of these 
+!>          three (or more, if there are sibs) individuals if two of these individuals have information.
+!> @date    September 08, 2017
+!
+!  REVISION HISTORY:
+!  2017.08.30  mbattagin - Initial Version: Build the consensus haplotype for grandparent-parent-proband  
+!  2017.09.08  mbattagin - Use all the progenies at the same time to build the consensus
+!--------------------------------------------------------------------------------------------------   
 
 subroutine BuildConsensus 
-	use GlobalPar
+	use GlobalPars
 
 	implicit none
 
-	integer :: i,k,e,j,l,m,Count1,Count0,CountG,CountG2,AlternativeGamete
+	integer :: i,k,e,j,m,a,nOffs,o,nFounders
+	integer(kind=1) :: ConsensusHaplotype
+	integer,dimension(2) :: countAllele !0 and 1
+	type(individual), pointer :: grandparent
+	integer,allocatable :: posOffs(:),founderOffspring(:)
 
-	integer,allocatable,dimension(:) :: ConsensusHaplotype
-	integer,allocatable,dimension(:,:,:) :: ConsensusIds
+	do i=1,ped%pedigreeSize-ped%nDummys ! Parent
+		nOffs=ped%pedigree(i)%nOffs ! store nr of Offsprings
+		nFounders=0 ! Store number of offsprings with informative positions to build the consensus
+		k=ped%pedigree(i)%gender ! store the gender of the parent
+				
+		if ((nOffs.gt.0).and.(.not.ped%pedigree(i)%Founder)) then ! Build the consensus haplotypes using all the progeny informations
+			allocate(posOffs(nOffs))
+			allocate(founderOffspring(nOffs))
 
-	allocate(ConsensusIds(nInd,4,2))
-	allocate(ConsensusHaplotype(nSnp))
-
-	do i=1,nInd
-		do k=1,2 ! paternal or maternal gamete
-			e=k+1 ! position parents in Pedigree
-
-			if (maxval(FounderAssignment(i,:,k))/=0) then
+			do o=1,nOffs
+				posOffs(o)=ped%pedigree(i)%offsprings(o)%p%id
+				if (maxval(FounderAssignment(posOffs(o),:,k)).ne.0) nFounders=nFounders+1 !Count how many individuals have informative snps
+			enddo
+			if (nFounders.gt.0) then ! Start to build the consensus
+				founderOffspring=0
 				do j=1,nSnp
+					founderOffspring=FounderAssignment(posOffs,j,k)
+					if (maxval(founderOffspring(:)).gt.0) then ! The snps have a founder, build it's consensus
+						do e=2,3
+							grandparent => ped%pedigree(i)%getSireDamObjectbyIndex(e)
 						
-					ConsensusIds(i,:,:)=0
-					if (FounderAssignment(i,j,k)/=0) then
+							ConsensusHaplotype=9
+							countAllele=0
+							do a=0,1 
+								if (((grandparent%individualPhase(1)%getPhase(j)+grandparent%individualPhase(2)%getPhase(j)).lt.3).and.(.not. grandparent%isDummy)) then
+									! Avoid to use markers that are not fully phased for the grandparent
+									do m=1,2 
+										if (grandparent%individualPhase(m)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
+									enddo
+								endif
+	
+								if (ped%pedigree(i)%individualPhase(e-1)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
 
-						! Save Ids of the trio (founder-parent-proband)
-
-						ConsensusIds(i,1,1)=FounderAssignment(i,j,k)   			! Id Founder
-						ConsensusIds(i,2,1)=FounderAssignment(i,j,k)			! Id Founder
-						ConsensusIds(i,3,1)=RecPed(i,e) 						! Id parent
-						ConsensusIds(i,4,1)=RecPed(i,1) 						! Id proband
-
-						! Save gamete that the trio shared
-
-						ConsensusIds(i,1,2)=1 	! gamete1 Founder
-						ConsensusIds(i,2,2)=2 	! gamete2 Founder
-
-						if(RecPed(ConsensusIds(i,3,1),2)==FounderAssignment(i,j,k)) then
-							ConsensusIds(i,3,2)=1	! From male 
-						endif
-
-						if(RecPed(ConsensusIds(i,3,1),3)==FounderAssignment(i,j,k)) then
-							ConsensusIds(i,3,2)=2  ! From female
-						endif
-
-						ConsensusIds(i,4,2)=k 	
-							
-						ConsensusHaplotype(j)=9
-
-						Count1=0
-						Count0=0
-
-						do m=1,2 ! members and gamets ! Avoid to use markers that are not fully phased
-							if (sum(FilledPhase(ConsensusIds(i,m,1),j,:))<3) then 
-								if (FilledPhase(ConsensusIds(i,m,1),j,ConsensusIds(i,m,2))==1) Count1=Count1+1
-								if (FilledPhase(ConsensusIds(i,m,1),j,ConsensusIds(i,m,2))==0) Count0=Count0+1
-							endif
-						enddo
-
-						do m=3,4 ! members and gamets
-							if (FilledPhase(ConsensusIds(i,m,1),j,ConsensusIds(i,m,2))==1) Count1=Count1+1
-							if (FilledPhase(ConsensusIds(i,m,1),j,ConsensusIds(i,m,2))==0) Count0=Count0+1
-						enddo
-
-						if (Count1>0 .and. Count0==0) ConsensusHaplotype(j)=1
-						if (Count0>0 .and. Count1==0) ConsensusHaplotype(j)=0
-
-
-						if (ConsensusHaplotype(j)/=9) then
-							do m=3,4								
-								FilledPhase(ConsensusIds(i,m,1),j,ConsensusIds(i,m,2))=ConsensusHaplotype(j)
+								do o=1,nOffs
+									if (founderOffspring(o).eq.e) then
+										if (ped%pedigree(posOffs(o))%individualPhase(k)%getPhase(j).eq.a) countAllele(a+1)=countAllele(a+1)+1
+									endif
+								enddo
 							enddo
-						endif
-
-
-						!AlternativeGamete=Abs((ConsensusIds(i,4,2)-1)-1)+1 ! gamete for the other founder (i.e. if i=male --> AlternativeGamete=female)
-						!if (ConsensusHaplotype(j)==0) then
-						!	if ((FilledPhase(ConsensusIds(i,4,1),j,AlternativeGamete)==9).and.(RawReads(ConsensusIds(i,4,1),j,2)>=ReadCountMinThresh)) then
-						!		FilledPhase(ConsensusIds(i,4,1),j,AlternativeGamete)=1
-						!	endif
-						!endif
-
-						!if (ConsensusHaplotype(j)==1) then
-						!	if ((FilledPhase(ConsensusIds(i,4,1),j,AlternativeGamete)==9).and.(RawReads(ConsensusIds(i,4,1),j,1)>=ReadCountMinThresh)) then
-						!		FilledPhase(ConsensusIds(i,4,1),j,AlternativeGamete)=0
-						!	endif
-						!endif
-
-					
+							! Fill the phases
+	 						if ((countAllele(2).gt.0).and.(countAllele(1).eq.0)) ConsensusHaplotype=1
+	 						if ((countAllele(1).gt.0).and.(countAllele(2).eq.0)) ConsensusHaplotype=0
+	 						
+	 						if (ConsensusHaplotype.ne.9) then
+	 							!if (trim(ped%pedigree(i)%originalID)=="11851".and.ped%pedigree(i)%individualGenotype%getGenotype(j).eq.1) write(*,'(1a10,4(1x,i0),10x,100i1)'),ped%pedigree(i)%originalID,e,j,countAllele,founderOffspring
+	 							!if (minval(countAllele).gt.0) write(*,'(1a10,4(1x,i0),10x,100i1)'),ped%pedigree(i)%originalID,e,j,countAllele,founderOffspring
+								call ped%pedigree(i)%individualPhase(e-1)%setPhase(j,ConsensusHaplotype)
+								do o=1,nOffs
+	 								if (founderOffspring(o).eq.e) then
+			 							call ped%pedigree(posOffs(o))%individualPhase(k)%setPhase(j,ConsensusHaplotype)
+									endif
+	 							enddo
+	 						endif	
+	
+						enddo
 					endif
-
 				enddo
-			endif
-		enddo
+				call ped%pedigree(i)%makeIndividualPhaseCompliment()
+				call ped%pedigree(i)%makeIndividualGenotypeFromPhase()
+
+				do o=1,nOffs
+					call ped%pedigree(posOffs(o))%makeIndividualPhaseCompliment()
+					call ped%pedigree(posOffs(o))%makeIndividualGenotypeFromPhase()
+				enddo
+
+				call ped%phaseComplement()
+				call ped%makeGenotype()
+
+
+			endif	
+			deallocate(posOffs)
+			deallocate(founderOffspring)
+
+		endif
 	enddo
 
-	deallocate(ConsensusIds)
+	!call ped%cleangenotypesbasedonhaplotypes()
+
 end subroutine BuildConsensus 
 
-!################################################################################################
+!-------------------------------------------------------------------------------------------------
+!> @brief   Work Left/Work Rigth to find chunks of haplotypes using the Founder Assignement array
+!> @detail  i.e. From the previous step for the id7 we have the following 
+!>				seq of founders assignment: 1 0 0 0 1 0 0 0 2 0 0 0 2. In this step we do:
+!>		        from Left to Rigth        : 1 1 1 1 1 1 1 1 2 2 2 2 2 
+!>  		    from Rigth to Left        : 1 1 1 1 1 2 2 2 2 2 2 2 2 and the consensus of these two vector generates
+!>
+!>        		FounderAssignment   	  : 1 1 1 1 1 0 0 0 2 2 2 2 2 
+!>        where the 0 represent a region where the recombination happens.
+
+!> TODO : there can be a lot of small chunks. Find a way to understand if they are a single chunk or if 
+!>        the recombination happen in the middle of some of them.
+!>        Be carefull that we can have scenarios with females parents not sequenced.
+!> @date    August 31, 2017
+
+!  REVISION HISTORY:
+!  2017.08.31  mbattagin - Initial Version: Work Left/Work Rigth to find chunks of haplotypes using the Founder Assignement array  
+!  2017.09.12  mbattagin - Use core index to have windows with uniform numbers of snps (i.e., avoid few snps in the tail)
+! 
+!--------------------------------------------------------------------------------------------------   
 
 subroutine ChunkDefinition
 
-	use GlobalPar
+	use GlobalPars
+	use IntelRNGMod
+	use coreutils
 	implicit none
 
-	integer :: i,j,e,k
-	integer :: f1
-	integer :: fSnp,ChunkLength2(1)
-	integer :: lSnp
-	real 	 Y, Z(1),A,B
-	
+	integer 			 :: i,j,e,k,c,nCores,tmp,n2,n3
+	integer 			 :: f1,p1,p2,founder
+	integer 			 :: fSnp,lSnp,nChunk
+	real,dimension(1)    :: Z
+	integer,allocatable,dimension (:,:) :: CoreIndex
+	integer,allocatable,dimension(:,:) :: ConsensusFounderAssignment
 	integer,allocatable,dimension(:) :: FounderAssignmentF,FounderAssignmentB
 
-	allocate(FounderAssignmentF(1:nSnp))
-	allocate(FounderAssignmentB(1:nSnp))
+	real,dimension(2) :: f
 
-	CALL RANDOM_SEED()
-	CALL RANDOM_NUMBER (HARVEST = Y)
-	CALL RANDOM_NUMBER (Z)
-
-	A = ChunkLengthA  
-	B = ChunkLengthB 
-	ChunkLength2=floor((A-1)+(B-(A-1))*Z)+1
-
-	print*,"CL",ChunkLength2(1)
+	logical:: blah
 	
-	
-	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (nInd,nSnp,FounderAssignment,ChunkLength2)
-	do i=1,nInd
-		do k=1,2 ! paternal or maternal gamete
-			e=k+1 ! position parents in Pedigree
 
-			FounderAssignmentF=0
-			FounderAssignmentB=0
 
-			if (maxval(FounderAssignment(i,:,k))/=0) then
-				
-				fSnp=1
-				lSnp=ChunkLength2(1)
-				
-				
-				!print*,"B",i,k,count(FounderAssignment(i,:,k)/=0),fSnp,lSnp
-					
+	nChunk=5
+	if (maxWindowSizeHapDefinition-minWindowSizeHapDefinition+1.lt.nChunk) nChunk=maxWindowSizeHapDefinition-minWindowSizeHapDefinition+1
+	if (minWindowSizeHapDefinition.eq.maxWindowSizeHapDefinition) nChunk=1
 
-				do while (lSnp<=nSnp)
+	allocate(ConsensusFounderAssignment(nChunk,nSnp))
+	if (.not. allocated(ChunkLength)) then
+		allocate(ChunkLength(nChunk))
+		ChunkLength=0
+	endif
 
-					if ((lSnp+ChunkLength2(1))>nSnp) lSnp=nSnp
-					if ((fSnp-ChunkLength2(1))<0) fSnp=1
-				
-					FounderAssignmentF(fSnp:lSnp)=FounderAssignment(i,fSnp:lSnp,k)
-					FounderAssignmentB(fSnp:lSnp)=FounderAssignment(i,fSnp:lSnp,k)
-
-					f1=0
-					!!! Forward founder assignment 
-					do j=fSnp,lSnp
-						if (FounderAssignmentF(j)/=0)then
-							f1=FounderAssignmentF(j)
-						endif
-						if ((FounderAssignmentF(j)==0)) then
-							FounderAssignmentF(j)=f1
-						endif 
-					enddo
-
-					f1=0
-					!!! Backward founder assignment 
-					do j=lSnp,fSnp,-1
-						if (FounderAssignmentB(j)/=0)then
-							f1=FounderAssignmentB(j)
-						endif
-						if ((FounderAssignmentB(j)==0)) then
-							FounderAssignmentB(j)=f1
-						endif 
-					enddo
-
-					fSnp=lSnp+1
-					lSnp=lSnp+ChunkLength2(1)
-				enddo
-				
-				do j=1,nSnp
-					if (FounderAssignmentF(j)==FounderAssignmentB(j)) FounderAssignment(i,j,k)=FounderAssignmentF(j)
-					if (FounderAssignmentF(j)/=FounderAssignmentB(j)) FounderAssignment(i,j,k)=0
-				enddo	
-
-			endif
-		enddo
-	enddo
-	!$OMP END PARALLEL DO
-
-	deallocate(FounderAssignmentF)
-	deallocate(FounderAssignmentB)
-end subroutine ChunkDefinition
-
-!#####################################################################################################################
-
-subroutine CalculateFounderAssignment
-	use GlobalPar
-
-	implicit none
-
-	integer :: i,j,e,k
-	
-	FounderAssignment(:,:,:)=0 
-	
-	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (FilledGenos,FilledPhase,RecPed,FounderAssignment,nInd,nSnp)
-	do i=1,nInd
-		do e=2,3 ! Sire and Dam pos in the ped
-			k=e-1 ! Sire and Dam gamete
-			do j=1,nSnp
-				if (FilledGenos(RecPed(i,e),j)==1) then
-					if (sum(FilledPhase(RecPed(i,e),j,:))<3) then
-						if (FilledPhase(RecPed(i,e),j,1)==FilledPhase(i,j,k)) FounderAssignment(i,j,k)=RecPed(RecPed(i,e),2) !Sire of Parent !FounderId(k,1)
-						if (FilledPhase(RecPed(i,e),j,2)==FilledPhase(i,j,k)) FounderAssignment(i,j,k)=RecPed(RecPed(i,e),3) !Dam  of Parent !FounderId(k,2)
-					endif
+	if (nChunk.eq.1) then
+		ChunkLength(1)=minWindowSizeHapDefinition
+	else if (nChunk.gt.1) then
+		if (maxval(ChunkLength(:)).eq.0) then
+			i=0
+			do while (i.lt.nChunk)
+				Z = SampleIntelUniformS(n=1,a=0.0,b=1.0)
+				tmp=floor((dble(minWindowSizeHapDefinition)-1)+(dble(maxWindowSizeHapDefinition)-(dble(minWindowSizeHapDefinition)-1))*Z(1))+1
+				blah = any(ChunkLength.eq.tmp)
+				if (.not.blah) then
+					i=i+1
+					ChunkLength(i)=tmp
 				endif
+			enddo
+			print*,ChunkLength
+		endif
+	endif
+
+	do i=1,ped%pedigreeSize-ped%nDummys
+		do e=1,2
+			ConsensusFounderAssignment=0
+			!if (i==1587.and.e==1) write(*,'(1a10,1x,6802i1)'),ped%pedigree(i)%originalID,FounderAssignment(i,:,e)
+			!if ((minval(FounderAssignment(i,:,e)).gt.0).and.e==1) write(*,'(i10,1x,6802i1)'),i,FounderAssignment(i,:,e)
+			do k=1,nChunk
+				nCores=nSnp/ChunkLength(k)
+				allocate(CoreIndex(nCores,2))
+		
+				CoreIndex=calculatecores(nSnp,ChunkLength(k),.false.)
+				nCores=size(CoreIndex)/2
+
+				! do j=1,nCores
+				! 	write(101,'(7(1x,i0))') Windows,IterationNumber,i,j,CoreIndex(j,:)
+				! enddo
+				do c=1,nCores
+					fSnp=CoreIndex(c,1)
+					lSnp=CoreIndex(c,2)
+					n2=count(FounderAssignment(i,fSnp:lSnp,e).eq.2)
+					n3=count(FounderAssignment(i,fSnp:lSnp,e).eq.3)
+
+					if (n2.gt.n3.and.n2.gt.0) ConsensusFounderAssignment(k,fSnp:lSnp)=2
+					if (n3.gt.n2.and.n3.gt.0) ConsensusFounderAssignment(k,fSnp:lSnp)=3
+				enddo
+				!if ((minval(ConsensusFounderAssignment(k,:)).gt.0).and.e==1) write(*,'(i10,1x,100i1)'),i,ConsensusFounderAssignment(k,:)
+				!if (i==1587.and.e==1) write(*,'(1a10,1x,6802i1)'),ped%pedigree(i)%originalID,ConsensusFounderAssignment(k,:)
+				deallocate(CoreIndex)
+			enddo
+			
+			do j=1,nSnp
+				n2=count(ConsensusFounderAssignment(:,j).eq.2)
+				n3=count(ConsensusFounderAssignment(:,j).eq.3)
+				if (n2.eq.nChunk) FounderAssignment(i,j,e)=2
+				if (n3.eq.nChunk) FounderAssignment(i,j,e)=3
 			enddo
 		enddo
 	enddo
-	!$OMP END PARALLEL DO
-end subroutine CalculateFounderAssignment
 
-!#####################################################################################################################
+	! 	!$OMP PARALLEL DO DEFAULT(SHARED)  PRIVATE(c,i,k,e,j,f1,ChunkLength,fSnp,lSnp,FounderAssignmentF,FounderAssignmentB)
+	! 	do c=1,nCores
+	! 		ChunkLength=CoreIndex(c,2)-CoreIndex(c,1)+1
+	! 		do i=1,ped%pedigreeSize-ped%nDummys
+	! 			do k=1,2 ! paternal or maternal gamete
+	! 				e=k+1 ! position parents in Pedigree
+					
+					
+	! 				fSnp=CoreIndex(c,1)
+	! 				lSnp=CoreIndex(c,2)
+					
+	! 				!if (count(FounderAssignment(i,fSnp:lSnp,k).ne.0).gt.1) then
+	! 				if (dble(count(FounderAssignment(i,fSnp:lSnp,k).ne.0))/dble(ChunkLength).gt.0.05) then
 
-subroutine SimpleFillInBasedOnProgenyReads
-	! Fill missing gamete according to the one of progeny and the alternative gamete 
+	! 					allocate(FounderAssignmentF(ChunkLength))
+	! 					allocate(FounderAssignmentB(ChunkLength))
 
-	use GlobalPar
+	! 					FounderAssignmentF=0
+	! 					FounderAssignmentB=0
 
+	! 					FounderAssignmentF(:)=FounderAssignment(i,fSnp:lSnp,k)
+	! 					FounderAssignmentB(:)=FounderAssignment(i,fSnp:lSnp,k)
+
+						
+	! 					f1=0
+	! 					!!! Forward founder assignment 
+	! 					do j=1,ChunkLength
+	! 						if (FounderAssignmentF(j)/=0)then
+	! 							f1=FounderAssignmentF(j)
+	! 						endif
+	! 						if ((FounderAssignmentF(j)==0)) then
+	! 							FounderAssignmentF(j)=f1
+	! 						endif 
+	! 					enddo
+
+	! 					f1=0
+	! 					!!! Backward founder assignment 
+	! 					do j=ChunkLength,1,-1
+	! 						if (FounderAssignmentB(j)/=0)then
+	! 							f1=FounderAssignmentB(j)
+	! 						endif
+	! 						if ((FounderAssignmentB(j)==0)) then
+	! 							FounderAssignmentB(j)=f1
+	! 						endif 
+	! 					enddo
+						
+	! 					do j=1,ChunkLength
+	! 						if (FounderAssignmentF(j)==FounderAssignmentB(j)) FounderAssignment(i,(fSnp+j-1),k)=FounderAssignmentF(j)
+	! 						if (FounderAssignmentF(j)/=FounderAssignmentB(j)) FounderAssignment(i,(fSnp+j-1),k)=0
+	! 					enddo	
+	! 					deallocate(FounderAssignmentF)
+	! 					deallocate(FounderAssignmentB)
+	! 				endif
+	! 			enddo
+	! 		enddo
+	! 	enddo
+	! 	!$OMP END PARALLEL DO
+
+ end subroutine ChunkDefinition
+
+!-------------------------------------------------------------------------------------------------
+!> @brief   Assign from which founder the haplotype has been inherited.
+!> @detail  This is done using the heterozygous markers of the individual’s parent
+!>          i.e. DAD phase = 10, KID Phase=19. The "1" of the kid is coming from the Paternal GrandSire
+!>			i.e. DAD phase = 01, KID Phase=19. The "1" of the kid is coming from the Paternal GrandDam
+!> @date    August 30, 2017
+!--------------------------------------------------------------------------------------------------   
+
+subroutine CalculateFounderAssignment
+	use GlobalPars
+	use omp_lib
 	implicit none
 
-	integer :: i,j,e,k,alternative,IdSire,IdDam
+	integer :: i,j,e,k,phaseId,geno,nHet
+	integer,dimension(2) :: phasePar
+	type(individual),pointer :: parent
 
-	do i=1,nInd
+	FounderAssignment=0
 
-		!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (RawReads,FilledGenos,FilledPhase,RecPed,i,nSnp)
-		do j=1,nSnp
+  	!$OMP PARALLEL DO ORDERED DEFAULT(SHARED)  PRIVATE(e,i,j,k,parent,phaseId,geno,phasePar) !collapse(2)	
+	do e=2,3 ! Sire and Dam pos in the ped
+		k=e-1
+		do i=1,ped%pedigreeSize-ped%nDummys
+			if (.not. ped%pedigree(i)%Founder) then
+				parent => ped%pedigree(i)%getSireDamObjectByIndex(e)
+				
+				if (associated(parent)) then
+		 			do j=1,nSnp
+						phaseId = ped%pedigree(i)%individualPhase(k)%getPhase(j)
+						
+						geno = parent%individualGenotype%getGenotype(j)
+						phasePar(1) =parent%individualPhase(1)%getPhase(j)
+		 				phasePar(2) =parent%individualPhase(2)%getPhase(j)
 
-			if ((FilledGenos(i,j)==0).or.(FilledGenos(i,j)==2)) then
-				IdSire=RecPed(i,2)
-				IdDam=RecPed(i,3)
-
-
-				if ((FilledPhase(i,j,2)/=9).and.(FilledPhase(IdDam,j,1)/=9)) then
-					if ((FilledPhase(IdDam,j,2)==9).and.(FilledPhase(i,j,2)/=FilledPhase(IdDam,j,1))) then
-						FilledPhase(IdDam,j,2)=FilledPhase(i,j,2)
-					endif
+						if ((geno.eq.1).and.(sum(phasePar).lt.3)) then
+							if (phasePar(1).eq.phaseId) FounderAssignment(i,j,(k))=2 !GrandSire 
+							if (phasePar(2).eq.phaseId) FounderAssignment(i,j,(k))=3 !GrandDam
+						endif
+					enddo
 				endif
-
-				if ((FilledPhase(i,j,2)/=9).and.(FilledPhase(IdDam,j,2)/=9)) then
-					if ((FilledPhase(IdDam,j,1)==9).and.(FilledPhase(i,j,2)/=FilledPhase(IdDam,j,2))) then
-						FilledPhase(IdDam,j,1)=FilledPhase(i,j,2)
-					endif
-				endif
-
-
-				if ((FilledPhase(i,j,1)/=9).and.(FilledPhase(IdSire,j,1)/=9)) then
-					if ((FilledPhase(IdSire,j,2)==9).and.(FilledPhase(i,j,1)/=FilledPhase(IdSire,j,1))) then
-						FilledPhase(IdSire,j,2)=FilledPhase(i,j,1)
-					endif
-				endif
-
-				if ((FilledPhase(i,j,1)/=9).and.(FilledPhase(IdSire,j,2)/=9)) then
-					if ((FilledPhase(IdSire,j,1)==9).and.(FilledPhase(i,j,1)/=FilledPhase(IdSire,j,2))) then
-						FilledPhase(IdSire,j,1)=FilledPhase(i,j,1)
-					endif
-				endif
-
-				if ((FilledGenos(IdSire,j)==9).and.(sum(FilledPhase(IdSire,j,:))<3)) FilledGenos(IdSire,j)= sum(FilledPhase(IdSire,j,:))
-				if ((FilledGenos(IdDam,j)==9).and.(sum(FilledPhase(IdDam,j,:))<3)) FilledGenos(IdDam,j)= sum(FilledPhase(IdDam,j,:))
 			endif
 		enddo
-		!$OMP END PARALLEL DO
-		
 	enddo
+    !$OMP END PARALLEL DO
+end subroutine CalculateFounderAssignment
+
+!-------------------------------------------------------------------------------------------------
+!> @brief   Phase individuals' alleles on the basis of his parents/progeny genotyepes
+!> @detail  If an individual has one of its two gametes phased and the evidence from 
+!>          the progeny indicates that it inherited the other allele, then on the basis
+!>			of progeny information the allele can be phased for the relevant gamete of the parent.
+!>          i.e., The MGS=00, DAM=0?, KID=11. The genotype of the dam has to be 1 and the phase is 01
+!>          !TODO : probably this subroutine is not necessary after the introduction of GeneProb.
+!>          Check if it make sense to remove it.
+!> @date    August 30, 2017
+!--------------------------------------------------------------------------------------------------   
+
+subroutine SimpleFillInBasedOnProgenyReads
+
+	use GlobalPars
+	use omp_lib
+	implicit none
+
+	integer :: i,j
+	integer(kind=1),dimension(2) :: phase,phaseSire,phaseDam
+	type(individual),pointer :: sire,dam
+
+	
+	!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (ped,nSnp,nInd) !collapse(2)
+	do i=1,ped%pedigreeSize-ped%nDummys
+
+		if (.not. ped%pedigree(i)%Founder) then
+			sire => ped%pedigree(i)%sirePointer
+			dam => ped%pedigree(i)%damPointer
+
+			do j=1,nSnp
+				phase(1) = ped%pedigree(i)%individualPhase(1)%getPhase(j)
+				phase(2) = ped%pedigree(i)%individualPhase(2)%getPhase(j)
+
+				phaseSire(1) =sire%individualPhase(1)%getPhase(j)
+				phaseSire(2) =sire%individualPhase(2)%getPhase(j)
+
+				phaseDam(1) = dam%individualPhase(1)%getPhase(j)
+				phaseDam(2) = dam%individualPhase(2)%getPhase(j)
+
+				if ((sum(phase).eq.0).or.(sum(phase).eq.2)) then
+					if ((phaseDam(1).ne.9).and.(phaseDam(1).ne.phase(2))) call dam%individualPhase(2)%setPhase(j,phase(2))
+					if ((phaseDam(2).ne.9).and.(phaseDam(2).ne.phase(2))) call dam%individualPhase(1)%setPhase(j,phase(2))
+
+					if ((phaseSire(1).ne.9).and.(phaseSire(1).ne.phase(1))) call sire%individualPhase(2)%setPhase(j,phase(1))
+					if ((phaseSire(2).ne.9).and.(phaseSire(2).ne.phase(1))) call sire%individualPhase(1)%setPhase(j,phase(2))
+				endif
+
+			enddo
+		endif
+	enddo
+	!$OMP END PARALLEL DO
 end subroutine SimpleFillInBasedOnProgenyReads
 
-!################################################################################################
+!---------------------------------------------------------------------------
+!> @brief   Phasing based on parents informative markers
+!> @detail  if a parent is homozygous at a variant, then the phase of the 
+!>          progeny for the gamete inherited from that parent can be assigned.
+!> @date    August 30, 2017
+!---------------------------------------------------------------------------   
 
 subroutine SimpleFillInBasedOnParentsReads
 
-	use GlobalPar
-
+	use GlobalPars
+	use omp_lib
 	implicit none
 
-	integer :: i,j,e,k
-	real :: nRef,nAlt,Pr0,Pr1,Pr2
+	integer :: i,j,e
+	type(Individual) , pointer :: parent
+	integer(kind=1) :: geno
 
-	do i=1,nInd
-	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (RawReads,FilledGenos,FilledPhase,RecPed,ErrorRate,GeneProbThresh,i,nSnp)
-		do j=1,nSnp
-			if (maxval(FilledPhase(i,j,:))==9) then
-				nRef=RawReads(i,j,1)
-				nAlt=RawReads(i,j,2)
-				
-				call ReadsLikelihood(nRef,nAlt,ErrorRate,Pr0,Pr1,Pr2)
-
-				do e=1,2
-					k=Abs((e-1)-1)+1
-					if (FilledGenos(RecPed(i,e+1),j)==0) then
-						FilledPhase(i,j,e)=0
-						if (Pr1.ge.GeneProbThresh) then
-							FilledPhase(i,j,k)=1
-							FilledGenos(i,j)=1
-						endif
-					endif
-
-					if (FilledGenos(RecPed(i,e+1),j)==2) then
-						FilledPhase(i,j,e)=1
-						if (Pr1.ge.GeneProbThresh) then
-							FilledPhase(i,j,k)=0
-							FilledGenos(i,j)=1
-						endif
-					endif
+    !$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (ped,nInd,nSnp) !collapse(2)
+	do e=1,2
+		do i=1,ped%pedigreeSize-ped%nDummys
+			parent => ped%pedigree(i)%getSireDamObjectByIndex(e+1)
+			if (associated(parent)) then
+				do j=1,nSnp
+					geno = parent%individualGenotype%getGenotype(j)
+					if (geno.eq.0) call ped%pedigree(i)%individualPhase(e)%setPhase(j,0)
+					if (geno.eq.2) call ped%pedigree(i)%individualPhase(e)%setPhase(j,1)
 				enddo
 			endif
 		enddo
-	!$OMP END PARALLEL DO
 	enddo
+    !$OMP END PARALLEL DO
 end subroutine SimpleFillInBasedOnParentsReads
 
-!################################################################################################
-
+!---------------------------------------------------------------------------
+!> @brief   Use AlphaSLP to fill phase and genotypes
+!> @detail  This step can run multiple times, at each iteration the genotype
+!>          threshold is relaxed until the minimum value defined by the user
+!> @date    August 30, 2017
+!---------------------------------------------------------------------------   
+ 
 subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 	
-	use GlobalPar
+	use GlobalPars
 	use omp_lib
 	
 	implicit none
 
     integer :: i,j
+	integer(kind=1),dimension(2) :: phase
+	real(kind=real64) :: p00,p01,p10,p11
 
-    !$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (Pr00,Pr11,Pr01,Pr10,FilledGenos,FilledPhase,nInd,nSnp,GeneProbThresh)
-	do i=1,nInd
+	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (ReadCounts,ped,GeneProbThresh,nSnp,nInd) !collapse(2)
+	do i=1,ped%pedigreeSize-ped%nDummys
 		do j=1,nSnp
-			!if (sum(RawReads(i,j,:)).ge.10) write(*,'(3i10,6f10.4)'),i,j,Ped(i,1),RawReads(i,j,:),Pr00(i,j),Pr01(i,j),Pr10(i,j),Pr11(i,j)
-			!if (i==7) write(*,'(3i10,6f10.4)'),i,j,Ped(i,1),RawReads(i,j,:),Pr00(i,j),Pr01(i,j),Pr10(i,j),Pr11(i,j)
-			if ((Pr00(i,j)>=GeneProbThresh).and.(sum(FilledPhase(i,j,:))>3)) then
-				FilledGenos(i,j)=0
-				FilledPhase(i,j,:)=0
+			phase(1) = ped%pedigree(i)%individualPhase(1)%getPhase(j)
+			phase(2) = ped%pedigree(i)%individualPhase(2)%getPhase(j)
+			
+			p00=ReadCounts(1,j,i)
+			p01=ReadCounts(2,j,i)
+			p10=ReadCounts(3,j,i)
+			p11=ReadCounts(4,j,i)
+			
+			if ((sum(phase).gt.3).and.(ped%pedigree(i)%individualGenotype%isMissing(j))) then
+				if (p00.ge.GeneProbThresh) then
+					call ped%pedigree(i)%individualGenotype%setGenotype(j,0)
+					call ped%pedigree(i)%individualPhase(1)%setPhase(j,0)
+					call ped%pedigree(i)%individualPhase(2)%setPhase(j,0)
+				endif
+
+				if (p11.ge.GeneProbThresh) then
+					call ped%pedigree(i)%individualGenotype%setGenotype(j,2)
+					call ped%pedigree(i)%individualPhase(1)%setPhase(j,1)
+					call ped%pedigree(i)%individualPhase(2)%setPhase(j,1)
+				endif
+
+
+				if ((p01+p10).ge.GeneProbThresh) then
+					call ped%pedigree(i)%individualGenotype%setGenotype(j,1)
+					if (p01.ge.GeneProbThresh) then
+						call ped%pedigree(i)%individualPhase(1)%setPhase(j,0)
+						call ped%pedigree(i)%individualPhase(2)%setPhase(j,1)
+					endif
+					if (p10.ge.GeneProbThresh) then
+						call ped%pedigree(i)%individualPhase(1)%setPhase(j,1)
+						call ped%pedigree(i)%individualPhase(2)%setPhase(j,0)
+					endif
+				endif
 			endif
 
-			if (((Pr01(i,j)+Pr10(i,j))>=GeneProbThresh).and.(sum(FilledPhase(i,j,:))>3)) then
-				FilledGenos(i,j)=1
-				if (Pr01(i,j)>=GeneProbThresh) then
-					FilledPhase(i,j,1)=0
-					FilledPhase(i,j,2)=1
-				endif
-				if (Pr10(i,j)>=GeneProbThresh) then
-					FilledPhase(i,j,1)=1
-					FilledPhase(i,j,2)=0
-				endif
-			endif
+			if (((p00+p01).ge.GeneProbThresh).and.(p10.lt.p01).and.(phase(1).eq.9)) call ped%pedigree(i)%individualPhase(1)%setPhase(j,0)
+			if (((p11+p10).ge.GeneProbThresh).and.(p01.lt.p10).and.(phase(1).eq.9)) call ped%pedigree(i)%individualPhase(1)%setPhase(j,1)
 
-			if ((Pr11(i,j)>=GeneProbThresh).and.(sum(FilledPhase(i,j,:))>3)) then
-				FilledGenos(i,j)=2
-				FilledPhase(i,j,:)=1
-			endif
+			if (((p00+p10).ge.GeneProbThresh).and.(p01.lt.p10).and.(phase(2).eq.9)) call ped%pedigree(i)%individualPhase(2)%setPhase(j,0)
+			if (((p11+p01).ge.GeneProbThresh).and.(p10.lt.p01).and.(phase(2).eq.9)) call ped%pedigree(i)%individualPhase(2)%setPhase(j,1)
 
 		enddo
 	enddo
@@ -1019,762 +810,958 @@ end subroutine UseGeneProbToSimpleFillInBasedOnOwnReads
 
 !################################################################################################
 
-subroutine RunGeneProb
-	
-	use GlobalPar
-	use AlphaVarCallFuture
-	use omp_lib
-	
+!---------------------------------------------------------------------------
+!> @brief   Read in SnpChipFile and convert to ReadsCount
+!> @date    Octorber 04, 2017
+!---------------------------------------------------------------------------   
+
+subroutine AddGenotypesAsSequenceData
+	use GlobalPars
+	use constantmodule, only : idlength,dict_null
+	use alphahousemod, only : int2char,countlines,countcolumns
 	implicit none
 
-	integer,allocatable,dimension(:) :: SeqId,SeqSire,SeqDam
+    integer(kind=1),allocatable, dimension(:) :: geno
+    integer,allocatable, dimension(:) :: ref,alt
+    character(len=1), dimension(3):: delimiter
+    integer :: nRow,nCol,i,j,id,unit
+	character(len=IDLENGTH)					:: DumC
 	
-	!integer :: i,j
-	!real(kind=8),allocatable,dimension(:,:,:) :: ReadCounts
-    
-	
-	allocate(SeqId(nInd))
-    allocate(SeqSire(nInd))
-    allocate(SeqDam(nInd))
+	delimiter(1) = ","
+  	delimiter(2) = " "
+ 	delimiter(3) = char(9)
+ 	
+ 	nCol=countcolumns(trim(SnpChipFile), delimiter)-1 ! First column is animal id
+	nRow = countlines(SnpChipFile)
 
-    SeqId=RecPed(1:nInd,1)
-	SeqSire=RecPed(1:nInd,2)
-	SeqDam=RecPed(1:nInd,3)
-	
-	! do i=1,nInd
-	! 	do j=1,nSnp
-	! 		if (FilledGenos(i,j)==1) then
-	! 			RawReads(i,j,:)=15.0
-	! 		endif
+    open(newunit=unit,file=trim(SnpChipFile),status="old") !INPUT FILE
+	allocate(geno(nCol))
+	allocate(ref(nCol))
+ 	allocate(alt(nCol))
+
+	do i=1,nRow
+		read(unit,*) DumC,geno
+		id = ped%dictionary%getValue(DumC)
+		if (id /= DICT_NULL) then
 			
-	! 		if (FilledGenos(i,j)==0) then 
-	! 			RawReads(i,j,1)=30.0
-	! 			RawReads(i,j,2)=0.0
-	! 		endif
-			
-	! 		if (FilledGenos(i,j)==2) then 
-	! 			RawReads(i,j,1)=0.0
-	! 			RawReads(i,j,2)=30.0
-	! 		endif
-
-	! 	enddo
-	! enddo
-
-	
-	Pr00=0.0
-	Pr01=0.0
-	Pr10=0.0
-	Pr11=0.0
-
-	call AlphaVarCall(nInd,nSnp,1,nSnp,ErrorRate,0,SeqId,SeqSire,SeqDam,RawReads,FilledGenos,Pr00,Pr01,Pr10,Pr11)
-
-	deallocate(SeqId)
-	deallocate(SeqSire)
-	deallocate(Seqdam)
-end subroutine RunGeneProb
-
-!################################################################################################
-
-subroutine SimpleFillInBasedOnOwnReads
-
-	use GlobalPar
-
-	implicit none
-
-	integer :: i,j
-	real :: nRef,nAlt,Pr0,Pr1,Pr2
-
-	nRef=0.00
-	nAlt=0.00
-	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED (RawReads,FilledGenos,FilledPhase,nInd,nSnp,ErrorRate,GeneProbThresh,GeneProbYesOrNo)
-	do i=1,nInd
-		do j=1,nSnp
-			
-			!if (GeneProbYesOrNo(j)==0) then ! Only Snps that are Fixed
-				if ((maxval(RawReads(i,j,:))/=0).and.(FilledGenos(i,j)/=9)) then
-					nRef=RawReads(i,j,1)
-					nAlt=RawReads(i,j,2)
-					
-					call ReadsLikelihood(nRef,nAlt,ErrorRate,Pr0,Pr1,Pr2)
-					
-					if (FilledGenos(i,j)==9) then 
-
-						if (Pr1.ge.GeneProbThresh) then
-							FilledGenos(i,j)=1
-						endif
-
-						if (Pr0.ge.GeneProbThresh) then  
-							FilledPhase(i,j,:)=0
-							FilledGenos(i,j)=0
-						endif
-
-						if (Pr2.ge.GeneProbThresh) then
-							FilledPhase(i,j,:)=1
-							FilledGenos(i,j)=2
-						endif
-						
-					endif
+			do j=1,nCol
+				if (geno(j).eq.9) then
+					ref(j)=0
+					alt(j)=0
+				else if (geno(j).eq.0) then
+					ref(j)=30
+					alt(j)=0
+				else if (geno(j).eq.1) then
+					ref(j)=15
+					alt(j)=15
+				else if (geno(j).eq.2) then
+					ref(j)=0
+					alt(j)=30
 				endif
-			!endif
-		enddo
+			enddo
+			call ped%setAnimalAsGenotypedSequence(id,geno,ref,alt)
+		endif
 	enddo
-	!$OMP END PARALLEL DO
-end subroutine SimpleFillInBasedOnOwnReads
+end subroutine AddGenotypesAsSequenceData
 
-!################################################################################################
+!---------------------------------------------------------------------------
+!> @brief   Read in SnpChipFile and convert to ReadsCount
+!> @date    Octorber 04, 2017
+!---------------------------------------------------------------------------   
 
-subroutine ReadsLikelihood(nRef,nAlt,ErrorRate,Pr0,Pr1,Pr2)
+subroutine MergeGenotypesAndSequenceData
+	use GlobalPars
+	use constantmodule, only : idlength,dict_null
+	use alphahousemod, only : int2char,countlines,countcolumns
 	implicit none
+
+    integer(kind=1),allocatable, dimension(:) :: geno,tmpG
+    integer,allocatable, dimension(:) :: ref,alt,PosBase,PosSeq,PosSnp,tmpR,SnpDisagree,IndDisagree
+    character(len=1), dimension(3):: delimiter
+    integer :: nRowMap,nRow,nCol,i,j,id,unit,tmpRef,tmpAlt,tmpGeno
+	character(len=IDLENGTH)					:: DumC
+	character(len=30) :: DumChr,DumPos
+	character(len=:), allocatable:: filout1,filout2
 	
-	real,intent(in) :: nRef,nAlt
-	real(kind=8),intent(in) :: ErrorRate
-	real,intent(inout) :: Pr0,Pr1,Pr2
-	real :: lPr0,lPr1,lPr2
-
-      if ((nRef+nAlt)==0) then
-        lPr0=log(1.)
-        lPr1=log(1.)
-        lPr2=log(1.)
-      else
-        lPr0=(nRef*log(1-ErrorRate))+(nAlt*log(ErrorRate))
-        if (lPr0.lt.log(.000000001)) lPr0=-9999
-        lPr1=(nRef*log(0.5))+(nAlt*log(0.5))
-        if (lPr1.lt.log(.000000001)) lPr1=-9999
-        lPr2=(nAlt*log(1-ErrorRate))+(nRef*log(ErrorRate))
-        if (lPr2.lt.log(.000000001)) lPr2=-9999
-      endif
-
-      Pr0=exp(lPr0)/(exp(lPr0)+exp(lPr1)+exp(lPr2))
-      Pr1=exp(lPr1)/(exp(lPr0)+exp(lPr1)+exp(lPr2))
-      Pr2=exp(lPr2)/(exp(lPr0)+exp(lPr1)+exp(lPr2))
-end subroutine ReadsLikelihood
-
-!################################################################################################
-
-subroutine AllocateArrays
-
-	use GlobalPar
-
-	implicit none
-
-	! Input Files
-	allocate(Id(0:nInd))
- 	if (trim(GenoFile)/="None")  allocate(TrueGenos(nInd,nSnp))
-	if (trim(PhaseFile)/="None")  allocate(TruePhase(nInd,nSnp,2))
-
-	! New phase/geno
-	allocate(FilledGenos(0:nInd,nSnp))
-	allocate(FilledPhase(0:nInd,nSnp,2))
-
-	! GeneProb
-	allocate(Pr00(nInd,nSnp))
-	allocate(Pr01(nInd,nSnp))
-	allocate(Pr10(nInd,nSnp))
-	allocate(Pr11(nInd,nSnp))
+	delimiter(1) = ","
+  	delimiter(2) = " "
+ 	delimiter(3) = char(9)
+ 	
 
 
-	! Founders
-	allocate(FounderAssignment(nInd,nSnp,2))
-	!allocate(ConsensusFounders(nInd,2))
+	nRowMap = countlines(MapSnpChipFile)-1
+	allocate(PosSeq(nRowMap))
+	allocate(PosSnp(nRowMap))
+	allocate(PosBase(nRowMap))
 
-	! Checks
-	allocate(CheckPhase(nInd,nSnp,2))
-	allocate(CheckGenos(nInd,nSnp))
-	allocate(CharPhase(nSnp,2))
-end subroutine AllocateArrays
+	open(newunit=unit,file=trim(MapSnpChipFile),status="old")
+	read(unit,*) DumChr,DumPos,DumC,DumC
+	do i=1,nRowMap
+		read(unit,*) DumChr,PosBase(i),PosSeq(i),PosSnp(i)
+	enddo
+	close(unit)
 
-!################################################################################################
-
-subroutine DeallocateArrays
-
-	use GlobalPar
-
-	implicit none
-
-	! Input Files
-	deallocate(Id)
- 	if (trim(GenoFile)/="None")  deallocate(TrueGenos)
-	if (trim(PhaseFile)/="None")  deallocate(TruePhase)
-
-	deallocate(RawReads)
-	IF( ALLOCATED(position)) DEALLOCATE(position) 
-	IF( ALLOCATED(quality)) DEALLOCATE(quality) 
-
-	! New phase/geno
-	deallocate(FilledGenos)
-	deallocate(FilledPhase)
-
-	! GeneProb
-	deallocate(Pr00)
-	deallocate(Pr01)
-	deallocate(Pr10)
-	deallocate(Pr11)
-
-	! Founders
-	deallocate(FounderAssignment)
-	
-	! Checks
-	deallocate(CheckPhase)
-	deallocate(CheckGenos)
-	deallocate(CharPhase)
-end subroutine DeallocateArrays
-
-!################################################################################################
-
-subroutine CurrentCountFilled
-
-	use GlobalPar
-
-	implicit none
-
-	integer :: i,j,e,p
-	character(len=30) :: FmtCha,nChar
-	
-	write(nChar,*) nSnp
-	FmtCha='(i10,a2,'//trim(adjustl(nChar))//'a2)'
-
-	CurrentCountFilledPhase=count(FilledPhase(:,:,:)/=9)
-	CurrentCountFilledGenos=count(FilledGenos(:,:)/=9)
+    open(newunit=unit,file=trim(SnpChipFile),status="old") 
+ 	nCol=countcolumns(trim(SnpChipFile), delimiter)-1 ! First column is animal id
+	nRow = countlines(SnpChipFile)
 
 
-	write (*,'(a20,5i10)') "Current Counts ", IterationNumber,CurrentCountFilledPhase,CurrentCountFilledGenos
+	if (nCol.ne.count(PosSnp.ne.0)) then
+		print*,"ERROR : Genotype and Map files have different numbers of SNP"
+		print*,"Snps in Genotype File: ",nCol
+		print*,"Snps in Map File:      ",count(PosSnp.ne.0)
+		stop
+	endif
 
-	! ! Paste here checker
-	! open (unit=99,file="AlphaFamSeqSummary.log",status="unknown")
-	! !open (unit=98,file="AlphaFamSeqPhaseCorrectnessIters.txt",status="unknown")
+	if (ped%nsnpsPopulation.ne.nRowMap) then
+		print*,"ERROR : Sequence and Map files have different numbers of variants"
+		print*,"Snps in Sequence File: ",ped%nsnpsPopulation
+		print*,"Snps in Map File:      ",nRowMap
+		stop
+	endif
 
-	! CheckPhase='_'
-	! CheckGenos='_'
 
-	! do i=1,nInd
-	! 	do j=1,nSnp
-	! 		do e=1,2
-	! 			if (FilledPhase(i,j,e)/=9) then
-	! 				! write (98,'(10i6)') i,j,e,FilledPhase(i,j,e),TruePhase(i,j,e),RawReads(i,j,:),FilledGenos(i,j),TrueGenos(i,j)
-	! 				if (trim(PhaseFile)/="None") then
-	! 					if (FilledPhase(i,j,e)==TruePhase(i,j,e)) CheckPhase(i,j,e)='*'
-	! 					if (FilledPhase(i,j,e)/=TruePhase(i,j,e)) then
-	! 						CheckPhase(i,j,e)='/'
-	! 					endif
-	! 				endif
+	allocate(geno(nCol))
+	allocate(ref(nCol))
+ 	allocate(alt(nCol))
 
-	! 				if (trim(PhaseFile)=="None") then	
-	! 					CheckPhase(i,j,e)='*'
-	! 				endif
+ 	allocate(tmpR(ped%nsnpsPopulation))
+ 	allocate(tmpG(ped%nsnpsPopulation))
+ 	tmpR=0
+ 	tmpG=9
+
+
+ 	allocate(SnpDisagree(nRowMap))
+ 	allocate(IndDisagree(ped%pedigreeSize-ped%nDummys))
+ 	SnpDisagree=0
+ 	IndDisagree=0
+
+	do i=1,nRow
+		read(unit,*) DumC,geno
+		id = ped%dictionary%getValue(DumC)
+		if (id /= DICT_NULL) then
+			if (.not. allocated(ped%pedigree(id)%referAllele)) call ped%setAnimalAsGenotypedSequence(id,tmpG,tmpR,tmpR)
+			do j=1,nCol
+				if (geno(j).eq.9) then
+					ref(j)=0
+					alt(j)=0
+				else if (geno(j).eq.0) then
+					ref(j)=30
+					alt(j)=0
+				else if (geno(j).eq.1) then
+					ref(j)=15
+					alt(j)=15
+				else if (geno(j).eq.2) then
+					ref(j)=0
+					alt(j)=30
+				endif
+			enddo
+
+			do j=1,ped%nsnpsPopulation
+				if (PosSnp(j).ne.0) then
+					tmpRef=ped%pedigree(id)%referAllele(PosSeq(j))
+					tmpAlt=ped%pedigree(id)%alterAllele(PosSeq(j))
+					tmpGeno=9
+					if ((tmpRef.gt.0).and.(tmpAlt.eq.0)) tmpGeno=0
+					if ((tmpRef.gt.0).and.(tmpAlt.gt.0)) tmpGeno=1
+					if ((tmpRef.eq.0).and.(tmpAlt.gt.0)) tmpGeno=2
+					if ((geno(PosSnp(j)).eq.0).and.((tmpGeno.ne.0).and.(tmpGeno.ne.9))) then
+						SnpDisagree(PosSnp(j))=SnpDisagree(PosSnp(j))+1
+						IndDisagree(id)=IndDisagree(id)+1
+					else if ((geno(PosSnp(j)).eq.1).and.((tmpGeno.ne.1).and.(tmpGeno.ne.9))) then
+						SnpDisagree(PosSnp(j))=SnpDisagree(PosSnp(j))+1
+						IndDisagree(id)=IndDisagree(id)+1
+					else if ((geno(PosSnp(j)).eq.2).and.((tmpGeno.ne.2).and.(tmpGeno.ne.9))) then
+						SnpDisagree(PosSnp(j))=SnpDisagree(PosSnp(j))+1
+						IndDisagree(id)=IndDisagree(id)+1
+					endif
 					
-	! 			endif
-	! 		enddo
-				
-	! 		if (FilledGenos(i,j)/=9) then
-	! 			if (trim(GenoFile)/="None") then
-	! 				if (FilledGenos(i,j)==TrueGenos(i,j)) CheckGenos(i,j)='*'
-	! 				if (FilledGenos(i,j)/=TrueGenos(i,j)) then
-	! 					CheckGenos(i,j)='/'
-	! 				endif
-	! 			endif
-
-	! 			if (trim(GenoFile)=="None") then
-	! 				CheckGenos(i,j)='*'
-	! 			endif
-	! 		endif
-				
-	! 	enddo
-	! enddo
-
-
-	! do i=1,nInd
-	! 	if ((trim(PhaseFile)/="None").and.(trim(GenoFile)/="None")) then
-	! 		write (99,'(i20,4i10)') Ped(i,1),count(CheckPhase(i,:,1)=='*'),count(CheckPhase(i,:,1)=='/'),count(CheckPhase(i,:,1)=='_') 
-	! 		write (99,'(i20,4i10)') Ped(i,1),count(CheckPhase(i,:,2)=='*'),count(CheckPhase(i,:,2)=='/'),count(CheckPhase(i,:,2)=='_')
-	! 		write (99,'(i20,4i10)') Ped(i,1),count(CheckGenos(i,:)=='*'),count(CheckGenos(i,:)=='/'),count(CheckGenos(i,:)=='_')
-	! 	endif
-	
-	! 	!write (98,FmtCha) Ped(i,1),CheckPhase(i,:,1)
-	! 	!write (98,FmtCha) Ped(i,1),CheckPhase(i,:,2)
-
-	! enddo
-
-	! close(99)
-	! close(98)
-end subroutine CurrentCountFilled
-
-!################################################################################################
-
-subroutine InitialiseArrays
-
-	use GlobalPar
-
-	implicit none
-
-	FilledPhase=9
-	FilledGenos=9
-	!ConsensusFounders=0
-end subroutine InitialiseArrays
-
-!################################################################################################
-
-subroutine InternalEdititing
-	use GlobalPar
-
-	implicit none
-
-	integer :: i,j
-	real(kind=8),allocatable,dimension(:) :: RefAllele
-	real(kind=8) :: maf
-
-	allocate(RefAllele(nSnp))
-	allocate(GeneProbYesOrNo(nSnp))
-	GeneProbYesOrNo=1
-	i=0
-
-	open (unit=1,file="AlphaFamSeqEditedSnp.txt",status="unknown")
-	print*,"Internal Editing"
-	write(*,'(1a10,1f10.3)'),"(1) MAF",EditingParameter
-	
-	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED(nSnp,RawReads,RefAllele,EditingParameter,GeneProbYesOrNo,i)
-	do j=1,nSnp
-		RefAllele(j)=sum(RawReads(:,j,1))
-		maf=RefAllele(j)/sum(RawReads(:,j,:))
-		if ((maf.le.EditingParameter).or.(maf.ge.(1-EditingParameter))) then
-			GeneProbYesOrNo(j)=0
-			i=i+1
-			write(1,'(1i10,1f10.3,2i10)'),j,maf,sum(RawReads(:,j,1)),sum(RawReads(:,j,2))
+					ped%pedigree(id)%referAllele(PosSeq(j))=ref(PosSnp(j))
+					ped%pedigree(id)%alterAllele(PosSeq(j))=alt(PosSnp(j))
+					!call ped%pedigree(id)%individualGenotype%setGenotype(PosSeq(j),geno(PosSnp(j)))
+				endif
+			enddo
 		endif
-	end do
-	!$OMP END PARALLEL DO
-	
-	close(1)
-
-	if (i==0) print*,"All SNPs passed the editing"
-	if (i>0)  write(*,'(1i12,1a3,1i12,1a30)'), i,"on",nSnp,"didn't pass the editing"
-
-	deallocate(RefAllele)
-end subroutine InternalEdititing
-!################################################################################################
-
-subroutine ReadPedigree
-
-	use GlobalPar
-	use MaraModule
-
-	implicit none
-
-	integer :: i,DumI,j,PosReads,PosGeno,PosPhase,FileLength,stat
-	integer,allocatable,dimension(:) :: TempImput
-	integer :: TmpID
-
-	open (unit=2,file=trim(PedigreeFile),status="old")
-	
-	nInd = 0
-	do
-	    read(2, *, iostat=stat) DumI
-	    if (stat/=0) exit
-	    nInd = nInd + 1
 	enddo
-	print*,"PedigreeLenght",nInd	 
-	rewind(2)
-
-	allocate(Ped(0:nInd,3))
-	allocate(RecPed(0:nInd,3))
-	RecPed=0
-	Ped(0,:)=0
-
-	do i=1,nInd
-		read(2,*) Ped(i,:)
-	enddo
-
-	close (2)
-
-
-	do i=1,nInd ! Recode the pedigree in a new array
-		do j=1,3
-			call GetID(Ped(i,j),RecPed(i,j))
-		enddo
-	enddo
-end subroutine ReadPedigree
-
-!###########################################################################################################################################################
-
-subroutine ReadData
- 	use ISO_Fortran_Env
-
-  	use GlobalPar
-	use MaraModule
-
-  	implicit none
-  
-	integer :: i,DumI,j,PosReads,PosGeno,PosPhase,FileLength,stat
-	integer,allocatable,dimension(:) :: TempImput
-	integer :: TmpID
-
-	if (trim(GenoFile)/="None") open (unit=3,file=trim(GenoFile),status="old")
-	if (trim(PhaseFile)/="None") open (unit=4,file=trim(PhaseFile),status="old")
-	!For CurrentCount
-	!open (unit=99,file="AlphaFamSeqSummary.log",status="unknown")
-
-
-	if (trim(ReadsType)=="VcfTools") call readRogerData(ReadsFile, Ids, position, quality, SequenceData,LenghtSequenceDataFile,nSnp,StartSnp,EndSnp,nIndSeq)
-	if (trim(ReadsType)=="AlphaSim") call readAlphaSimReads(ReadsFile, Ids, SequenceData,LenghtSequenceDataFile,nSnp,StartSnp,EndSnp,nIndSeq)
-	allocate(RawReads(nInd,nSnp,2))
+	close(unit)
 	
-	RawReads(:,:,:)=0.0
-	do i=1, nIndSeq
-		PosReads=0
-		read(Ids(i),*) TmpID
-	    call GetID(TmpID, PosReads)
-	    !print*,i,TmpID,PosReads
-	    if (PosReads/=0) RawReads(PosReads,:,:)= real(SequenceData(i,:,:))
-	enddo
+	filout1 ="AlphaFamSeqCheckDisagreementSnps_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".txt"
+	filout2 ="AlphaFamSeqCheckDisagreementIds_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".txt"
 
-
-	
-
-	deallocate(SequenceData)
-
-	allocate(TempImput(LenghtSequenceDataFile))
-	call AllocateArrays
-
-	do i=1,nInd
-		
-	    if (trim(GenoFile)/="None") then
-		    PosGeno=0
-		    read(3,*) Id(i), TempImput(:) 
-		    call GetID(Id(i), PosGeno)
-		    TrueGenos(PosGeno,:) = TempImput(StartSnp:EndSnp)
-		endif
-
-		if (trim(PhaseFile)/="None") then
-		 	PosPhase=0
-		    read(4,*) Id(i), TempImput(:) 
-		    call GetID(Id(i), PosPhase)
-		    TruePhase(PosPhase,:,1)= TempImput(StartSnp:EndSnp)
-
-		    PosPhase=0
-			read(4,*) Id(i), TempImput(:) 
-		    call GetID(Id(i), PosPhase)
-		    TruePhase(PosPhase,:,2)= TempImput(StartSnp:EndSnp)
-
-		endif
-
-	enddo
-
-	deallocate(TempImput)
-	
-	if (trim(GenoFile)/="None") close (3)
-	if (trim(PhaseFile)/="None") close (4)
-end subroutine ReadData
-
-!###########################################################################################################################################################
-
-subroutine GetID(InputId, PosId)
-
-    use GlobalPar
-    implicit none
-
-    integer, intent(in) :: InputId
-    integer, intent(out) :: PosId
-
-    integer :: i,check
-
-    PosId = 0
-    check = 0
-
-    do i=1, nInd 
-        if (Ped(i,1) == InputId) then !Ped is in global module
-            PosId = i
-        endif
-    enddo
-
-    if (PosId == 0) then ! just a check, you don't need this really but may be useful for testing!
-    !    print*, "individual not present, please check file"
-    !   stop
-    check=check+1
-    endif
-end subroutine GetID
-
-!###########################################################################################################################################################
-
-subroutine Checker
-
-	use GlobalPar
-
-	implicit none
-
-	integer :: i,j,e,p
-	character(len=50) :: filout1
-
-	write (filout1,'("AlphaFamSeqMistakeIdentifiers",i0,".txt")') Windows
 	open (unit=1,file=trim(filout1),status="unknown")
-	write (1,'(a95)') "i,j,e,FilledPhase(i,j,e),TruePhase(i,j,e),RawReads(i,j,:),FilledGenos(i,j),TrueGenos(i,j)"
+	write(1,'(1a30)'),"CHROM POS SEQ SNP DISAGREEMENT"
 
-	CheckPhase='_'
-	CheckGenos='_'
-
-	do i=1,nInd
-		do j=1,nSnp
-			if (trim(PhaseFile)/="None") then
-				do e=1,2
-					if (FilledPhase(i,j,e)/=9) then
-						if (FilledPhase(i,j,e)==TruePhase(i,j,e)) CheckPhase(i,j,e)='*'
-						if (FilledPhase(i,j,e)/=TruePhase(i,j,e)) then
-							CheckPhase(i,j,e)='/'
-							write (1,'(5i10,2f6.0,2i6)') i,j,e,FilledPhase(i,j,e),TruePhase(i,j,e),RawReads(i,j,:),FilledGenos(i,j),TrueGenos(i,j)
-						endif
-					endif
-				enddo
-			endif
+	do i=1,nRowMap
+		if (PosSnp(i).ne.0) then
+			write(1,'(1a20,4(1x,1i0))') DumChr,PosBase(i),PosSeq(i),PosSnp(i),SnpDisagree(i)
+		endif
+	enddo
+	close(1)
 		
-			if (trim(GenoFile)/="None") then
-				if (FilledGenos(i,j)/=9) then
-					if (FilledGenos(i,j)==TrueGenos(i,j)) CheckGenos(i,j)='*'
-					if (FilledGenos(i,j)/=TrueGenos(i,j)) then
-						CheckGenos(i,j)='/'
-					endif
-				endif
-			endif
 
+	open (unit=2,file=trim(filout2),status="unknown")
+	write(2,'(1a15)'),"ID DISAGREEMENT"
+
+	do i=1,ped%pedigreeSize-ped%nDummys
+		write(2,'(1a20,1x,1i0)') ped%pedigree(i)%originalID,IndDisagree(i)
+	enddo
+	close(2)
+
+
+
+end subroutine MergeGenotypesAndSequenceData
+
+
+!---------------------------------------------------------------------------
+!> @brief   Read the results of GeneProb if we already run it
+!> @detail  Avoid to run GeneProb again if we don't change the input data
+!>          TODO: print out a warning in the err file:
+!>  			   WARNING: Reading in old output of GeneProb. If the input
+!>							data (pedigree and sequence reads) changed then 
+!>							GeneProb must be run again.
+!> @date    August 31, 2017
+!---------------------------------------------------------------------------   
+
+subroutine ReadPrevGeneProb
+	use GlobalPars
+	use constantModule, only : IDLENGTH
+	use alphahousemod, only : int2char
+	implicit none
+
+	integer									:: i,p,id
+	logical 								:: exist
+	character(len=IDLENGTH)					:: DumC
+	character(len=:), allocatable			:: filout5
+	real(real64),dimension(:), allocatable 	:: temp
+	integer 								:: unit, count
+	integer(4) recl_at_start, recl_at_end
+	
+	filout5 ="AlphaFamSeqFinalSLP_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".bin"
+	
+	inquire(file=trim(filout5),exist=exist)
+	
+	count = 0
+	if (exist) then
+		allocate(temp(nSnp))
+		open (newunit=unit,file=trim(filout5),status="old", FORM='binary')
+		do i=1,nInd
+
+			if (ped%pedigree(i)%isDummy) cycle
+			do p=1,4 !4 probabilities
+				DUMC = ""
+				read(unit) recl_at_start
+				read(unit) DumC(1:recl_at_start)
+				read(unit) recl_at_end
+				read(unit) recl_at_start
+				read(unit) temp
+				read(unit) recl_at_end
+				id = ped%dictionary%getValue(DumC)
+				if (id /= DICT_NULL) then
+					ReadCounts(p,:,id) = temp
+				endif
+			enddo
+		enddo
+		close (unit)
+		deallocate(temp)
+	else if (.not. exist) then
+		print*,"ERROR : ",trim(filout5)," doesn't exist"
+		print*,"        use RunSingleLocusPeeler = 0 to run Single Locus Peeler"
+		stop
+	endif
+end subroutine ReadPrevGeneProb
+
+!---------------------------------------------------------------------------
+!> @brief   Save GeneProb results in a binary format
+!> @detail  TODO: save reduced file in a text format
+!> @date    August 31, 2017
+!---------------------------------------------------------------------------   
+
+subroutine SaveGeneProbResults
+	use GlobalPars
+	use alphahousemod, only : int2char
+	implicit none
+
+	integer :: i,p,tmpId, unit, count
+	character(len=30) :: nChar
+	character(len=80) :: FmtInt2
+	character(len=:), allocatable:: filout5,filout6
+	real(real64),dimension(:), allocatable 	:: temp
+	
+	! Write Out Full file of GeneProb
+	
+
+	filout5 ="AlphaFamSeqFinalSLP_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".bin"
+	filout6 ="AlphaFamSeqFinalSLP_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".txt"
+	
+	open (newunit=unit,file=trim(filout5),status="unknown", FORM='UNFORMATTED')
+
+	count =  0
+	print *, nInd
+	do i=1,nInd
+
+		if (ped%pedigree(i)%isDummy) cycle
+		tmpId = ped%inputMap(i)
+		do p=1,4 ! 4 probabilities
+			temp = ReadCounts(p,:,tmpId)
+			count = count +1
+			write(unit) ped%pedigree(tmpId)%originalID
+			write(unit) temp
 		enddo
 	enddo
+	close (unit)
+	
+	! Write Out Full file of GeneProb
+	write(nChar,*) nSnp
+	FmtInt2='(1a20,'//trim(adjustl(nChar))//'f7.4)'
 
-	close (1)
-end subroutine Checker
+	open (newunit=unit,file=trim(filout6),status="unknown")
 
-!################################################################################################
+	do i=1,nInd
+
+		if (ped%pedigree(i)%isDummy) cycle
+		tmpId = ped%inputMap(i)
+		do p=1,4 ! 4 probabilities
+			write(unit,FmtInt2) ped%pedigree(tmpId)%originalID,ReadCounts(p,:,tmpId)
+		enddo
+	enddo
+	close (unit)
+end subroutine SaveGeneProbResults
+
+!---------------------------------------------------------------------------
+!> @brief   Write Genotypes, phase and founder assignment
+!> @detail  TODO: in the final version don't write out FounderAssignment
+!> @date    August 31, 2017
+!---------------------------------------------------------------------------   
 
 subroutine WriteResults
 
-	use GlobalPar
-
+	use GlobalPars
+	use alphahousemod, only : int2char
 	implicit none
 
-	integer :: i,j,e,DumI,nC,nW,nM,nThet,nChet,nWhet,nMhomo,nMhet
-	real :: Af
+	integer :: i,tmpId 
 	character(len=30) :: nChar
-	character(len=80) :: FmtInt,FmtCha,FmtIntF,filout1,filout2,filout3
+	character(len=80) :: FmtInt2
+	character(len=:), allocatable:: filout1,filout2,filout4
 
-	
+	! WriteOut Full Output
+
 	write(nChar,*) nSnp
-	FmtInt='(i10,'//trim(adjustl(nChar))//'i2)'
-	FmtCha='(i10,a2,'//trim(adjustl(nChar))//'a2)'
-	FmtIntF='(i10,'//trim(adjustl(nChar))//'i6)'
-
-	write (filout1,'("AlphaFamSeqFinalPhase",i0,".txt")') Windows
-	write (filout2,'("AlphaFamSeqFinalGenos",i0,".txt")') Windows
-	write (filout3,'("AlphaFamSeqFounderAssignment",i0,".txt")') Windows
+	FmtInt2='(a20,1x,'//trim(adjustl(nChar))//'(i0))'
 	
-	open (unit=1,file=trim(filout1),status="unknown")
-	open (unit=2,file=trim(filout2),status="unknown")
-	open (unit=3,file=trim(filout3),status="unknown")
+	filout1 ="AlphaFamSeqFinalPhase_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".txt"
+	filout2 ="AlphaFamSeqFinalGenos_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".txt"
 	
-	do i=1,nInd
-		write (3,FmtIntF) Ped(i,1),FounderAssignment(i,:,1)
-		write (3,FmtIntF) Ped(i,1),FounderAssignment(i,:,2)
-	enddo
-
-
-	do i=1,nInd
-		write (1,FmtInt) Ped(i,1),FilledPhase(i,:,1)
-		write (1,FmtInt) Ped(i,1),FilledPhase(i,:,2)
-		write (2,FmtInt) Ped(i,1),FilledGenos(i,:)
-	enddo
+	call ped%WriteoutPhaseNoDummies(trim(filout1))
+	call ped%writeOutGenotypesNoDummies(trim(filout2))
 
 	close (1)
 	close (2)
-	close (3)
+
+	if (maxWindowSizeHapDefinition.gt.1) then
+		filout4 ="AlphaFamSeqFinalFounderAssignment_Chr" // trim(adjustl(chr)) // "_StartSnp" // int2char(StartPos) // "_EndSnp" // int2char(EndPos) // ".txt"
+
+		open (unit=4,file=trim(filout4),status="unknown")
+		do i=1,ped%pedigreeSize-ped%nDummys
+			tmpId = ped%inputMap(i)
+			!if (maxval(FounderAssignment(i,:,:))/=0) then 
+				!print*,i,tmpId," ",ped%pedigree(i)," ",ped%pedigree(tmpId)%originalID
+				write (4,FmtInt2) ped%pedigree(i)%originalID,FounderAssignment(i,:,1)
+				write (4,FmtInt2) ped%pedigree(i)%originalID,FounderAssignment(i,:,2)
+			!endif
+		enddo
+		close (4)
+	endif
 end subroutine WriteResults
 
 !################################################################################################
 
-! subroutine WriteStatistics
-! 	use AlphaStatMod
-! 	use GlobalPar
+subroutine CalculateResults(what)
 
-! 	implicit none
+	use GlobalPars
 
-! 	integer :: i,j,e,DumI,nC,nW,nM,nThet,nChet,nWhet,nMhomo,nMhet
-! 	real :: Af
-! 	character(len=30) :: nChar
-! 	character(len=80) :: FmtInt,FmtCha,FmtIntF,filout1,filout2,filout3
-! 	type(CorrelationD) :: gCor,pCor1,pCor2
+	use AlphaHouseMod, only : countLines,countColumns
+	use ConstantModule, only : IDLENGTH,DICT_NULL
+
+	implicit none
+	character(len=1),intent(in) 		:: what
+	character(len=80)					:: filout5
+	character(len=IDLENGTH)				:: DumC
+	integer 							:: nIndTrueFile,unit,i,j,g,id,ImputedData,nCorrect,nWrong,nMissing
+	integer,allocatable,dimension(:) 	:: TrueData
+	logical 							:: exist
+	character(len=1), dimension(3):: delimiter
+	integer :: nCol
+	
+	delimiter(1) = ","
+	delimiter(2) = " "
+	delimiter(3) = char(9)
+
+	if (trim(what).eq."G") then
+		filout5=trim(GenoFile)
+	else if (trim(what).eq."P") then
+		filout5=trim(PhaseFile)
+	endif
+
+	inquire(file=trim(filout5),exist=exist)
+	open (newunit=unit,file=trim(filout5),status="old")
+
+	nIndTrueFile = countLines(filout5)
+	nCol=countColumns(trim(filout5), delimiter)-1 
+
+	allocate(TrueData(nCol))
 	
 
+	if (trim(what).eq."P") nIndTrueFile=nIndTrueFile/2
+
+	if (trim(what).eq."G") then
+		open(4,file=trim("AlphaFamSeqIndividualGenosResults.txt"),status="unknown")
+		write(4,'(1a74)'), "ID                    nCorrect nError nMissing Yield% Correct% CorrectRate"
+		do i=1,nIndTrueFile
+			read(unit,*) DumC,TrueData
+			id = ped%dictionary%getValue(DumC)
+			if (id /= DICT_NULL) then
+				nCorrect=0
+				nWrong=0
+				nMissing=0
+				do j=1,nSnp
+					ImputedData = ped%pedigree(id)%individualGenotype%getGenotype(j)
+					if (TrueData(j).ne.9) then
+						if (ImputedData.eq.9) then
+							nMissing=nMissing+1
+						else if (ImputedData.ne.9) then
+							if (TrueData(j).eq.ImputedData) nCorrect=nCorrect+1
+							if (TrueData(j).ne.ImputedData) nWrong=nWrong+1
+						endif
+					endif
+				enddo
+				write(4,'(1a20,3i8,3f9.4)') DumC,nCorrect,nWrong,nMissing,100-(dble(nMissing)/dble(nMissing+nCorrect+nWrong))*100,(dble(nCorrect)/dble(nMissing+nCorrect+nWrong))*100,(dble(nCorrect)/dble(nCorrect+nWrong))*100
+			endif
+		enddo
+	endif
+
+	if (trim(what).eq."P") then
+		open(4,file=trim("AlphaFamSeqIndividualPhaseResults.txt"),status="unknown")
+		write(4,'(1a81)'), "ID                    Gamete nCorrect nError nMissing Yield% Correct% CorrectRate"
+		do i=1,nIndTrueFile
+			do g=1,2
+				read(unit,*) DumC,TrueData
+				id = ped%dictionary%getValue(DumC)
+				if (id /= DICT_NULL) then
+					nCorrect=0
+					nWrong=0
+					nMissing=0
+					do j=1,nSnp
+						ImputedData = ped%pedigree(id)%individualPhase(g)%getPhase(j)
+						if (TrueData(j).ne.9) then
+							if (ImputedData.eq.9) then
+								nMissing=nMissing+1
+							else if (ImputedData.ne.9) then
+								if (TrueData(j).eq.ImputedData) nCorrect=nCorrect+1
+								if (TrueData(j).ne.ImputedData) nWrong=nWrong+1
+							endif
+						endif
+					enddo
+					write(4,'(1a20,4i8,3f9.4)') DumC,g,nCorrect,nWrong,nMissing,100-(dble(nMissing)/dble(nMissing+nCorrect+nWrong))*100,(dble(nCorrect)/dble(nMissing+nCorrect+nWrong))*100,(dble(nCorrect)/dble(nCorrect+nWrong))*100
+				endif
+			enddo
+		enddo
+	endif
+
+	close (unit)
+	deallocate(TrueData)
+end subroutine CalculateResults
+
+!################################################################################################
+
+subroutine ReadsLikelihood!(nRef,nAlt,ErrorRate,Pr0,Pr1,Pr2)
+	! implicit none
 	
-! 	write(nChar,*) nSnp
-! 	FmtInt='(i10,'//trim(adjustl(nChar))//'i2)'
-! 	FmtCha='(i10,a2,'//trim(adjustl(nChar))//'a2)'
-! 	FmtIntF='(i10,'//trim(adjustl(nChar))//'i6)'
+	! real,intent(in) :: nRef,nAlt
+	! real(kind=8),intent(in) :: ErrorRate
+	! real,intent(inout) :: Pr0,Pr1,Pr2
+	! real :: lPr0,lPr1,lPr2
+
+ !      if ((nRef+nAlt)==0) then
+ !        lPr0=log(1.)
+ !        lPr1=log(1.)
+ !        lPr2=log(1.)
+ !      else
+ !        lPr0=(nRef*log(1-ErrorRate))+(nAlt*log(ErrorRate))
+ !        if (lPr0.lt.log(.000000001)) lPr0=-9999
+ !        lPr1=(nRef*log(0.5))+(nAlt*log(0.5))
+ !        if (lPr1.lt.log(.000000001)) lPr1=-9999
+ !        lPr2=(nAlt*log(1-ErrorRate))+(nRef*log(ErrorRate))
+ !        if (lPr2.lt.log(.000000001)) lPr2=-9999
+ !      endif
+
+ !      Pr0=exp(lPr0)/(exp(lPr0)+exp(lPr1)+exp(lPr2))
+ !      Pr1=exp(lPr1)/(exp(lPr0)+exp(lPr1)+exp(lPr2))
+ !      Pr2=exp(lPr2)/(exp(lPr0)+exp(lPr1)+exp(lPr2))
+end subroutine ReadsLikelihood
+
+!###########################################################################################
+subroutine InternalEdititing
+	! 	use GlobalPars
+	! 	use omp_lib
+	! 	implicit none
+
+	! 	integer :: i,j
+	! 	real(kind=4),allocatable,dimension(:) :: RefAllele
+	! 	real(kind=4) :: maf
+
+	! 	allocate(RefAllele(nSnp))
+	! 	allocate(GeneProbYesOrNo(nSnp))
+	! 	GeneProbYesOrNo=1
+	! 	i=0
+
+	! 	open (unit=1,file="AlphaFamSeqEditedSnp.txt",status="unknown")
+	! 	print*,"Internal Editing"
+	! 	write(*,'(1a10,1f10.3)'),"(1) MAF",EditingParameter
+		
+	! 	!$OMP PARALLEL DO DEFAULT(PRIVATE) SHARED(nSnp,RawReads,RefAllele,EditingParameter,GeneProbYesOrNo,i)
+	! 	do j=1,nSnp
+	! 		RefAllele(j)=real(sum(RawReads(:,j,1)))
+	! 		maf=RefAllele(j)/sum(RawReads(:,j,:))
+	! 		if ((maf.le.EditingParameter).or.(maf.ge.(1-EditingParameter))) then
+	! 			GeneProbYesOrNo(j)=0
+	! 			i=i+1
+	! 			write(1,'(1i10,1f10.3,2i10)'),j,maf,sum(RawReads(:,j,1)),sum(RawReads(:,j,2))
+	! 		endif
+	! 	end do
+	! 	!$OMP END PARALLEL DO
+		
+	! 	close(1)
+
+	! 	if (i==0) print*,"All SNPs passed the editing"
+	! 	if (i>0)  write(*,'(1i12,1a3,1i12,1a30)'), i,"on",nSnp,"didn't pass the editing"
+
+	! 	deallocate(RefAllele)
+end subroutine InternalEdititing
+
+!###########################################################################################################################################################
+
+! This step perform 3 editing (at the moment):
+! 1) Markers with no reads (it happens with simulated data or with a subset of real data) 
+! 2) Remove variants with less than nUserDefined reads for the referece or alternative allele (i.e., single- and double-tones)
+! 3) Remove ReadsCount/invidual that are above a user defined threshold (i.e., excess of reads compare to the average)
+! 4) Remove variants with an excess of heterozygotes using the Exact Tests of HWE described in Wigginton et al., Am.J.Hum.Genet. 76:887-883,2005
+
+! Moreover, the coverage/individual and coverage/marker are calculated in this step
+subroutine CleanUpTheRawData
+
+	! 	use GlobalPars
+	! 	use omp_lib
+	! 	implicit none
+
+	! 	integer :: i,j,nReadsRemoved,nTmpInd,e,pos
+	! 	real 	:: cov(nInd)
+	! 	real 	:: std,covSnp
+	! 	character(len=50) :: filout1,filout2,filout3,filout4,filout5
+	! 	character(len=30) :: nChar
+	! 	character(len=80) :: FmtInt
+
+	! 	integer(kind=2),allocatable,dimension(:) :: ReadsRemoved
+	! 	integer(kind=2),allocatable,dimension(:,:) :: tmpReads
+
+	! 	real(kind=8)					 				:: pHetExcess
+	! 	integer											:: ObsGenos(3), EstGenos(3) ! observed genotypes
 
 
+	! 	write (filout1,'("AlphaFamSeqEditingIndividualCoverage",i0,".txt")') Windows
+	! 	open (unit=1,file=trim(filout1),status="unknown")
 
-! 	write (filout1,'("AlphaFamSeqStatByIndividual",i0,".txt")') Windows
-! 	write (filout2,'("AlphaFamSeqStatByMarker",i0,".txt")') Windows
-! 	write (filout3,'("AlphaFamSeqStatSummary",i0,".txt")') Windows
+	! 	write (filout2,'("AlphaFamSeqEditingMarkerCoverage",i0,".txt")') Windows
+	! 	open (unit=2,file=trim(filout2),status="unknown")
 
-! 	open (unit=1,file=trim(filout1),status="unknown")
-! 	open (unit=2,file=trim(filout2),status="unknown")
-! 	open (unit=3,file=trim(filout3),status="unknown")
+	! 	write (filout3,'("AlphaFamSeqEditingMarkersRemoved",i0,".txt")') Windows
+	! 	open (unit=3,file=trim(filout3),status="unknown")
 
+	! 	write (filout4,'("AlphaFamSeqEditingIndividualReadsRemoved",i0,".txt")') Windows
+	! 	open (unit=4,file=trim(filout4),status="unknown")
 
-! 	write (1,'(a81)') "Id x Markers0Reads Geno%Yield Geno%Correct GenoCor Phase%Yield Phase%Correct PhaseCor Miss1 Miss2"
-! 	write (2,'(a66)') "Snp AlleleFreq Geno%Yield Geno%Correct GenoCor Phase%Yield Phase%Correct PhaseCor"
+	! 	write (filout5,'("AlphaFamSeqEditingPvalueExcessOfHeterozygotes",i0,".txt")') Windows
+	! 	open (unit=5,file=trim(filout5),status="unknown")
 
+	! 	!write (filout3,'("AlphaFamSeqReads",i0,".txt")') Windows
+	! 	!open (unit=3,file=trim(filout3),status="unknown")
 
-! 	do i=1,nInd
+	! 	allocate(ReadsRemoved(nSnp))
+	! 	ReadsRemoved(:)=0
+	! 	MarkersToExclude=0 ! 0=Use The marker ; 1=Don't use the marker
 
-! 		if (trim(GenoFile)/="None") then ! Check Genotypes
-! 			gYield=nSnp-count(CheckGenos(i,:)=='_'))
-! 			gCorrect=count(CheckGenos(i,:)=='*')/gYield
-
-! 			if (gYield==1.0) then
-! 				gCor = Cor(TrueGenos(i,:),FilledGenos(i,:)) ! print*,gCor%Cor
-! 			else if (gYield<1.0) then
-! 				allocate(trueVector(gYield))
-! 				allocate(impVector(gYield))
-! 				p=1
-! 				do j=1,nSnp
-! 					if (FilledGenos(i,j)/=9) then
-! 						trueVector(p)=TrueGenos(i,j)
-! 						impVector(p)=FilledGenos(i,j)
-! 					endif
-! 				enddo
-! 				gCor=Cor(trueVector,impVector) 
-! 				deallocate(trueVector)
-! 				deallocate(impVector)
-! 			endif
-! 		endif
+	! 	do j=1,nSnp
+	! 		covSnp=0
+	! 		!e=0
+	! 		covSnp=sum(RawReads(:,j,:))/dble(nTmpInd)
+	! 		!if (cov.lt.EditingParameter) then
+	! 		!	RawReads(:,j,:)=0
+	! 		!	e=1
+	! 		!endif
+	! 		write (2,'(1i0,1x,1f7.3,1x,1i0)') j,covSnp,e
+	! 	enddo
+	! 	close(2)
 
 
-! 		if (trim(PhaseFile)/="None") then ! Check Phase
-! 			pYield=(2*nSnp)-(count(CheckPhase(i,:,:)=='_')))
-! 			pCorrect=count(CheckPhase(i,:,:)=='*')/pYield
+	! 	nTmpInd=0
+	! 	do i=1,nInd
+	! 		cov(i)=0
+	! 		do j=1,nSnp
+	! 			cov(i)=cov(i)+sum(RawReads(i,j,:))
+	! 		enddo
+	! 		if (cov(i).gt.0) nTmpInd=nTmpInd+1
+	! 		cov(i)=cov(i)/dble(nSnp)
 
-! 			if (pYield==1.0) then
-! 				pCor1 = Cor(TruePhase(i,:,1),FilledPhase(i,:,1)) ! print*,gCor%Cor
-! 				pCor2 = Cor(TruePhase(i,:,2),FilledPhase(i,:,2)) ! print*,gCor%Cor
+	! 		std=0
+	! 		do j=1,nSnp
+	! 			std=std+((sum(RawReads(i,j,:))-cov(i))**2)
+	! 		enddo
+	! 		std=sqrt(std/(dble(nSnp)-1))
+
+	! 		nReadsRemoved=0
+	! 		if (cov(i).gt.0.0) then
+	! 			do j=1,nSnp
+	! 				if (((sum(RawReads(i,j,:))-cov(i))/std).gt.maxStdForReadsCount) then
+	! 					write(4,'(2i20,1f10.6,2i4)'),Ped(i,1),j,cov(i),RawReads(i,j,:)
+	! 					RawReads(i,j,:)=0
+	! 					nReadsRemoved=nReadsRemoved+1
+	! 					ReadsRemoved(j)=ReadsRemoved(j)+1
+	! 				endif
+	! 			enddo
+	! 		endif
+
+	! 		write (1,'(1i0,1f7.3,1f10.6)') Ped(i,1),cov(i),dble(nReadsRemoved)/dble(nSnp)*100
+
+	! 		!write (3,FmtInt) Ped(i,1), RawReads(i,:,1)
+	! 		!write (3,FmtInt) Ped(i,1), RawReads(i,:,2)
+	! 	enddo
+
+	! 	close(1)
+	! 	close(4)
+
+
+	! 	allocate(tmpReads(nTmpInd,2))
+		
+	! 	!!$OMP PARALLEL DO ORDERED DEFAULT(PRIVATE) SHARED (RawReads,nSnp)
+	! 	do j=1,nSnp
 			
-! 			else if (pYield<1.0) then
-				
-! 				allocate(trueVector((nSnp-(count(CheckPhase(i,:,1))))))
-! 				allocate(impVector((nSnp-(count(CheckPhase(i,:,1))))))
-! 				p=1
-! 				do j=1,nSnp
-! 					if (FilledPhase(i,j,1)/=9) then
-! 						trueVector(p)=TruePhase(i,j,1)
-! 						impVector(p)=FilledPhase(i,j,1)
-! 					endif
-! 				enddo
-! 				pCor1=Cor(trueVector,impVector) 
-! 				deallocate(trueVector)
-! 				deallocate(impVector)
+	! 		! 1) Markers with zero reads	
+	! 		if ((maxval(RawReads(:,j,:))==0).or.(ReadsRemoved(j).gt.(dble(nInd)*ThresholdMaxReadsCount))) then
+	! 			write (3,'(1i10,1i20,1i4)') j,position(j),0
+	! 			MarkersToExclude(j)=1
+	! 			RawReads(:,j,:)=0
+	! 		endif
 
-! 				allocate(trueVector((nSnp-(count(CheckPhase(i,:,2))))))
-! 				allocate(impVector((nSnp-(count(CheckPhase(i,:,2))))))
-! 				p=1
-! 				do j=1,nSnp
-! 					if (FilledPhase(i,j,1)/=9) then
-! 						trueVector(p)=TruePhase(i,j,2)
-! 						impVector(p)=FilledPhase(i,j,2)
-! 					endif
-! 				enddo
-! 				pCor2=Cor(trueVector,impVector) 
-! 				deallocate(trueVector)
-! 				deallocate(impVector)
+	! 		! 2) Remove single/double-tones and excess heterozygotes
+			
+	! 		tmpReads=9
+	! 		ObsGenos=0
+	! 		EstGenos=0
+	! 		pHetExcess=0.0
 
-! 			endif
-! 		endif
+	! 		pos=1
+	! 		do i=1,nInd
+	! 			if (cov(i).gt.0.0) then
+	! 				tmpReads(pos,:)=RawReads(i,j,:)
+	! 				pos=pos+1
+	! 			endif
+	! 		enddo
 
-! 		nZeroReads=0
-! 		meanCoverage=0
-! 		do j=1,nSnp
-! 			if (sum(RawReads(i,j,:))==0) nZeroReads=nZeroReads+1
-! 			meanCoverage=meanCoverage+sum(RawReads(i,j,:)
-! 		enddo
+	! 		call ExcessHeterozygotes(tmpReads(:,:),nTmpInd,ObsGenos,EstGenos,pHetExcess)
+
+	! 		if (((ObsGenos(2)+dble(2*ObsGenos(1))).le.ThresholdReadsCount).or.((ObsGenos(2)+dble(2*ObsGenos(3))).le.ThresholdReadsCount)) then
+	! 			if (MarkersToExclude(j).ne.1) then
+	! 				write (3,'(1i10,1i20,1i4)') j,position(j),2
+	! 				MarkersToExclude(j)=1
+	! 			endif
+	! 		endif
+
+	! 		if (MarkersToExclude(j).ne.1) then
+	! 			if (pHetExcess.le.ThresholdExcessHetero) then
+	! 				write (3,'(1i10,1i20,1i4)') j,position(j),1
+	! 				write(5,'(1i20,3i4,5x,3i4,1f10.5)') position(j),ObsGenos(:),EstGenos(:),pHetExcess
+
+	! 				MarkersToExclude(j)=1
+			
+	! 			endif
+	! 		endif
+
+	! 	enddo
+	! 	!!$OMP END PARALLEL DO
+
+	! 	write(*,'(1a10,1x,1i0,1a4,1x,1i0,1a10)'),"Exclude",count(MarkersToExclude(:)==1),"on",nSnp,"Markers"
+
+	! 	deallocate(tmpReads)
 		
-! 		write(1,'(1i10,9d10.5)') Ped(i,1),(meanCoverage/nSnp),(nZeroReads/nSnp),((gYield)/nSnp*100),(gCorrect*100),gCor,((pYield)/2*nSnp*100),(pCorrect*100),((pCor1+pCor2)/2)
+	! 	close (3)
+	! 	close (5)
+end subroutine CleanUpTheRawData
 
-! 	enddo
 
+!###########################################################################################################################################################
+subroutine ExcessHeterozygotes!(ReadsCount,n,ObsGenos,EstGenosInit,pHetExcess)
 
+	! implicit none
 
-! 	! write (filout5,'("AlphaFamSeqPhaseCorrectness",i0,".txt")') Windows
-! 	! write (filout6,'("AlphaFamSeqSummary",i0,".txt")') Windows
-! 	! write (filout7,'("AlphaFamSeqFinalPhaseCharFormat",i0,".txt")') Windows
-! 	! write (filout8,'("AlphaFamSeqAlleleFreqAndGenoCorrectnessByMarker",i0,".txt")') Windows
-
-! 	! open (unit=5,file=trim(filout5),status="unknown")
-! 	! open (unit=6,file=trim(filout6),status="unknown")
-! 	! open (unit=7,file=trim(filout7),status="unknown")
-! 	! open (unit=7,file=trim(filout7),status="unknown")
-! 	! open (unit=8,file=trim(filout8),status="unknown")
+	! integer,intent(in) 						:: n ! Nr of individuals
+	! integer(kind=2),intent(in)				:: ReadsCount(n,2) ! Reads for 1 variant and all individuals
+	! real(kind=8),intent(inout) 				:: pHetExcess
+	! integer,intent(inout)					:: ObsGenos(3),EstGenosInit(3) ! observed  & estimated genotypes
 	
-! 	! write (6,'(a54)') "Id PhaseOrGeno Correct Wrong Missing"
-! 	! write (8,'(a66)') "Snp AlleleFreq Correct Wrong Missing TrueHet cHet wHet nMhomo mHet"
+	! integer									:: EstGenos(3) ! estimated genotypes
+	
+	! integer									:: i,nGeno,RareHomo,CommomHomo,RareCopies,mid,posEst,posObs,FirstInd
+	! real(kind=8),allocatable,dimension(:) 	:: probs,plow,phigh
+	! real(kind=8)							:: SumProbs
 
+	! ObsGenos=0
+	! EstGenos=0
+	! nGeno=0
 
+	! do i=1,n
+	! 	if (sum(ReadsCount(i,:)).gt.0) then
+	! 		if ((ReadsCount(i,1).gt.0).and.(ReadsCount(i,2).eq.0)) ObsGenos(1)=ObsGenos(1)+1
+	! 		if ((ReadsCount(i,1).gt.0).and.(ReadsCount(i,2).gt.0)) ObsGenos(2)=ObsGenos(2)+1
+	! 		if ((ReadsCount(i,1).eq.0).and.(ReadsCount(i,2).gt.0)) ObsGenos(3)=ObsGenos(3)+1
+	! 		nGeno=nGeno+1
+	! 	endif
+	! enddo
 
+	! RareHomo=3
+	! CommomHomo=1
+	! if (ObsGenos(1).lt.ObsGenos(2)) then
+	! 	RareHomo=1 ! if the number of HomoReferenceAllele < HomoAlternativeAllele switch the common and rare allele
+	! 	CommomHomo=3
+	! endif
 
+	! RareCopies=nint(2.0*dble(ObsGenos(RareHomo))+ObsGenos(2))
+	
+	! if (RareCopies.lt.2) then
+	! 	pHetExcess=1
+	! else if (RareCopies.ge.2) then
 
-! 			write (6,'(1i20,1a5,3i10)') Ped(i,1),"G ",count(CheckGenos(i,:)=='*'),count(CheckGenos(i,:)=='/'),count(CheckGenos(i,:)=='_')
+	! 	mid=nint(dble(RareCopies)*dble(2*nGeno-RareCopies)/dble(2*nGeno))
 		
+	! 	if (mid.lt.0) mid=0
+
+	! 	if ((mod(RareCopies,2).eq.0).and.(mod(mid,2).ne.0)) mid=mid+1
+	! 	if ((mod(RareCopies,2).ne.0).and.(mod(mid,2).eq.0)) mid=mid+1
+
+	! 	EstGenos(2)=mid
+	! 	EstGenos(RareHomo)=floor(dble(RareCopies-mid)/2.0)
+	! 	if (EstGenos(RareHomo).lt.0) EstGenos(RareHomo)=0
+	! 	EstGenos(CommomHomo)=nGeno-EstGenos(RareHomo)-EstGenos(2)
+	! 	if (EstGenos(CommomHomo).lt.0) EstGenos(CommomHomo)=0
+
+	! 	EstGenosInit(:)=EstGenos(:)
+		
+	! 	! # we observed 21 copies of the minor allele (RareCopies) --> the observed nr of hetero  (ObsGenos(2)) will vary seq(1,21,2)
+
+	! 	! The number of possible heterozygotes is odd if RareCopies is odd, and is even if RareCopies is even
+	! 	if (mod(RareCopies,2).eq.0) then
+	! 		allocate(probs(0:(RareCopies/2)))
+	! 		allocate(plow(0:(RareCopies/2)))
+			
+	! 		posEst=(mid)/2
+	! 		posObs=ObsGenos(2)/2
+	! 		FirstInd=0
+	! 	else if(mod(RareCopies,2).eq.1) then
+	! 		allocate(probs(1:((RareCopies+1)/2)))
+	! 		allocate(plow(1:((RareCopies+1)/2)))
+			
+	! 		posEst=(mid+1)/2
+	! 		posObs=(ObsGenos(2)+1)/2
+	! 		FirstInd=1
+	! 	endif
+
+	! 	probs(posEst)=1.0
+	! 	SumProbs=probs(posEst)
+
+	! 	! Start to calculate the probabilities using the equations 2 of Am.J.Hum.Genet.76:887-883,2005
+	! 	!
+	! 	!!!  P(NAB=nAB-2|N,nA) = het_probs[curr_hets] * curr_hets * (curr_hets - 1.0) / (4.0 * (curr_homr + 1.0) * (curr_homc + 1.0))
+	! 	!!!  P(NAB=nAB+2|N,nA) = het_probs[curr_hets] * 4.0 * curr_homr * curr_homc	/((curr_hets + 2.0) * (curr_hets + 1.0))
+	! 	do i=posEst,(FirstInd+1),-1
+	! 		probs(i-1)=probs(i)*dble(EstGenos(2))*dble(EstGenos(2)-1.0)/(4.0*dble(EstGenos(RareHomo)+1.0)*dble(EstGenos(CommomHomo)+1.0))
+	! 		EstGenos(2)=EstGenos(2)-2
+	! 		EstGenos(1)=EstGenos(1)+1
+	! 		EstGenos(3)=EstGenos(3)+1
+	! 		SumProbs=SumProbs+probs(i-1)
+	! 	enddo
+
+	! 	EstGenos(2)=mid
+	! 	EstGenos(RareHomo)=floor(dble(RareCopies-mid)/2.0)
+	! 	if (EstGenos(RareHomo).lt.0) EstGenos(RareHomo)=0
+	! 	EstGenos(CommomHomo)=nGeno-EstGenos(RareHomo)-EstGenos(2)
+	! 	if (EstGenos(CommomHomo).lt.0) EstGenos(CommomHomo)=0
+
+	! 	if (EstGenos(2).lt.RareCopies) then
+	! 		do i=posEst,(size(probs)-(2-FirstInd))
+	! 			probs(i+1)=probs(i)*4.0*dble(EstGenos(CommomHomo))*dble(EstGenos(RareHomo))/(dble(EstGenos(2)+2.0)*dble(EstGenos(2)+1.0))
+	! 			EstGenos(2)=EstGenos(2)+2
+	! 			EstGenos(1)=EstGenos(1)-1
+	! 			EstGenos(3)=EstGenos(3)-1
+	! 			SumProbs=SumProbs+probs(i+1)
+	! 		enddo
+	! 	endif
+		
+	! !		if ((ObsGenos(1)==611).and.(ObsGenos(2)==0).and.(ObsGenos(3)==1)) print*,probs(:)
+
+
+	! 	probs(:)=probs(:)/SumProbs
+	! 	plow=1
+	! 	plow(FirstInd)=probs(FirstInd)
+
+	! !		if ((ObsGenos(1)==611).and.(ObsGenos(2)==0).and.(ObsGenos(3)==1)) print*,probs(:)
+
+	! 	do i=(FirstInd+1),(size(probs)-1)
+	! 		plow(i)=plow(i-1)+probs(i)
+	! 	enddo
 
 
 
+	! !		if ((ObsGenos(1)==611).and.(ObsGenos(2)==0).and.(ObsGenos(3)==1)) print*,plow(:),posObs
+	! 	if (FirstInd.eq.0) then
+	! 		if (posObs.gt.0) pHetExcess=1-plow(posObs-1)
+	! 		if (posObs.eq.0) pHetExcess=1
+	! 	endif
 
-! 		if (trim(PhaseFile)/="None") then
-! 			!write (5,FmtCha) Ped(i,1),CheckPhase(i,:,1)
-! 			!write (5,FmtCha) Ped(i,1),CheckPhase(i,:,2)
-! 			write (6,'(1i20,1a5,3i10)') Ped(i,1),"P1",count(CheckPhase(i,:,1)=='*'),count(CheckPhase(i,:,1)=='/'),count(CheckPhase(i,:,1)=='_')
-! 			write (6,'(1i20,1a5,3i10)') Ped(i,1),"P2",count(CheckPhase(i,:,2)=='*'),count(CheckPhase(i,:,2)=='/'),count(CheckPhase(i,:,2)=='_')
+	! 	if (FirstInd.eq.1) then
+	! 		if (posObs.gt.1) pHetExcess=1-plow(posObs-1)
+	! 		if (posObs.eq.1) pHetExcess=1
+	! 	endif
 
-! 			CharPhase='_'
-! 			do j=1,nSnp
-! 				do e=1,2
-! 					if (FilledPhase(i,j,e)==1) CharPhase(j,e)='1'
-! 					if (FilledPhase(i,j,e)==0) CharPhase(j,e)='0'
-! 				enddo
-! 			enddo
-! 			write (7,FmtCha) Ped(i,1),CharPhase(:,1)
-! 			write (7,FmtCha) Ped(i,1),CharPhase(:,2)
-! 		endif
+	! 	deallocate(probs)
+	! 	deallocate(plow)
+	! endif
+end subroutine ExcessHeterozygotes
+
+!###########################################################################################################################################################
+ 
+subroutine ReadSamFile
+	
+	! 	use GlobalPars
+	! 	use omp_lib
+		
+	! 	implicit none
+
+	! 	integer :: i,j,k,HapLength,tmpId,wp,wm,cp,cm
+	! 	integer,allocatable,dimension(:) :: SamHap,HapPos
+	! 	real 	:: LikeP,LikeM
+	! 	real(kind=8) :: p0,m0
+	! 	character(len=100) :: filout12
+	! 	logical :: exist12
+
+	! 	allocate(HapPos(5000))
+	! 	allocate(SamHap(5000))
 
 
-! 			if (trim(GenoFile)/="None") then
-! 		do j=1,nSnp
-! 			Af=0
-! 			nC=0
-! 			nW=0
-! 			nM=0
-! 			nThet=0
-! 			nChet=0
-! 			nWhet=0
-! 			nMhet=0
-! 			nMhomo=0
-! 			Af=real(sum(TrueGenos(:,j)))/real(nInd*2)
-! 			nC=count(CheckGenos(:,j)=='*')
-! 			nW=count(CheckGenos(:,j)=='/')
-! 			nM=count(CheckGenos(:,j)=='_')
-! 			nThet=count(TrueGenos(:,j)==1)
-! 			do i=1,nInd
-! 				if (TrueGenos(i,j)==1) then
-! 					if (FilledGenos(i,j)==1)  nChet=nChet+1
-! 					if ((FilledGenos(i,j)/=1).and.(FilledGenos(i,j)/=9))  nWhet=nWhet+1
-! 					!if (FilledGenos(i,j)==9)  nMhet=nMhet+1
-! 				endif
+	! 	do i=nInd,1,-1
+	! 		tmpId=0
+	! 		HapLength=0
+	! 		HapPos=0
+	! 		SamHap=9
 
-! 				if (FilledGenos(i,j)==9) then
-! 					if (TrueGenos(i,j)==1)  nMhet=nMhet+1
-! 					if (TrueGenos(i,j)/=1)  nMhomo=nMhomo+1
-! 				endif
+	! 		cp=0
+	! 		cm=0
+	! 		wp=0
+	! 		wm=0
+	! 		write (filout12,'(i0,".FilledPhase.txt")') Ped(i,1)
+	! 		inquire  (file=trim(filout12),exist=exist12)
+	! 		if (exist12) then
+	! 			open(unit=12, file=trim(filout12), status="unknown")
 
-! 			enddo
-! 			write (8,'(1i20,1f10.5,8i10)') j,Af,nC,nW,nM,nThet,nChet,nWhet,nMhomo,nMhet
-! 		enddo
-! 	endif
+	! 			do 
+	! 				read(12,*,end=12),tmpId,HapLength,(HapPos(k),k=1,HapLength)
+	! 		    	read(12,*),tmpId,HapLength,(SamHap(k),k=1,HapLength)
+	! 		    	!print*,tmpId,HapLength,HapPos(1:HapLength)
 
-! enddo
+	! 		    	LikeP=log(.5)
+	! 		    	LikeM=log(.5)
 
-! 	close (5)
-! 	close (6)
-! 	close (7)
+	! 			    do j=1,HapLength
+	! 			        p0=Pr00(i,HapPos(j))+Pr01(i,HapPos(j))
+	! 			        m0=Pr00(i,HapPos(j))+Pr10(i,HapPos(j))
+				        
+	! 			        if (p0.lt.0.0000001) p0=0.0000001
+	! 			        if (m0.lt.0.0000001) m0=0.0000001
 
-! end subroutine WriteStatistics
+	! 			        if (p0.gt.0.9999999) p0=0.9999999
+	! 			        if (m0.gt.0.9999999) m0=0.9999999
+
+	! 			      if (SamHap(j)==0) then
+	! 			        LikeP=LikeP+log(p0)
+	! 			        LikeM=LikeM+log(m0)
+	! 			      else if (SamHap(j)==1) then
+	! 			        LikeP=LikeP+log(abs(p0-1))
+	! 			        LikeM=LikeM+log(abs(m0-1))
+	! 			      endif
+	! 			    enddo
+
+	! 			    !if (i==1) print*,LikeP,LikeM
+	! 			    if (LikeP.gt.LikeM) then ! The haplotype is paternal
+	! 			      do j=1,HapLength
+	! 			        if (FilledPhase(i,HapPos(j),1)==9) then
+	! 			        	cp=cp+1
+	! 			        	FilledPhase(i,HapPos(j),1)=SamHap(j)
+	! 			        	FilledGenos(i,HapPos(j))=1
+	! 			        endif
+	! 			        if (FilledPhase(i,HapPos(j),2)==9) then
+	! 			        	cm=cm+1
+	! 			        	FilledPhase(i,HapPos(j),2)=abs(SamHap(j)-1)
+	! 			        	FilledGenos(i,HapPos(j))=1
+	! 			        endif
+
+	! 			      	if (FilledPhase(i,HapPos(j),1)/=SamHap(j)) then
+	! 			      		wp=wp+1
+	! 			      		FilledPhase(i,HapPos(j),1)=9
+	! 			      		FilledGenos(i,HapPos(j))=1
+	! 			      	endif
+	! 			      	if (FilledPhase(i,HapPos(j),2)/=abs(SamHap(j)-1)) then
+	! 			      		wm=wm+1
+	! 			      		FilledPhase(i,HapPos(j),1)=9
+	! 			      		FilledGenos(i,HapPos(j))=1
+	! 			      	endif
+	! 			      enddo
+	! 			    endif
+				    
+	! 			    if (LikeM.gt.LikeP) then ! The haplotype is maternal
+	! 			      do j=1,HapLength
+	! 			        if (FilledPhase(i,HapPos(j),2)==9) then
+	! 			        	cm=cm+1
+	! 			        	FilledPhase(i,HapPos(j),2)=SamHap(j)
+	! 			        	FilledGenos(i,HapPos(j))=1
+	! 			        endif
+	! 			        if (FilledPhase(i,HapPos(j),1)==9) then
+	! 			        	cp=cp+1
+	! 			        	FilledPhase(i,HapPos(j),1)=abs(SamHap(j)-1)
+	! 			        	FilledGenos(i,HapPos(j))=1
+	! 			        endif
+
+	! 			      	if (FilledPhase(i,HapPos(j),2)/=SamHap(j)) then
+	! 			      		wm=wm+1
+	! 			      		FilledPhase(i,HapPos(j),1)=9
+	! 			      		FilledGenos(i,HapPos(j))=1
+	! 			      	endif
+	! 			      	if (FilledPhase(i,HapPos(j),1)/=abs(SamHap(j)-1)) then
+	! 			      		wp=wp+1
+	! 			      		FilledPhase(i,HapPos(j),1)=9
+	! 			      		FilledGenos(i,HapPos(j))=1
+	! 			      	endif
+	! 			      enddo
+	! 			    endif
+
+	! 			   	if (LikeM.eq.LikeP) then
+	! 			      do j=1,HapLength
+	! 			      	if (FilledGenos(i,HapPos(j))/=1) then
+	! 			      		FilledGenos(i,HapPos(j))=1
+	! 			      		FilledPhase(i,HapPos(j),:)=9
+	! 			      	endif
+	! 			      enddo
+	! 			    endif
+	! 			enddo
+	! 			12 close(12)
+	! 			if (tmpId.ne.0) print*,tmpId,cp,cm,wp,wm
+	! 		endif
+	! 	enddo
+end subroutine ReadSamFile
