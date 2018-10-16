@@ -254,6 +254,8 @@ module specFileModule
     enddo
 
     close(1)
+
+    EndPos = nSnp
 end subroutine ReadSpecfile
 
 

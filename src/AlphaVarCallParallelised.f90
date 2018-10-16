@@ -56,7 +56,6 @@ contains
         endif
         print*,i,SeqSire(i),SeqDam(i)
       enddo
-
       ReadCountsTmp=ped%convertsequencedatatoarray()
       InputGenosTmp=ped%getgenotypesasarray()
 
@@ -176,6 +175,7 @@ contains
         endif
 
         if (Seq0Snp1Mode==1) then
+            print *, "allocating"
 
             allocate(GMatSnp(1:3,1:3)) ! MBattagin the first and second subscript were "0:2" instead of "1:3" - TODO: make sure it doesn't create problems
 
@@ -482,8 +482,8 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
         integer, intent(in) :: nAnis
         integer(int64), intent(in), dimension (:) :: SeqSire(nAnis),SeqDam(nAnis)
 
-        real(kind=8),intent(in),dimension(:,:) :: GMatSnp(1:3,1:3)
-        real(kind=8),intent(in),dimension(:,:,:) :: GMatRds(0:MaxReadCounts,3,MaxReadCounts)
+        real(kind=8),intent(in),dimension(:,:), allocatable :: GMatSnp
+        real(kind=8),intent(in),dimension(:,:,:),allocatable :: GMatRds
 
 	      integer(kind=1),intent(in),dimension(:,:) :: InputGenos 
 	      integer(kind=2),intent(in),dimension(:,:,:) :: ReadCounts 
@@ -640,7 +640,6 @@ subroutine geneprob(currentSnp,nAnis,Seq0Snp1Mode,ReadCounts,InputGenos,maxfs,Ma
                   do i = 1,3
                       
                       if (phen(ia).eq.i) then
-                          
                           if (GMatSnp(i,1).lt.(.000000001)) then 
                               freq(1,ia) =-9999
                           else
